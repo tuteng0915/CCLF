@@ -1,47 +1,120 @@
-# Python
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
 .ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
 
-# Virtual environments
+# Python packaging/build outputs
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# Virtual environments and local environment files
 venv/
 .venv/
 env/
-.env/
+.env
+.env.*
+!.env.example
+.conda/
+conda-meta/
 
-# Large binary / model files
+# Local editor/OS/tool state
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.agents/
+.codex/
+
+# Logs and scheduler output
+logs/
+*.log
+*.out
+*.err
+slurm-*.out
+
+# Experiment and training outputs
+outputs/
+output/
+results/
+runs/
+artifacts/
+checkpoints/
+checkpoint*/
+lightning_logs/
+wandb/
+mlruns/
+tensorboard/
+
+# Local datasets and generated analysis data
+data/
+datasets/
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.joblib
+*.jsonl
+
+# Model weights, generated binaries, and external model repositories
+models/
 *.pt
 *.pth
 *.bin
 *.safetensors
 *.ckpt
 *.h5
+*.onnx
+*.pb
+*.gguf
 
-# Large data files (token_centroids.npz is 63MB — use git-lfs if needed)
-*.npz
-*.npy
-*.pkl
+# Compiled/native artifacts
+*.so
+*.dylib
+*.dll
+*.o
+*.a
+*.class
 
-# HuggingFace and training artifacts
-wandb/
-lightning_logs/
-outputs/
-checkpoints/
-*.log
+# HuggingFace/cache directories when pointed inside the repo
+.cache/
+hf_cache/
+.hf_cache/
+huggingface/
+transformers_cache/
+datasets_cache/
 
-# Models are separate git repos — not tracked here
-models/
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.orig
 
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-.agents/
-results/
-logs/
+# LaTeX/paper build byproducts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.toc

@@ -392,7 +392,8 @@ ALL_METRICS = [
     "w2c_masked", "c2w_masked",
     # bimodality of entropy distribution across all masked positions
     "bimodality_coeff_masked",
-    # all-position sanity check
+    # all-position metrics
+    "entropy_all",
     "top1_gt_all",
 ]
 
@@ -424,6 +425,7 @@ def compute_metrics_mdlm(
 
         # Aggregate across noise seeds
         a_ent, a_ent_p = [], []
+        a_ent_all = []
         a_t1_mask, a_t5_mask, a_t1_all = [], [], []
         a_sc_frac, a_sc_cor, a_sc_wrg  = [], [], []
         a_jsd, a_rev, a_w2c, a_c2w     = [], [], [], []
@@ -483,7 +485,9 @@ def compute_metrics_mdlm(
                     if sc[ii] and np.isnan(commit_times[si, idx]):
                         commit_times[si, idx] = t_grid[ti]
 
-            # ── All-position top-1 gt ────────────────────────────────────────
+            # ── All-position metrics ─────────────────────────────────────────
+            H_all = token_entropy(p_all)
+            a_ent_all.append(float(H_all.mean()))
             a_t1_all.append(float((np.argmax(p_all, -1) == gt_ids).mean()))
 
             # ── Inter-step JSD + transition (masked positions only) ──────────
@@ -527,6 +531,7 @@ def compute_metrics_mdlm(
         out["w2c_masked"].append(mv(a_w2c))
         out["c2w_masked"].append(mv(a_c2w))
         out["bimodality_coeff_masked"].append(mv(a_bim))
+        out["entropy_all"].append(mv(a_ent_all))
         out["top1_gt_all"].append(mv(a_t1_all))
 
     # Commitment time stats
