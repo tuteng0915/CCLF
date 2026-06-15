@@ -1,0 +1,8 @@
+# Baseline: standard ODE sampling (no decode-branch SC)
+# Sweeps over step counts; each becomes a separate output run.
+- sampling_method: ode
+  num_sampling_steps: [1, 2, 4, 8, 50]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: false

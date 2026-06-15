@@ -1,0 +1,8 @@
+# Treatment: decode-branch self-conditioning (+1 fwd pass/step, no retraining)
+# Identical to sampling_baseline.yml except use_dec_sc: true.
+- sampling_method: ode
+  num_sampling_steps: [1, 2, 4, 8, 50]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: true

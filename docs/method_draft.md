@@ -50,15 +50,15 @@ where \(\mathrm{sg}(\cdot)\) denotes stop-gradient. The decode pass is therefore
 + \lambda \mathcal{L}_{\mathrm{PDC}}.
 \]
 
-The schedule \(\mu(t)\) is derived from the measured decode advantage \(G_{\mathrm{dec}}(t)\). We set \(\mu(t)=0\) for \(t<0.25\), since the pre-cliff signal is dominated by noisy wrong commitments; \(\mu(t)\propto G_{\mathrm{dec}}(t)\) for \(t \in [0.25,0.95]\); and \(\mu(t)=0\) for \(t>0.95\), avoiding the known two-pass artifact at \(t=1.0\). The fitted schedule from the current analysis is
+The schedule \(\mu(t)\) is derived from the measured decode advantage \(G_{\mathrm{dec}}(t)\). We set \(\mu(t)=0\) for \(t<0.25\), since the pre-cliff signal is dominated by noisy wrong commitments; \(\mu(t)\propto G_{\mathrm{dec}}(t)\) for \(t \in [0.25,0.95)\); and \(\mu(t)=0\) for \(t\ge 0.95\), avoiding the known two-pass artifact at \(t=1.0\). The JSON-derived fit is
 
 \[
 \mu(t) \approx
-0.9497 \cdot (t-0.25)^{0.0309}
-\cdot (0.95-t)^{0.1374},
+0.8340 \cdot (t-0.25)^{0.0197}
+\cdot (0.95-t)^{0.1027},
 \]
 
-for \(t \in [0.25,0.95]\), and zero outside this window (`results/elf/snr_analysis/analysis.json`, key `beta_fit`). The updated JSON-derived schedule gives a similar active window and peaks at \(t=0.35\) (`results/elf/pdc_schedule/mu_t_schedule.json`, fields `t`, `mu_t`, `fit`). Intuitively, this loss guides the denoising trajectory to internalize the decode correction residual, so that by the time \(t\) reaches the plateau, the latent state is already closer to the token manifold without requiring a second pass.
+for \(t \in [0.25,0.95)\), and zero outside this window (`results/elf/pdc_schedule/mu_t_schedule.json`, fields `fit`, `t`, `mu_t`, and `gdec_source`). The normalized schedule peaks at \(t=0.35\) with \(\mu(t)=1.0\), matching the maximum measured decode gap \(G_{\mathrm{dec}}=0.276\) at the same timestep. Intuitively, this loss guides the denoising trajectory to internalize the decode correction residual, so that by the time \(t\) reaches the plateau, the latent state is already closer to the token manifold without requiring a second pass.
 
 ## 3.4 Connection to Fate Tracking
 

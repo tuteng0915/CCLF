@@ -394,7 +394,8 @@ ALL_METRICS = [
     "bimodality_coeff_masked",
     # all-position metrics
     "entropy_all",
-    "top1_gt_all",
+    "top1_gt_all", "top5_gt_all",
+    "jsd_all", "rev_top1_all", "w2c_all", "c2w_all",
 ]
 
 SCALAR_KEYS = ["commit_time_mean", "commit_time_std", "never_committed_frac"]
@@ -415,6 +416,7 @@ def compute_metrics_mdlm(
     out["t"] = t_grid.tolist()
 
     prev_p_masked   = [None] * N   # previous-step p for each seed (masked positions, ragged)
+    prev_p_all      = [None] * N   # previous-step p for all positions
     prev_correct_ag = None         # [L] bool, aggregate over seeds
 
     # For soft commitment time tracking: per (noise-seed, position) → first t where H<thresh
@@ -426,9 +428,10 @@ def compute_metrics_mdlm(
         # Aggregate across noise seeds
         a_ent, a_ent_p = [], []
         a_ent_all = []
-        a_t1_mask, a_t5_mask, a_t1_all = [], [], []
+        a_t1_mask, a_t5_mask, a_t1_all, a_t5_all = [], [], [], []
         a_sc_frac, a_sc_cor, a_sc_wrg  = [], [], []
         a_jsd, a_rev, a_w2c, a_c2w     = [], [], [], []
+        a_jsd_all, a_rev_all, a_w2c_all, a_c2w_all = [], [], [], []
         a_bim                           = []
         mask_rates                      = []
 
@@ -486,9 +489,23 @@ def compute_metrics_mdlm(
                         commit_times[si, idx] = t_grid[ti]
 
             # ── All-position metrics ─────────────────────────────────────────
-            H_all = token_entropy(p_all)
+            H_all   = token_entropy(p_all)
+            top1_all = np.argmax(p_all, -1)
+            correct_all = (top1_all == gt_ids)
             a_ent_all.append(float(H_all.mean()))
-            a_t1_all.append(float((np.argmax(p_all, -1) == gt_ids).mean()))
+            a_t1_all.append(float(correct_all.mean()))
+            top5_all = np.argsort(p_all, axis=-1)[:, -5:]
+            a_t5_all.append(float((top5_all == gt_ids[:, None]).any(-1).mean()))
+
+            # inter-step all-position transitions
+            if prev_p_all[si] is not None:
+                a_jsd_all.append(jsd_scalar(prev_p_all[si], p_all))
+                prev_top1_all = np.argmax(prev_p_all[si], -1)
+                prev_c_all = (prev_top1_all == gt_ids)
+                a_rev_all.append(float((prev_top1_all != top1_all).mean()))
+                a_w2c_all.append(float((~prev_c_all &  correct_all).mean()))
+                a_c2w_all.append(float(( prev_c_all & ~correct_all).mean()))
+            prev_p_all[si] = p_all
 
             # ── Inter-step JSD + transition (masked positions only) ──────────
             if n_masked > 0 and prev_p_masked[si] is not None:
@@ -533,6 +550,11 @@ def compute_metrics_mdlm(
         out["bimodality_coeff_masked"].append(mv(a_bim))
         out["entropy_all"].append(mv(a_ent_all))
         out["top1_gt_all"].append(mv(a_t1_all))
+        out["top5_gt_all"].append(mv(a_t5_all))
+        out["jsd_all"].append(mv(a_jsd_all))
+        out["rev_top1_all"].append(mv(a_rev_all))
+        out["w2c_all"].append(mv(a_w2c_all))
+        out["c2w_all"].append(mv(a_c2w_all))
 
     # Commitment time stats
     out["commit_time_mean"]     = float(np.nanmean(commit_times))
