@@ -1,0 +1,23 @@
+# A4 ablation: use x̂_{k-1} vs zeros as SC input inside decode branch
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: false
+
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: true
+  dec_sc_use_prev_sc: false
+
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: true
+  dec_sc_use_prev_sc: true

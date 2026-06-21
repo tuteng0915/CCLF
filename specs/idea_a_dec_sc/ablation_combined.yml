@@ -1,0 +1,34 @@
+# A3+A4 combination: test alpha=0.5 + prev_sc=True vs each alone
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: false
+
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: true
+  dec_sc_alpha: 0.5
+  dec_sc_use_prev_sc: false
+
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: true
+  dec_sc_alpha: 1.0
+  dec_sc_use_prev_sc: true
+
+- sampling_method: ode
+  num_sampling_steps: [4, 8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: true
+  dec_sc_alpha: 0.5
+  dec_sc_use_prev_sc: true
