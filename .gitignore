@@ -75,7 +75,6 @@ datasets/
 *.jsonl
 
 # Model weights, generated binaries, and external model repositories
-models/
 *.pt
 *.pth
 *.bin
