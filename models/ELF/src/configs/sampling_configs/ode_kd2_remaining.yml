@@ -1,0 +1,7 @@
+# kd2 ODE: missing steps 8, 16, 32, 64, 128
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32, 64, 128]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  use_dec_sc: false

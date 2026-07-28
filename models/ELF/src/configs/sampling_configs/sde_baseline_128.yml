@@ -1,0 +1,8 @@
+# Baseline SDE: missing step 128
+- sampling_method: sde
+  num_sampling_steps: [128]
+  cfgs: [1]
+  sde_gamma: 1.0
+  self_cond_cfg_scales: [3]
+  time_schedule: logit_normal
+  use_dec_sc: false

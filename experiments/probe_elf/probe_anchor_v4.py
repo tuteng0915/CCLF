@@ -101,6 +101,11 @@ def jsd_per_pos(p_prev: np.ndarray, p_curr: np.ndarray) -> np.ndarray:
                 + (pc * (np.log(pc) - np.log(m))).sum(-1))   # [L]
 
 
+def anchor_distance(x_hat: np.ndarray, p: np.ndarray, E: np.ndarray) -> float:
+    """mean_L ||x̂_i − (p_i @ E)||.  E: [V, d]"""
+    return float(np.linalg.norm(x_hat - p @ E, axis=-1).mean())
+
+
 def geometric_anchoring(x_hat, p, E, E_sq):
     """(d_soft, d_nn, margin) averaged over positions."""
     soft_anchor = p @ E                                           # [L, d]

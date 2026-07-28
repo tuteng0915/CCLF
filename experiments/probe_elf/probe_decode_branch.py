@@ -48,7 +48,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ELF_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ELF_SRC = os.path.join(_SCRIPT_DIR, "src")
+if not os.path.isdir(ELF_SRC):
+    ELF_SRC = os.path.join(_SCRIPT_DIR, "..", "..", "models", "ELF", "src")
+    ELF_SRC = os.path.normpath(ELF_SRC)
 if ELF_SRC not in sys.path:
     sys.path.insert(0, ELF_SRC)
 

@@ -1,0 +1,58 @@
+#!/bin/bash
+#PBS -N ans_logit_var
+#PBS -P ds_ccds_wei.lu
+#PBS -q gpu_ded
+#PBS -l select=1:ncpus=12:ngpus=1
+#PBS -l walltime=04:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+module purge
+module load anaconda/2025
+module load cuda/13.1
+eval "$(/usr/local/anaconda2025/bin/conda shell.bash hook)"
+conda activate opsd
+
+cd /home/xiaoyan.yu/projects/OPSD
+export PYTHONUNBUFFERED=1
+
+if echo "${CUDA_VISIBLE_DEVICES:-}" | grep -q "GPU-"; then
+    GPU_COUNT=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | wc -l)
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES
+fi
+
+echo "Job: ${PBS_JOBID}  Node: $(hostname)  GPU: ${CUDA_VISIBLE_DEVICES:-unset}"
+nvidia-smi -L
+
+MODEL="${MODEL:-${HOME}/models/Qwen3-4B}"
+N_PROBLEMS="${N_PROBLEMS:-20}"
+N_SAMPLE="${N_SAMPLE:-12}"
+MIN_CORRECT="${MIN_CORRECT:-3}"
+TAG="${TAG:-qwen3_4b}"
+
+OUTPUT="results/answer_logit_variance_${TAG}.json"
+mkdir -p results pbs/logs
+
+exec > "pbs/logs/answer_logit_variance_${TAG}.${PBS_JOBID}.log" 2>&1
+
+echo "Model:       ${MODEL}"
+echo "N_problems:  ${N_PROBLEMS}"
+echo "N_sample:    ${N_SAMPLE}"
+echo "Min_correct: ${MIN_CORRECT}"
+echo "Output:      ${OUTPUT}"
+
+python -u scripts/answer_logit_variance.py \
+    --model         "${MODEL}" \
+    --n_problems    "${N_PROBLEMS}" \
+    --n_sample      "${N_SAMPLE}" \
+    --min_correct   "${MIN_CORRECT}" \
+    --max_new_tokens 4096 \
+    --temperature   0.9 \
+    --top_p         0.95 \
+    --top_k         20 \
+    --gpu_memory_utilization 0.5 \
+    --output_file   "${OUTPUT}"
+
+echo "=== DONE ==="
