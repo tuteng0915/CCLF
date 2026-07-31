@@ -2,7 +2,37 @@
 
 快速参考表。每个实验的详细 spec 见 `EXP-{XX}-spec.md`。
 
-**更新时间**: 2026-07-27（EXP-54b/54c DONE：多种子 CI 确认 I=−130±9；SC_T_MIN=0.5 gate 为关键且充分；71 实验 total）
+**更新时间**: 2026-07-31（新增 GS16--GS23 mechanism-paper follow-up specs；均为 PLANNED，不计入已完成实验数）
+
+---
+
+## Mechanism Paper Follow-up（2026-07-31）
+
+这组实验直接对应当前论文审稿风险，按“先确认机制 → 再排除替代解释 → 最后验证方法与跨模型泛化”排序。
+
+| EXP | 优先级 | 状态 | 模型 | 核心问题 | 决策用途 |
+|-----|--------|------|------|----------|----------|
+| **EXP-GS16** | **P0** | PLANNED | ELF→LangFlow→CDCD | 当前状态是否已经对自己的 endpoint 具有特异性？ | curved transport vs exploration--collapse |
+| **EXP-GS17** | **P0** | PLANNED | ELF+LangFlow→CDCD | 局部 residual velocity 是 endpoint-parallel 还是 orthogonal？ | 用局部动力学替代 GS15 chord 推断 |
+| **EXP-GS18** | **P0** | PLANNED | ELF→LangFlow | first crossing、stable commitment、affinity collapse 与 collective peak 是否真正在同一窗口？ | 定位 transition time |
+| **EXP-GS19** | **P0 prerequisite** | PLANNED | ELF→LangFlow | GS14 branch contraction 是否只是剩余积分时间/扰动放大变化？ | 校准 branching，并给 GS16 提供固定 endpoint bank |
+| **EXP-GS20** | **P1** | PLANNED | ELF | GS12 residual 优势是否只是维度和能量不匹配？ | rank/energy-matched identification |
+| **EXP-GS21** | **P1** | PLANNED | ELF→LangFlow | collective peak 是否由 sequence-level common factor 造成？ | collective coordination 的严格 null |
+| **EXP-GS22** | **P2** | PLANNED | ELF→LangFlow | 异步收益来自语言方向、breaking synchrony，还是 confidence anchors？ | WFF 训练前的因果 schedule ablation |
+| **EXP-GS23** | **P2** | PLANNED | CDCD | 第三类连续扩散模型是否复现 endpoint specificity、velocity 与稳定化结果？ | 跨架构边界与泛化 |
+
+推荐执行顺序：
+
+```text
+GS19 calibration
+    -> GS16 fixed endpoint bank
+    -> GS17 local velocity
+    -> GS18 unified timing
+    -> GS21 common-factor controls
+    -> GS22 asynchronous intervention
+
+GS20 可独立并行；GS23 在 CDCD adapter sanity checks 后复现 GS16--GS19。
+```
 
 ---
 
