@@ -1,37 +1,32 @@
 # CCLF Experiment Index
 
-快速参考表。每个实验的详细 spec 见 `EXP-{XX}-spec.md`。
+完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
+`DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-07-31（新增 GS16--GS23 mechanism-paper follow-up specs；均为 PLANNED，不计入已完成实验数）
+**更新时间**: 2026-07-31（active queue 已从 8 个 follow-up specs 合并为 5 个 packages）
 
 ---
 
-## Mechanism Paper Follow-up（2026-07-31）
+## Mechanism Paper Follow-up — 精简后的当前队列
 
-这组实验直接对应当前论文审稿风险，按“先确认机制 → 再排除替代解释 → 最后验证方法与跨模型泛化”排序。
+当前真正决定论文的只有 GS16 和 GS17。GS18 是按需控制，GS19 是方法验证，GS20 是延后到核心机制明确后的 CDCD 复现。
 
-| EXP | 优先级 | 状态 | 模型 | 核心问题 | 决策用途 |
-|-----|--------|------|------|----------|----------|
-| **EXP-GS16** | **P0** | PLANNED | ELF→LangFlow→CDCD | 当前状态是否已经对自己的 endpoint 具有特异性？ | curved transport vs exploration--collapse |
-| **EXP-GS17** | **P0** | PLANNED | ELF+LangFlow→CDCD | 局部 residual velocity 是 endpoint-parallel 还是 orthogonal？ | 用局部动力学替代 GS15 chord 推断 |
-| **EXP-GS18** | **P0** | PLANNED | ELF→LangFlow | first crossing、stable commitment、affinity collapse 与 collective peak 是否真正在同一窗口？ | 定位 transition time |
-| **EXP-GS19** | **P0 prerequisite** | PLANNED | ELF→LangFlow | GS14 branch contraction 是否只是剩余积分时间/扰动放大变化？ | 校准 branching，并给 GS16 提供固定 endpoint bank |
-| **EXP-GS20** | **P1** | PLANNED | ELF | GS12 residual 优势是否只是维度和能量不匹配？ | rank/energy-matched identification |
-| **EXP-GS21** | **P1** | PLANNED | ELF→LangFlow | collective peak 是否由 sequence-level common factor 造成？ | collective coordination 的严格 null |
-| **EXP-GS22** | **P2** | PLANNED | ELF→LangFlow | 异步收益来自语言方向、breaking synchrony，还是 confidence anchors？ | WFF 训练前的因果 schedule ablation |
-| **EXP-GS23** | **P2** | PLANNED | CDCD | 第三类连续扩散模型是否复现 endpoint specificity、velocity 与稳定化结果？ | 跨架构边界与泛化 |
+| package | 优先级 | 状态 | 核心问题 | 合并内容 |
+|-----|--------|------|----------|----------|
+| **EXP-GS16** | **P0** | ACTIVE | endpoint 是否很早已经 specific，还是晚期 collapse？ | 原 GS16 endpoint affinity + 原 GS19 calibrated branching |
+| **EXP-GS17** | **P0** | ACTIVE | residual 如何运动，transition 何时发生？ | 原 GS17 velocity + 原 GS18 unified timeline |
+| **EXP-GS18** | P1 | CONDITIONAL | supporting claims 是否经得住严格 null？ | 原 GS20 rank/energy control + 原 GS21 common-factor control |
+| **EXP-GS19** | P2 | AFTER P0 | 异步收益来自方向、破缺同步还是 confidence anchors？ | 原 GS22 schedule ablation |
+| **EXP-GS20** | P2 | DEFERRED | CDCD 是否复现核心机制？ | 原 GS23 minimal replication |
 
 推荐执行顺序：
 
 ```text
-GS19 calibration
-    -> GS16 fixed endpoint bank
-    -> GS17 local velocity
-    -> GS18 unified timing
-    -> GS21 common-factor controls
-    -> GS22 asynchronous intervention
-
-GS20 可独立并行；GS23 在 CDCD adapter sanity checks 后复现 GS16--GS19。
+GS16 calibrated endpoint bank + specificity
+    -> GS17 local velocity + unified timing
+    -> GS18 only if the corresponding supporting claim remains central
+    -> GS19 asynchronous intervention
+    -> GS20 CDCD replication
 ```
 
 ---

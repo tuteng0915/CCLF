@@ -1,9 +1,9 @@
-# EXP-GS16 Spec — Fixed-Bank Endpoint Specificity and Affinity Collapse (P0)
+# EXP-GS16 Spec — Calibrated Endpoint Bank, Specificity, and Affinity Collapse (P0)
 
-**Status**: PLANNED  
-**Priority**: P0 — 决定论文能否区分 curved transport 与 exploration--collapse  
-**Models**: ELF baseline first; then LangFlow; CDCD after GS23 adapter  
-**Proposed script**: `experiments/global_state/analyze_endpoint_specificity.py`  
+**Status**: ACTIVE
+**Priority**: P0 — 决定论文能否区分 curved transport 与 exploration--collapse
+**Models**: ELF baseline first; then LangFlow; CDCD after GS20 adapter
+**Proposed script**: `experiments/global_state/analyze_endpoint_specificity.py`
 **Output**: `results/global_state/<model>/<checkpoint>/endpoint_specificity_<label>.{json,npz}`
 
 ## 1. Scientific question
@@ -22,7 +22,29 @@ The two competing mechanisms make different predictions:
 | curved transport | positive early | low or smoothly decreasing | self-specificity precedes stability |
 | exploration--collapse | near zero early | high, then sharp fall | entropy collapse aligns with stability |
 
-## 2. Why the candidate endpoint bank must be fixed
+## 2. Stage 0: calibrate branching before building the bank
+
+This stage absorbs the former GS19 spec. GS14 used a fixed state-relative
+perturbation, so later checkpoints may look more stable simply because less
+integration time remains. Before interpreting endpoint diversity, calibrate the
+perturbation at the bank split time with two protocols:
+
+1. **one-step matched impact**: choose `eta_t` by bisection so the median
+   relative divergence after one native solver step equals
+   `kappa_step in {1e-4, 3e-4, 1e-3}`;
+2. **terminal-linearized matched impact**: estimate remaining-flow amplification
+   with JVPs or finite differences and choose `eta_t` so predicted continuous
+   terminal displacement is matched across split times.
+
+For the primary fixed bank, use the smallest calibrated perturbation that yields
+at least four unique lexical endpoints in a majority of pilot trajectories.
+Save immediate divergence, terminal continuous divergence, exact-token Hamming
+distance, number of unique endpoints, and pairwise branch agreement.
+
+Branch entropy may be interpreted as basin contraction only if it decreases
+under calibrated impact, not merely under the original fixed-norm protocol.
+
+## 3. Why the candidate endpoint bank must be fixed
 
 Do **not** create a new branch set independently at every checkpoint and then
 compare entropy across time. Later checkpoints have less remaining integration
@@ -42,7 +64,7 @@ early split `t_bank`:
 Primary `t_bank=0.20` for ELF. Also run `t_bank=0.05` as a robustness check.
 For other models, match `t_bank` by native log-SNR rather than nominal `t`.
 
-## 3. Representations and similarities
+## 4. Representations and similarities
 
 For every saved state and endpoint, compute centered residuals
 
@@ -65,7 +87,7 @@ The cosine is primary because CKA is a representation-similarity statistic, not
 a vector-direction measure. All claims must survive both or be described as
 metric-dependent.
 
-## 4. Primary metrics
+## 5. Primary metrics
 
 For trajectory `n`:
 
@@ -95,7 +117,7 @@ Delta a_j(t) = a_j(t) - a_j(t_bank)
 
 This prevents shared early noise from being mistaken for endpoint specificity.
 
-## 5. Controls
+## 6. Controls
 
 1. **Cross-trajectory endpoint null**: replace candidates with endpoints from
    other trajectories matched by sequence length and terminal token entropy.
@@ -107,8 +129,10 @@ This prevents shared early noise from being mistaken for endpoint specificity.
    should collapse if the metric is genuinely position-specific.
 5. **Mean-only analysis**: repeat on broadcast means to show the result is not
    document-level mean similarity.
+6. **Perturbation-calibration robustness**: repeat the primary result with both
+   one-step-matched and terminal-linearized banks.
 
-## 6. Scale and statistics
+## 7. Scale and statistics
 
 Pilot:
 
@@ -127,7 +151,7 @@ The independent unit is the **base trajectory**. Bootstrap trajectories
 hierarchically; do not treat tokens, branches, or checkpoints as independent.
 Save all per-trajectory affinity matrices in `.npz`.
 
-## 7. Decision rule
+## 8. Decision rule
 
 Evidence for curved transport requires all of:
 
@@ -145,13 +169,12 @@ Evidence for exploration--collapse requires all of:
 If self-specificity is metric-dependent or only appears after stable
 commitment, report the mechanism as unresolved.
 
-## 8. Failure interpretation
+## 9. Failure interpretation
 
 - No distinct branch endpoints: perturbation is too weak or the bank was built
-  too late; rerun GS19 calibration before changing the hypothesis.
+  too late; rerun Stage 0 calibration before changing the hypothesis.
 - Strong early self-specificity only in predicted-clean but not raw state:
   the model prediction contains an endpoint proposal that has not yet been
   integrated into the sampler state.
 - High early self-specificity under both real and position-shuffled endpoints:
   the similarity is dominated by global statistics and is invalid.
-

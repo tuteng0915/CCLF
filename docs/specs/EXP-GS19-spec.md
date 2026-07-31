@@ -1,99 +1,76 @@
-# EXP-GS19 Spec — Calibrated Branching and Remaining-Time Controls (P0 Prerequisite)
+# EXP-GS19 Spec — Order-Controlled Asynchronous Denoising Ablation
 
-**Status**: PLANNED  
-**Priority**: P0 prerequisite — calibrate the endpoint bank used by GS16 and rule out the trivial explanation of GS14 branch contraction  
-**Models**: ELF baseline first; LangFlow after pilot  
-**Proposed script**: `experiments/global_state/branch_calibrated_trajectory.py`  
-**Output**: `results/global_state/<model>/<checkpoint>/branch_calibrated_<label>.{json,npz}`
+**Status**: AFTER P0
+**Priority**: P2 — run after GS16--GS17
+**Models**: ELF first; other models only after a native intervention is defined
+**Proposed script**: `experiments/interventions/eval_async_schedule.py`
 
-## 1. Confound being tested
+## Question
 
-GS14 perturbs checkpoints with a fixed state-relative scale. Later checkpoints
-have less remaining integration time and may amplify perturbations less.
-Increasing branch consensus can therefore occur without any lexical
-exploration--collapse.
+If synchronous denoising creates a coordination bottleneck, does asynchrony
+help because of linguistic direction, symmetry breaking, or reliable anchors?
 
-GS19 separates:
+## Intervention
 
-1. local sensitivity of the flow;
-2. remaining-time amplification;
-3. genuine contraction of reachable lexical endpoints.
+Existing checkpoints take scalar time, not a vector of local times. Therefore
+this is explicitly a heterogeneous-state intervention with train--test
+mismatch, not a native WFF sampler.
 
-## 2. Three perturbation protocols
+At each global step:
 
-For the same base rollout and direction bank `u_k`, run:
+1. run the ordinary scalar-time model and obtain `xhat`;
+2. estimate the native noise component;
+3. perform the ordinary solver update;
+4. reconstruct each position at scheduled local progress `tau_i` using the
+   same `(xhat_i, epshat_i)` pair;
+5. feed the heterogeneous state to the next scalar-time call.
 
-### A. Fixed state-relative norm
-
-Existing reference:
-
-```text
-delta_tk = eta * ||Z_t,i|| * unit(u_k)
-```
-
-### B. One-step matched impact
-
-Choose `eta_t` by pilot bisection so the perturbation produces a fixed median
-relative divergence after one native solver step:
+For position rank `q_i` and width `Delta`:
 
 ```text
-median ||step(Z_t+delta)-step(Z_t)|| / ||step(Z_t)|| = kappa_step
+tau_i(s) = clip(s + Delta*(1 - 2*q_i/(L-1)), 0, 1)
 ```
 
-Use `kappa_step in {1e-4, 3e-4, 1e-3}`.
+Compare schedules with the same multiset of local times:
 
-### C. Terminal-linearized matched impact
+1. synchronous;
+2. left-to-right;
+3. right-to-left;
+4. fixed random and reversed-random;
+5. block-random;
+6. confidence-adaptive.
 
-Estimate random-direction amplification of the remaining flow with JVPs:
+Use `Delta in {0.05,0.10,0.20,0.30}` on normalized log-SNR progress. Every arm
+gets identical initial noise, backbone-call count, and four final synchronous
+refinement steps. Add a norm-matched random state perturbation control.
+
+## Metrics
+
+- Gen.PPL, distributional quality, distinct-n, repetition, degeneration rate;
+- `tau_first`, `tau_stable`, and revision count;
+- endpoint specificity/velocity from GS16--GS17;
+- premature locking and branch entropy.
+
+Desired signature:
 
 ```text
-g_t(u) = ||J_{t->*} u|| / ||u||
-eta_t  = kappa_terminal / median_u g_t(u)
+tau_stable decreases
+tau_first changes little
+generation quality does not degrade
 ```
 
-Then branch with `eta_t` so the predicted continuous terminal displacement is
-matched across split times. If full-rollout JVP is too expensive, use a
-finite-difference estimate on 8 pilot directions and mark it as approximate.
+## Scale and decision
 
-## 3. Metrics
+- smoke: 64 samples;
+- pilot: 256 paired samples × 3 seeds, all orderings at Delta 0.10/0.20;
+- formal: 1000 samples for retained arms and two step budgets.
 
-- immediate continuous divergence;
-- terminal continuous divergence;
-- lexical entropy and normalized consensus across `K` endpoints;
-- agreement with the unperturbed endpoint;
-- pairwise branch agreement;
-- number of unique endpoint sequences;
-- per-position terminal token entropy;
-- semantic distance and exact-token Hamming distance.
-
-Use Miller--Madow entropy correction because `K` is small. Report raw counts in
-addition to normalized entropy.
-
-## 4. Scale
-
-Pilot:
-
-- ELF baseline;
-- `n_traj=12`, `K=8`;
-- split checkpoints matched to GS14;
-- three calibration targets.
-
-Formal:
-
-- `n_traj>=32`, `K=12`;
-- 3 seeds;
-- bootstrap base trajectories, keeping all branches nested.
-
-## 5. Decision rule
-
-Evidence for genuine lexical basin contraction requires branch entropy to
-decrease with generation progress under protocols B and C, not only A.
+Interpretation:
 
 | result | interpretation |
 |---|---|
-| contraction survives B and C | reachable lexical futures genuinely contract |
-| disappears under C | GS14 was mainly remaining-time/Jacobian amplification |
-| continuous divergence matched but lexical entropy falls | specifically lexical basin formation |
-| pairwise branches agree but differ from original endpoint | bifurcation into a common alternative basin |
-
-GS19's calibrated branches become the fixed endpoint bank used by GS16.
+| only LTR wins | linguistic direction matters |
+| LTR/RTL/random all win | breaking synchrony is sufficient |
+| adaptive wins | reliable anchors matter most |
+| quality improves but mechanism metrics do not | sampler heuristic, not mechanism validation |
+| all fail | do not train Wavefront Flow Forcing |

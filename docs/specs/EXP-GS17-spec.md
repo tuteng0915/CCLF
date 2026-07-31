@@ -1,10 +1,11 @@
-# EXP-GS17 Spec — Local Residual Velocity Decomposition and Path Geometry (P0)
+# EXP-GS17 Spec — Local Residual Dynamics and Unified Transition Timing (P0)
 
-**Status**: PLANNED  
-**Priority**: P0 — replace the GS15 chord comparison with a local dynamical test  
-**Models**: ELF baseline + LangFlow; CDCD after GS23  
-**Proposed script**: `experiments/global_state/analyze_residual_velocity.py`  
-**Output**: `results/global_state/<model>/<checkpoint>/residual_velocity_<label>.{json,npz}`
+**Status**: ACTIVE
+**Priority**: P0 — replace the GS15 chord comparison with a local dynamical test
+**Models**: ELF baseline + LangFlow; CDCD after GS20
+**Proposed scripts**: `experiments/global_state/analyze_residual_velocity.py`,
+`experiments/global_state/analyze_transition_timeline.py`
+**Output**: `results/global_state/<model>/<checkpoint>/transition_dynamics_<label>.{json,npz}`
 
 ## 1. Scientific question
 
@@ -114,12 +115,42 @@ artifact.
 Negative GS15 `O_R` alone is not a decision criterion. GS15 becomes a global
 description of curvature; GS17 supplies the local mechanism evidence.
 
-## 8. Statistics and plots
+## 8. Unified transition timeline
+
+This stage absorbs the former GS18 spec. On the **same true rollouts**, save
+native logits and top-1 tokens together with the velocity and endpoint-affinity
+quantities. Define per position:
+
+```text
+tau_first  = first time top1 equals the rollout terminal token
+tau_stable = first time top1 equals the terminal token at every later checkpoint
+tau_margin = first persistent terminal-token margin crossing above zero
+```
+
+Define per trajectory:
+
+```text
+tau_50_stable = time when 50% of positions are stable
+tau_affinity  = maximum endpoint-affinity entropy contraction from GS16
+tau_velocity  = maximum rise of self-endpoint velocity advantage
+tau_branch    = maximum calibrated branch-entropy contraction from GS16
+```
+
+If the common-factor-controlled statistic in GS18 is run, also include
+`tau_collective`. Test event ordering within trajectories and produce curves
+event-aligned to `tau_50_stable`. Broad visual overlap from separate datasets
+does not count as temporal alignment.
+
+The paper may call the transition coordinated only if affinity/branch
+contraction or controlled collective coupling forms a reproducible window that
+precedes or overlaps stable commitment on the same rollouts. Otherwise report
+heterogeneous gradual stabilization.
+
+## 9. Statistics and plots
 
 - trajectory-level median and 95% hierarchical bootstrap bands;
 - fraction of trajectories with positive `V_self` and positive progress;
 - individual-trajectory small multiples for at least 12 examples;
-- event-aligned plots relative to `tau_stable` from GS18.
+- event-aligned plots relative to within-trajectory `tau_50_stable`.
 
 Do not pool positions as independent observations.
-

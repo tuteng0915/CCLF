@@ -1,93 +1,60 @@
-# EXP-GS20 Spec — Rank- and Energy-Matched Residual Controls (P1)
+# EXP-GS20 Spec — CDCD Cross-Family Replication
 
-**Status**: PLANNED  
-**Priority**: P1 — make the GS12 high-rank residual claim identifiable  
-**Models**: ELF baseline; optional LangFlow replication  
-**Proposed script**: `experiments/global_state/analyze_rank_matched_modes.py`  
-**Output**: `results/global_state/<model>/<checkpoint>/rank_matched_modes_<label>.{json,npz}`
+**Status**: DEFERRED until ELF core mechanism is resolved
+**Priority**: P2
+**Proposed adapter**: `experiments/phase_transition/adapters/cdcd_adapter.py`
 
-## 1. Confound
+## Purpose
 
-GS12 compares a rank-8 component with its much larger complementary residual.
-The residual keeps most dimensions and often most energy, so higher token
-recovery is not by itself evidence that lexical identity is specifically
-high-rank.
+Test whether the GS16--GS17 mechanism survives a third continuous categorical
+diffusion family. CDCD is planned replication, not current evidence.
 
-## 2. Decomposition
+## Adapter gate
 
-For centered representation `U_c = U - mean_position(U)` with SVD
-`U_c = U S V^T`, evaluate equal-dimensional subspaces:
-
-- top-`k`;
-- bottom-`k`;
-- middle-`k`;
-- random `k`-dimensional subspace;
-- token-direction-matched random subspace, if feasible.
-
-Rank sweep:
+Implement the shared interface where meaningful:
 
 ```text
-k in {1, 2, 4, 8, 16, 32, 64, 128}
+load
+encode_clean / decode
+make_oracle_state
+forward_state
+solver_step
+native_logsnr
+sample_initial_noise
 ```
 
-Run separately on raw oracle states and predicted-clean states.
+Before interpretation, verify:
 
-## 3. Two complementary tests
+1. clean states decode correctly;
+2. oracle corruption matches the original implementation;
+3. one solver step matches the reference sampler;
+4. fixed seeds reproduce expected behavior;
+5. generation quality matches the reference checkpoint within tolerance;
+6. native log-SNR is monotone.
 
-### A. Reconstruction test
+Do not force CDCD into ELF's linear corruption convention.
 
-Add the same position mean to every projected component and feed the
-reconstructed state through the native model/readout.
+## Minimal replication
 
-Report:
+Only replicate the paper-critical quantities:
 
-- native token accuracy;
-- terminal-token margin;
-- POS-histogram R2;
-- reconstruction energy.
+1. dense `tau_first` and `tau_stable` from GS17;
+2. local residual velocity and self-endpoint progress from GS17;
+3. calibrated fixed-bank endpoint specificity from GS16;
+4. GS15 chord metric as descriptive context only.
 
-### B. Causal removal test
+GS11--GS13 and all static topic probes are out of scope unless CDCD produces a
+specific contradiction that requires them.
 
-Starting from the native state, remove an equal-dimensional component:
+## Alignment and claim rule
 
-```text
-U_drop_top_k
-U_drop_bottom_k
-U_drop_random_k
-```
+Compare models by native log-SNR percentile, normalized arc length, and
+event-aligned time relative to `tau_50_stable`; never by nominal diffusion time.
 
-Measure change in native token margin and recovery. This is more informative
-than asking whether an OOD reconstruction works.
+Call a result cross-architecture only if the same operational metric is
+informative in ELF, LangFlow, and CDCD and trajectory-level confidence intervals
+show sign consistency. A CDCD disagreement is a boundary condition, not a
+failed replication to hide.
 
-## 4. Matching rules
-
-Run both:
-
-1. **rank matched**: every arm retains/removes exactly `k` dimensions;
-2. **energy matched**: choose component widths or rescale components to match
-   retained Frobenius energy within 2%.
-
-Never compare top-8 against the entire `d-8` residual as the main result.
-
-## 5. Statistics
-
-- `n_sequences>=128`;
-- complete preregistered time grid;
-- 10 random subspaces per `(sequence,t,k)`;
-- sequence-level bootstrap confidence intervals;
-- full curves, not two representative checkpoints.
-
-## 6. Decision rule
-
-The strong "high-rank lexical code" claim is supported only if:
-
-1. top-`k` underperforms rank- and energy-matched random/middle/bottom
-   subspaces over a substantial `k` range; and
-2. removing distributed non-top components harms token margins more than
-   removing energy-matched top components.
-
-Otherwise use the narrower GS12 claim:
-
-> the leading rank-8 centered component is insufficient, while the
-> complementary residual retains native token readability.
-
+Pilot: 8 trajectories, 65 states, 6 calibrated branches. Formal: at least 32
+trajectories × 3 seeds and 8 branches.
