@@ -1,0 +1,8 @@
+[submodule "models/ELF-torch"]
+	path = models/ELF-torch
+	url = https://github.com/tuteng0915/CCLF.git
+	branch = vendor/elf-pytorch_elf
+[submodule "models/LangFlow"]
+	path = models/LangFlow
+	url = https://github.com/tuteng0915/CCLF.git
+	branch = vendor/langflow-main
