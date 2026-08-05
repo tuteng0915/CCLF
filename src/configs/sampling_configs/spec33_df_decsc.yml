@@ -1,0 +1,78 @@
+## EXP-33/34: Diffusion Forcing + decode branch self-conditioning (dec_sc)
+## Same 7 conditions as spec11v2, but with dec_sc_mode: decode enabled
+## Tests whether DF and dec_sc are complementary or redundant
+
+# Control: standard ODE + dec_sc (no DF)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+  dec_sc_mode: "decode"
+
+# freeze_0.3 + dec_sc
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.3
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+
+# freeze_0.5 + dec_sc
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.5
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+
+# freeze_1.0 + dec_sc
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+
+# soft_0.3 + dec_sc
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.3
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+
+# soft_0.5 + dec_sc
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.5
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+
+# soft_0.7 + dec_sc
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.7
+  df_t_min: 0.7
+  dec_sc_mode: "decode"

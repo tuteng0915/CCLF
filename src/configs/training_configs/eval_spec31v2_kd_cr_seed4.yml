@@ -1,0 +1,24 @@
+## EXP-31v2 multi-seed: kd_cr checkpoint, seed=4
+## Avoids artifact seed=123 (multilingual degeneration)
+## Key conditions: none, freeze_0.5, freeze_1.0, soft_0.3
+
+data_path: data/owt/val.jsonl
+max_length: 128
+tokenizer_name: t5-small
+encoder_model_name: t5-small
+
+model: ELF-B
+bottleneck_dim: 128
+hidden_size: 768
+num_layers: 12
+num_heads: 12
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+num_samples: 256
+seed: 4
+batch_size: 16
+output_dir: outputs/spec31v2_kd_cr_seed4
+
+sampling_configs_path: src/configs/sampling_configs/spec31v2_key_conditions.yml

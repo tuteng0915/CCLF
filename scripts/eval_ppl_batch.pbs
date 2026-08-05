@@ -1,0 +1,59 @@
+#!/bin/bash
+# Offline PPL scoring on pre-generated jsonl files.
+# Useful when generation and PPL scoring must run on separate jobs,
+# or when you need to re-score existing outputs.
+#
+# Key env vars:
+#   GEN_DIR   — root generation directory containing subdirs with all_generated_*.jsonl
+#   PPL_BS    — GPT-2 Large batch size (default 8; raise to 16 on ≥48 GB GPUs)
+#   MODEL     — HF causal-LM for scoring (default gpt2-large)
+#
+# Example:
+#   qsub -v GEN_DIR=outputs/elf_b-owt-eval-kd2 eval_ppl_batch.pbs
+
+#PBS -N elf_ppl_batch
+#PBS -P ds_ccds_wei.lu          # <-- update to your project code
+#PBS -q gpu_ded
+#PBS -l select=1:ncpus=8:ngpus=1
+#PBS -l walltime=04:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+module purge
+module load anaconda/2025
+module load cuda/12.4
+eval "$(/usr/local/anaconda2025/bin/conda shell.bash hook)"
+conda activate elf
+
+REPO=/path/to/ELF-torch
+cd "$REPO"
+export PYTHONUNBUFFERED=1
+
+if echo "${CUDA_VISIBLE_DEVICES:-}" | grep -q "GPU-"; then
+    GPU_COUNT=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | wc -l)
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES
+fi
+echo "Job: ${PBS_JOBID}  Node: $(hostname)  GPU: ${CUDA_VISIBLE_DEVICES:-unset}"
+
+GEN_DIR="${GEN_DIR:?Set GEN_DIR to the generation output directory}"
+PPL_BS="${PPL_BS:-8}"
+MODEL="${MODEL:-gpt2-large}"
+
+mkdir -p pbs/logs
+exec > "pbs/logs/eval_ppl_batch.${PBS_JOBID}.log" 2>&1
+
+echo "Generation dir: ${GEN_DIR}"
+echo "PPL model:      ${MODEL}"
+echo "PPL batch size: ${PPL_BS}"
+
+find "${GEN_DIR}" -name "all_generated_*.jsonl" | sort | while read -r jsonl; do
+    echo "--- Scoring: ${jsonl} ---"
+    python -u scripts/eval_ppl.py \
+        --input      "${jsonl}" \
+        --batch_size "${PPL_BS}" \
+        --model      "${MODEL}"
+done
+
+echo "=== DONE ==="

@@ -1,0 +1,102 @@
+## EXP-36 FULL FACTORIAL: 2×2 design (DF presence × dec_sc presence)
+## Adds freeze-only and soft-only arms missing from spec36_df_decsc_gated.yml
+## Enables proper interaction computation: I = (DF+SC) - DF - SC + none
+##
+## 2×2 structure (for each DF variant):
+##   DF=0, SC=0 : none (Control 1) ← shared baseline
+##   DF=0, SC=1 : dec_sc-only (Control 2)
+##   DF=1, SC=0 : DF-only  ← MISSING in original EXP-36
+##   DF=1, SC=1 : DF + SC
+##
+## For freeze_0.5 and freeze_1.0 and soft_0.3:
+##   Total: 1 (none) + 1 (SC-only) + 3 (DF-only) + 3 (DF+SC) = 8 arms
+##
+## All conditions: 256 samples, 32 ODE steps
+## DF gate: df_t_min=0.7 (DF only when t >= 0.7)
+## SC gate: dec_sc_apply_t_min=0.5 (dec_sc only when t >= 0.5)
+
+# Control 1: none (no DF, no dec_sc)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+
+# Control 2: dec_sc-only (no DF, with dec_sc gate t>=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+# ── DF-ONLY arms (DF=1, SC=0) ─────────────────────────────────────────────────
+# freeze_0.5 only (no dec_sc) [MISSING IN ORIGINAL EXP-36]
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.5
+  df_t_min: 0.7
+
+# freeze_1.0 only (no dec_sc) [MISSING IN ORIGINAL EXP-36]
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+
+# soft_0.3 only (no dec_sc) [MISSING IN ORIGINAL EXP-36]
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.3
+  df_t_min: 0.7
+
+# ── DF + SC arms (DF=1, SC=1) ─────────────────────────────────────────────────
+# freeze_0.5 + dec_sc(tmin=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.5
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+# freeze_1.0 + dec_sc(tmin=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+# soft_0.3 + dec_sc(tmin=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.3
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5

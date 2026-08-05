@@ -1,0 +1,11 @@
+# EXP-01: save per-step trajectory states for reverse-probe comparison.
+# 32 ODE steps gives dense t-grid coverage (32 trajectory snapshots per sequence).
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "none"
+  save_trajectory: true
+  trajectory_save_dir: "results/exp01/trajectories"

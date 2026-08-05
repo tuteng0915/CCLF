@@ -1,0 +1,42 @@
+# EXP-13v2: Compute-matched controls with dec_sc_apply_t_min=0.5
+# Fix for early-step feedback loop: only apply decode branch when t >= 0.5
+# Run core modes at steps=32 uniform ODE
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "none"
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "extra_denoise"
+  dec_sc_apply_t_min: 0.5
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "decode_shuffled"
+  dec_sc_apply_t_min: 0.5
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "random_residual"
+  dec_sc_apply_t_min: 0.5

@@ -1,0 +1,84 @@
+# Idea 3+2: KD + cliff CE supervision.
+# Adds L_ce_cliff on denoiser-mode samples, weighted by two-stage alpha_nm(t):
+#   alpha_nm(t) = sigmoid(k*(t - cliff_rise)) - sigmoid(k*(t - cliff_fall))
+# This peaks in [cliff_rise, cliff_fall] = [0.30, 0.60], pushing lin_branch to
+# commit correctly during the commitment cliff without touching decoder-mode rows.
+
+# Dataset
+data_path: "embedded-language-flows/openwebtext-t5"
+max_length: 1024
+
+# Encoder
+encoder_model_name: t5-small
+latent_mean: 0.0
+latent_std: 0.2
+
+# Model architecture (must match base checkpoint)
+model: ELF-B
+bottleneck_dim: 128
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+# Denoiser objective
+denoiser_p_mean: -1.5
+denoiser_p_std: 0.8
+denoiser_noise_scale: 2.0
+t_eps: 0.05
+time_schedule: "logit_normal"
+
+# Decoder objective (same as base)
+decoder_prob: 0.2
+decoder_noise_scale: 5.0
+decoder_p_mean: 0.8
+decoder_p_std: 0.8
+
+# Conditioning / CFG
+self_cond_prob: 0.5
+
+# KD loss
+lambda_kd: 1.0
+kd_temperature: 4.0
+kd_gate_low: 0.0
+kd_gate_high: 1.0
+
+# Cliff CE loss (Idea 2)
+lambda_ce_cliff: 0.5    # weight for cliff CE term; start at 0.5 to avoid CE dominating
+ce_cliff_k: 10.0        # sigmoid sharpness: ~0.46 nats wide per gate
+ce_cliff_rise: 0.30     # alpha_nm rises here (start of commitment cliff)
+ce_cliff_fall: 0.60     # alpha_nm falls here (end of cliff, plateau begins)
+
+# Training
+epochs: 2
+global_batch_size: 512
+blr: 0.0003
+weight_decay: 0.0
+warmup_epochs: 0.1
+warmup_steps: -1
+optimizer: adamw
+
+# EMA
+ema_decay1: 0.9999
+
+# Sampling
+sampling_configs_path: "src/configs/sampling_configs/uncond_sampling_configs.yml"
+num_samples: 256
+
+# Logging & Checkpointing
+log_freq: 100
+save_freq: 1
+eval_freq: 1
+
+# Output
+output_dir: "outputs/elf_b-owt-kd-ce"
+hf_repo_id: null
+resume: null
+
+# Wandb
+use_wandb: true
+wandb_project: elf
+wandb_entity: null
+wandb_run_name: elf_b-owt-kd-ce
+
+# Misc
+seed: 42

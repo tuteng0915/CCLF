@@ -1,0 +1,7 @@
+# Extra dependencies for convert_jax_to_torch.py only.
+# These are JAX-ecosystem packages and are NOT required for training or eval.
+# Install into the same conda env:
+#   pip install -r requirements_convert.txt
+jax[cuda12]>=0.4.30
+orbax-checkpoint>=0.9.0
+flax>=0.10.0

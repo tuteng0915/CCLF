@@ -1,0 +1,85 @@
+#!/bin/bash
+# SAR (semi-autoregressive) inference eval.
+# Sweeps sar_alpha ∈ {0.0, 0.2, 0.5, 0.8} × steps ∈ {8, 16, 32} (12 configs total).
+# Baseline (alpha=0.0) is included in the grid for direct comparison.
+#
+# Key env vars:
+#   CKPT         — HF repo id or absolute path to .pt file
+#                  default: embedded-language-flows/ELF-B-owt-torch
+#   NUM_SAMPLES  — samples per config (default 1000)
+#   NGPU         — GPUs for generation (default 1)
+#   TAG          — label appended to output dir (default: sar)
+#   PPL_BS       — GPT-2 Large batch size for PPL scoring (default 8)
+#
+# Example:
+#   qsub -v TAG=sar_baseline scripts/eval_sar.pbs
+#   qsub -v CKPT=/abs/path/to/kd_cliff.pt,TAG=sar_kd_cliff scripts/eval_sar.pbs
+
+#PBS -N elf_eval_sar
+#PBS -P ds_ccds_wei.lu          # <-- update to your project code
+#PBS -q gpu_ded
+#PBS -l select=1:ncpus=12:ngpus=1
+#PBS -l walltime=06:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+module purge
+module load anaconda/2025
+module load cuda/12.4
+eval "$(/usr/local/anaconda2025/bin/conda shell.bash hook)"
+conda activate elf
+
+REPO=/path/to/ELF-torch          # <-- absolute path to this repo on the cluster
+cd "$REPO"
+export PYTHONUNBUFFERED=1
+
+if echo "${CUDA_VISIBLE_DEVICES:-}" | grep -q "GPU-"; then
+    GPU_COUNT=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | wc -l)
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES
+fi
+echo "Job: ${PBS_JOBID}  Node: $(hostname)  GPU: ${CUDA_VISIBLE_DEVICES:-unset}"
+nvidia-smi -L
+
+# ── parameters ───────────────────────────────────────────────────────────────
+CKPT="${CKPT:-embedded-language-flows/ELF-B-owt-torch}"
+NUM_SAMPLES="${NUM_SAMPLES:-1000}"
+NGPU="${NGPU:-1}"
+TAG="${TAG:-sar}"
+PPL_BS="${PPL_BS:-8}"
+
+OUTPUT_DIR="outputs/elf_b-owt-eval-${TAG}"
+mkdir -p pbs/logs
+
+exec > "pbs/logs/eval_sar_${TAG}.${PBS_JOBID}.log" 2>&1
+
+echo "Checkpoint:  ${CKPT}"
+echo "Num samples: ${NUM_SAMPLES}"
+echo "Output dir:  ${OUTPUT_DIR}"
+echo "NGPU:        ${NGPU}"
+echo "SAR grid:    src/configs/sampling_configs/sar_eval_grid.yml"
+
+# ── Step 1: generation ────────────────────────────────────────────────────────
+echo "=== Step 1: Generation (12 configs: alpha × steps) ==="
+NGPU=$NGPU bash scripts/launch.sh eval \
+    src/configs/training_configs/train_owt_ELF-B.yml \
+    --checkpoint_path "${CKPT}" \
+    --config_override "num_samples=${NUM_SAMPLES}" \
+    --config_override "output_dir=${OUTPUT_DIR}" \
+    --config_override "sampling_configs_path=src/configs/sampling_configs/sar_eval_grid.yml" \
+    --config_override "use_wandb=false" \
+    --config_override "online_eval=false" \
+    --config_override "use_compile=true"
+
+# ── Step 2: PPL scoring ───────────────────────────────────────────────────────
+echo "=== Step 2: PPL scoring (batch_size=${PPL_BS}) ==="
+find "${OUTPUT_DIR}" -name "all_generated_*.jsonl" | sort | while read -r jsonl; do
+    echo "  Scoring: ${jsonl}"
+    python -u scripts/eval_ppl.py \
+        --input      "${jsonl}" \
+        --batch_size "${PPL_BS}" \
+        --model      gpt2-large
+done
+
+echo "=== DONE ==="

@@ -28,6 +28,9 @@ def sample_timesteps(
     time_schedule: str = 'logit_normal',
     device: Optional[torch.device] = None,
     dtype: torch.dtype = torch.float32,
+    cliff_mix_prob: float = 0.6,
+    cliff_lo: float = 0.10,
+    cliff_hi: float = 0.45,
 ):
     """Sample timesteps using various time schedules.
 
@@ -35,7 +38,9 @@ def sample_timesteps(
         batch_size: Number of samples
         P_mean: Mean for logit-normal distribution
         P_std: Std for logit-normal distribution
-        time_schedule: 'logit_normal' or 'uniform'
+        time_schedule: 'logit_normal', 'uniform', or 'cliff'
+        cliff_mix_prob: For 'cliff' — fraction of batch drawn from [cliff_lo, cliff_hi]
+        cliff_lo / cliff_hi: Commitment cliff boundaries (probe: dG/dt peaks at t≈0.25–0.35)
 
     Returns:
         Sampled timesteps in [0, 1]
@@ -45,6 +50,32 @@ def sample_timesteps(
         return torch.sigmoid(z)
     if time_schedule == 'uniform':
         return torch.rand((batch_size,), dtype=dtype, device=device)
+    if time_schedule == 'cliff':
+        # cliff_mix_prob fraction from U[cliff_lo, cliff_hi] (commitment cliff),
+        # rest from logit_normal. Concentrates training on dG/dt-high region.
+        logit_t = torch.sigmoid(
+            torch.randn((batch_size,), dtype=dtype, device=device) * P_std + P_mean
+        )
+        cliff_t = cliff_lo + (cliff_hi - cliff_lo) * torch.rand(
+            (batch_size,), dtype=dtype, device=device
+        )
+        use_cliff = torch.rand((batch_size,), dtype=dtype, device=device) < cliff_mix_prob
+        return torch.where(use_cliff, cliff_t, logit_t)
+    if time_schedule == 'probe_dGdt':
+        # Data-driven schedule: sample t proportional to dG/dt from ELF-B OWT probe.
+        # Weights computed from probe_geo_v1/probe_geo.json:
+        #   p(bin_i) ∝ max(dG/dt_i, 0) + eps,  20 bins of width 0.05 on [0, 1].
+        # 69% of mass lands on cliff t=[0.15, 0.40] where dG/dt is highest.
+        # Hardcoded so training is reproducible without a file-system dependency.
+        _PROBE_WEIGHTS = torch.tensor([
+            0.0205, 0.0297, 0.0261, 0.0809, 0.1986, 0.2045, 0.1264, 0.0807,
+            0.0464, 0.0288, 0.0179, 0.0120, 0.0097, 0.0097, 0.0097, 0.0097,
+            0.0097, 0.0097, 0.0592, 0.0097,
+        ], dtype=torch.float32, device=device)
+        bins = torch.multinomial(_PROBE_WEIGHTS, batch_size, replacement=True)  # (B,)
+        t_lo = bins.to(dtype) * 0.05
+        t = t_lo + 0.05 * torch.rand((batch_size,), dtype=dtype, device=device)
+        return t.clamp(0.0, 1.0)
     raise ValueError(f"Unknown time_schedule: {time_schedule}")
 
 

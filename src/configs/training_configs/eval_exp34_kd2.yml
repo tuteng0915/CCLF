@@ -1,0 +1,28 @@
+## EXP-34: kd2 + dec_sc + DF — are dec_sc and DF complementary?
+## EXP-31b (no dec_sc): freeze_1.0 gives −48.9% improvement (PPL 282→144)
+## EXP-34: adds dec_sc_mode=decode — tests if DF further improves on dec_sc baseline
+
+# Dataset / tokenizer
+data_path: data/owt/val.jsonl
+max_length: 128
+tokenizer_name: t5-small
+encoder_model_name: t5-small
+
+# Model
+model: ELF-B
+bottleneck_dim: 128
+hidden_size: 768
+num_layers: 12
+num_heads: 12
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+# Eval settings
+num_samples: 256
+seed: 456
+batch_size: 16
+output_dir: outputs/exp34_kd2_decsc
+
+# Sampling configs
+sampling_configs_path: src/configs/sampling_configs/spec33_df_decsc.yml

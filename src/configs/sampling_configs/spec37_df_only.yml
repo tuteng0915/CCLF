@@ -1,0 +1,33 @@
+## EXP-37b: 1024-token step sweep — DF conditions only (freeze_1.0)
+## Baseline "none" conditions already done; this runs freeze_1.0 at 8/16/32 steps
+## df_t_min: 0.7 means DF only activates when t >= 0.7 (cleaner states)
+
+# 8 steps, freeze_1.0 DF
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+
+# 16 steps, freeze_1.0 DF
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+
+# 32 steps, freeze_1.0 DF
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7

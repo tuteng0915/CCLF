@@ -9,6 +9,7 @@ applied on the denoiser branch only.
 """
 
 import contextlib
+import math
 from typing import Dict, Tuple
 
 import torch
@@ -78,6 +79,9 @@ def train_step(
         P_mean=config.denoiser_p_mean, P_std=config.denoiser_p_std,
         time_schedule=config.time_schedule,
         device=device, dtype=dtype,
+        cliff_mix_prob=float(getattr(config, 'cliff_mix_prob', 0.6)),
+        cliff_lo=float(getattr(config, 'cliff_lo', 0.10)),
+        cliff_hi=float(getattr(config, 'cliff_hi', 0.45)),
     )
 
     noise = torch.randn(x0.shape, dtype=dtype, device=device)
@@ -221,13 +225,32 @@ def train_step(
     else:
         model_input = z_mixed
 
+    # D1: register hook BEFORE the main forward so h_N is captured during it.
+    _h_captured = {}
+    _hook_handles = []
+    lambda_intermediate_rec = getattr(config, "lambda_intermediate_rec", 0.0)
+    if lambda_intermediate_rec > 0:
+        _irec_layer = int(getattr(config, "intermediate_rec_layer", 10))
+        _raw = getattr(model, "module", model)
+        _prefix_sz = (getattr(_raw, "num_model_mode_tokens", 0)
+                      + getattr(_raw, "num_time_tokens", 4)
+                      + getattr(_raw, "num_self_cond_cfg_tokens", 4))
+
+        def _cap_h(module, inp, out, _idx=_irec_layer):
+            _h_captured[_idx] = out
+
+        _hook_handles.append(_raw.blocks[_irec_layer].register_forward_hook(_cap_h))
+
     with torch.amp.autocast('cuda', dtype=torch.bfloat16, enabled=use_bf16):
-        net_out, decoder_logits = model(
+        net_out, decoder_logits, linear_logits = model(
             model_input, t_mixed,
             deterministic=False,
             self_cond_cfg_scale=self_cond_cfg_scale,
             decoder_step_active=decoder_step_active,  # (B,) tensor
         )
+
+    for _h in _hook_handles:
+        _h.remove()
 
     # CE per-token (used on decoder-mode rows).
     log_probs = F.log_softmax(decoder_logits.to(torch.float32), dim=-1)
@@ -259,6 +282,143 @@ def train_step(
     l2_loss_val = ((l2_per_token * l2_mask).sum()
                    / torch.clamp(l2_mask.sum(), min=1.0)).detach()
 
+    # KD loss: distill decoder-head (teacher) into linear branch (student).
+    # Applied to denoiser-mode examples at timesteps in [kd_gate_low, kd_gate_high].
+    # Idea B: set kd_entropy_mask=true to up-weight wrong-committed positions.
+    lambda_kd = getattr(config, "lambda_kd", 0.0)
+    kd_loss_val = torch.zeros(1, device=device)
+    if lambda_kd > 0 and linear_logits is not None:
+        tau = float(getattr(config, "kd_temperature", 4.0))
+        gate_low = float(getattr(config, "kd_gate_low", 0.0))
+        gate_high = float(getattr(config, "kd_gate_high", 1.0))
+        denoiser_mask_B = 1.0 - decoder_step_active          # (B,) 1=denoiser, 0=decoder
+        t_gate_B = ((t >= gate_low) & (t <= gate_high)).float()  # (B,)
+        kd_mask_BS = loss_mask_f * (denoiser_mask_B * t_gate_B).unsqueeze(-1)  # (B, S)
+
+        with torch.no_grad():
+            teacher_soft = F.softmax(decoder_logits.float() / tau, dim=-1)  # (B, S, V)
+        student_log_soft = F.log_softmax(linear_logits.float() / tau, dim=-1)  # (B, S, V)
+        kd_per_token = -(teacher_soft * student_log_soft).sum(dim=-1) * (tau ** 2)  # (B, S)
+
+        # Idea B: per-position entropy mask — up-weight wrong-committed positions.
+        # Additive form: w_i = 1 + kd_entropy_beta * (1−H/logV) * 1[student≠teacher]
+        # Degrades to uniform KD when no wrong-committed positions exist (no NaN risk).
+        # kd_entropy_beta (default 3.0): wrong-committed positions get up to (1+beta)x weight.
+        if getattr(config, "kd_entropy_mask", False):
+            beta = float(getattr(config, "kd_entropy_beta", 3.0))
+            with torch.no_grad():
+                p_student = F.softmax(linear_logits.float(), dim=-1)         # (B, S, V)
+                H_student = -(p_student * (p_student + 1e-10).log()).sum(-1) # (B, S)
+                log_V = math.log(linear_logits.shape[-1])
+                confidence = (1.0 - H_student / log_V).clamp(0.0, 1.0)      # (B, S)
+                teacher_top1 = decoder_logits.argmax(dim=-1)                 # (B, S)
+                student_top1 = linear_logits.argmax(dim=-1)                  # (B, S)
+                wrong_mask = (student_top1 != teacher_top1).float()          # (B, S)
+                # Additive: base weight 1 everywhere, +beta*confidence on wrong positions
+                entropy_weight = 1.0 + beta * confidence * wrong_mask        # (B, S)
+            kd_mask_BS = kd_mask_BS * entropy_weight
+
+        kd_loss = (kd_per_token * kd_mask_BS).sum() / torch.clamp(kd_mask_BS.sum(), min=1.0)
+        kd_loss_val = kd_loss.detach()
+        loss = loss + lambda_kd * kd_loss
+
+    # L_sc: push the main denoising prediction (net_out, has grad) toward x̂_t^dec.
+    # Teacher: decode branch applied to x̂_t^(1) at t=1 (no grad, 1 extra forward).
+    # Student: net_out for denoiser-mode rows (gradient flows via main backward).
+    # Closes the embedding-space gap so inference-time dec_sc becomes unnecessary:
+    # after training, x̂_t^(1) ≈ x̂_t^dec even without the extra decode pass.
+    lambda_sc = getattr(config, "lambda_sc", 0.0)
+    sc_loss_val = torch.zeros(1, device=device)
+    if lambda_sc > 0 and x_pred_init is not None:
+        sc_gate_low = float(getattr(config, "sc_gate_low", 0.0))
+        sc_gate_high = float(getattr(config, "sc_gate_high", 1.0))
+        # Decode-branch teacher: run backbone on x̂_t^(1) at t=1 (no SC input)
+        sc_t_ones = torch.ones(batch_size, dtype=dtype, device=device)
+        sc_dec_input = torch.cat(
+            [x_pred_init.detach(), torch.zeros_like(x_pred_init)], dim=-1
+        )
+        with torch.no_grad(), torch.amp.autocast('cuda', dtype=torch.bfloat16, enabled=use_bf16):
+            sc_dec_raw = model(
+                sc_dec_input, sc_t_ones,
+                deterministic=True,
+                self_cond_cfg_scale=self_cond_cfg_scale,
+                decoder_step_active=None,   # skip lin_branch
+            )
+        x_dec = (sc_dec_raw[0] if isinstance(sc_dec_raw, tuple) else sc_dec_raw)
+        x_dec = restore_cond(x_dec.float().detach(), x0.float(), cond_seq_mask)
+
+        denoiser_mask_B = 1.0 - decoder_step_active                          # (B,)
+        t_sc_gate_B = ((t >= sc_gate_low) & (t <= sc_gate_high)).float()     # (B,)
+        sc_mask_BS = loss_mask_f * (denoiser_mask_B * t_sc_gate_B).unsqueeze(-1)
+        sc_diff = net_out.float() - x_dec                                     # (B, S, d)
+        sc_per_token = (sc_diff ** 2).mean(dim=-1)                            # (B, S)
+        sc_loss = (sc_per_token * sc_mask_BS).sum() / torch.clamp(sc_mask_BS.sum(), min=1.0)
+        sc_loss_val = sc_loss.detach()
+        loss = loss + lambda_sc * sc_loss
+
+    # Idea 2: cliff CE — cross-entropy from linear branch against ground truth,
+    # weighted by two-stage α_nm(t) = σ(k(t−cliff_rise)) − σ(k(t−cliff_fall)).
+    # Active only on denoiser-mode samples; pushes lin_branch to commit correctly
+    # during the commitment cliff without affecting decoder-mode CE rows.
+    lambda_ce_cliff = getattr(config, "lambda_ce_cliff", 0.0)
+    ce_cliff_loss_val = torch.zeros(1, device=device)
+    if lambda_ce_cliff > 0 and linear_logits is not None:
+        k_cliff = float(getattr(config, "ce_cliff_k", 10.0))
+        cliff_rise = float(getattr(config, "ce_cliff_rise", 0.30))
+        cliff_fall = float(getattr(config, "ce_cliff_fall", 0.60))
+        # α_nm(t) peaks between cliff_rise and cliff_fall, ≈0 outside
+        alpha_t = (
+            torch.sigmoid(k_cliff * (t - cliff_rise))
+            - torch.sigmoid(k_cliff * (t - cliff_fall))
+        )  # (B,)
+        denoiser_mask_B = 1.0 - decoder_step_active  # (B,)
+        cliff_mask_BS = loss_mask_f * (denoiser_mask_B * alpha_t).unsqueeze(-1)  # (B, S)
+        ce_cliff_per_token = F.cross_entropy(
+            linear_logits.float().reshape(-1, linear_logits.shape[-1]),
+            decoder_targets.reshape(-1),
+            reduction='none',
+        ).reshape(batch_size, seq_length)  # (B, S)
+        ce_cliff_loss = (ce_cliff_per_token * cliff_mask_BS).sum() / torch.clamp(
+            cliff_mask_BS.sum(), min=1.0
+        )
+        ce_cliff_loss_val = ce_cliff_loss.detach()
+        loss = loss + lambda_ce_cliff * ce_cliff_loss
+
+    # D1: Intermediate reconstruction loss — supervise x̂_t at an earlier backbone layer.
+    # Hook was registered before the main forward; _h_captured[_irec_layer] holds h_N.
+    # Strips the prefix, runs final_layer(h_N), adds MSE(x̂_N, x0) for denoiser rows.
+    intermediate_rec_loss_val = torch.zeros(1, device=device)
+    if lambda_intermediate_rec > 0 and _irec_layer in _h_captured:
+        h_N_full = _h_captured[_irec_layer]                           # [B, prefix+S, 768]
+        h_N = h_N_full[:, _prefix_sz:, :].float()                    # [B, S, 768]
+        with torch.amp.autocast('cuda', dtype=torch.bfloat16, enabled=use_bf16):
+            x_hat_N = _raw.final_layer(h_N)                          # [B, S, 512]
+        denoiser_mask_B = 1.0 - decoder_step_active                   # (B,)
+        rec_mask_BS = loss_mask_f * denoiser_mask_B.unsqueeze(-1)     # (B, S)
+        rec_per_tok = ((x_hat_N.float() - x0.float()) ** 2).mean(-1) # (B, S)
+        int_rec_loss = (rec_per_tok * rec_mask_BS).sum() / torch.clamp(rec_mask_BS.sum(), min=1.0)
+        intermediate_rec_loss_val = int_rec_loss.detach()
+        loss = loss + lambda_intermediate_rec * int_rec_loss
+
+    # D3: Gram-matrix alignment loss — encourage final_layer.linear and self_cond_proj
+    # (x̂_t portion) to share compatible column-space geometry, preventing the
+    # producer/consumer mismatch identified in EXP-44 Phase 2.
+    # L_align = ||G_F - G_P||_F^2 where G_F = (F@F.T)/norm, G_P = (P@P.T)/norm.
+    lambda_align = getattr(config, "lambda_align", 0.0)
+    align_loss_val = torch.zeros(1, device=device)
+    if lambda_align > 0:
+        raw = getattr(model, "module", model)
+        F_w = raw.final_layer.linear.weight.float()     # [512, 768]
+        P_w = raw.self_cond_proj.weight[:, 512:].float()  # [512, 512]
+        gram_F = (F_w @ F_w.T) / F_w.shape[1]          # [512, 512]  /768
+        gram_P = (P_w @ P_w.T) / P_w.shape[1]          # [512, 512]  /512
+        # Normalize by trace so scale doesn't dominate
+        tr_F = gram_F.diagonal().mean().clamp(min=1e-6)
+        tr_P = gram_P.diagonal().mean().clamp(min=1e-6)
+        align_loss = ((gram_F / tr_F - gram_P / tr_P) ** 2).mean()
+        align_loss_val = align_loss.detach()
+        loss = loss + lambda_align * align_loss
+
     accum_steps = max(config.grad_accum_steps, 1)
     state.step += 1
     is_optimizer_step = (state.step % accum_steps) == 0
@@ -279,5 +439,10 @@ def train_step(
         "loss": loss.detach(),
         "l2_loss": l2_loss_val,
         "ce_loss": ce_loss_val,
+        "kd_loss": kd_loss_val,
+        "sc_loss": sc_loss_val,
+        "ce_cliff_loss": ce_cliff_loss_val,
+        "intermediate_rec_loss": intermediate_rec_loss_val,
+        "align_loss": align_loss_val,
     }
     return state, metrics

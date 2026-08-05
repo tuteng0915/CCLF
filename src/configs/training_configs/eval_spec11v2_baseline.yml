@@ -1,0 +1,27 @@
+## spec-11v2 Diffusion Forcing eval — baseline checkpoint, tmin=0.7 gate
+## 7 conditions × 256 samples each (rerun with df_t_min=0.7)
+
+# Dataset / tokenizer
+data_path: data/owt/val.jsonl
+max_length: 128
+tokenizer_name: t5-small
+encoder_model_name: t5-small
+
+# Model
+model: ELF-B
+bottleneck_dim: 128
+hidden_size: 768
+num_layers: 12
+num_heads: 12
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+# Eval settings
+num_samples: 256
+seed: 42
+batch_size: 16
+output_dir: outputs/spec11v2_baseline
+
+# Sampling configs
+sampling_configs_path: src/configs/sampling_configs/spec11_df_tmin.yml

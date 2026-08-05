@@ -1,0 +1,61 @@
+## EXP-36: Diffusion Forcing + decode branch SC with tmin=0.5 gate
+## Valid version of EXP-33/34/35 — adds dec_sc_apply_t_min: 0.5 to prevent degeneration
+## Gate: dec_sc only applies at t_next >= 0.5 (low-noise half of ODE trajectory)
+## DF gate: df_t_min=0.7 (DF only in high-noise regime)
+## Overlap regime t in [0.7, 1.0]: both DF and dec_sc active
+## Low-noise regime t in [0.5, 0.7): only dec_sc active
+## Very low noise t < 0.5: neither
+
+# Control 1: none + no dec_sc (matches EXP-31/31b none condition)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+
+# Control 2: none + dec_sc(tmin=0.5)  — matches EXP-13v2 decode condition
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+# freeze_0.5 + dec_sc(tmin=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.5
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+# freeze_1.0 + dec_sc(tmin=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5
+
+# soft_0.3 + dec_sc(tmin=0.5)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.3
+  df_t_min: 0.7
+  dec_sc_mode: "decode"
+  dec_sc_apply_t_min: 0.5

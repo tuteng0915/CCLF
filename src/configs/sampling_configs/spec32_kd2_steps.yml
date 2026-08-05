@@ -1,0 +1,39 @@
+## EXP-32: kd2 step-count sweep — none + freeze_1.0 at 8 and 16 ODE steps
+## (32-step results already in spec11v2_kd2 from EXP-31b)
+## freeze_1.0 is the best DF condition for kd2 (−48.9% at 32 steps)
+
+# Control: standard ODE, 8 steps
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+
+# Control: standard ODE, 16 steps
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+
+# freeze_1.0, 8 steps
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+
+# freeze_1.0, 16 steps
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7

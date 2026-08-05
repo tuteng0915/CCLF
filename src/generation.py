@@ -43,7 +43,9 @@ def _build_eval_model(state, use_compile: bool = False) -> nn.Module:
     model = unwrap_model(state.model)
     eval_model = copy.deepcopy(model)
     if state.ema_params1:
-        eval_model.load_state_dict(state.ema_params1)
+        missing, unexpected = eval_model.load_state_dict(state.ema_params1, strict=False)
+        if missing or unexpected:
+            log_for_0(f"EMA load_state_dict: missing={missing}, unexpected={unexpected}")
     eval_model.eval()
     if use_compile:
         log_for_0("Compiling eval model with torch.compile (first batch will be slower)...")
@@ -212,6 +214,13 @@ def test_generation_uncond(
         name = _build_run_name(
             sampling_method, num_sampling_steps, cfg_scale, self_cond_cfg_scale,
             time_schedule, getattr(sampling_config, "sde_gamma", 0.0), suffix="uncond",
+            sar_alpha=getattr(sampling_config, "sar_alpha", 0.0),
+            dec_sc_mode=getattr(sampling_config, "dec_sc_mode", "none"),
+            dec_sc_apply_t_min=float(getattr(sampling_config, "dec_sc_apply_t_min", 0.0)),
+            df_variant=getattr(sampling_config, "df_variant", "none"),
+            df_commit_thresh=float(getattr(sampling_config, "df_commit_thresh", 0.5)),
+            df_soft_alpha=float(getattr(sampling_config, "df_soft_alpha", 0.5)),
+            df_t_min=float(getattr(sampling_config, "df_t_min", 0.0)),
         )
 
         out_path = os.path.join(config.output_dir, name, f"all_generated_{epoch_val}_{step_val}.jsonl")
@@ -399,6 +408,13 @@ def test_generation_cond(
         name = _build_run_name(
             sampling_method, num_sampling_steps, cfg_scale, self_cond_cfg_scale,
             time_schedule, getattr(sampling_config, "sde_gamma", 0.0), suffix="cond",
+            sar_alpha=getattr(sampling_config, "sar_alpha", 0.0),
+            dec_sc_mode=getattr(sampling_config, "dec_sc_mode", "none"),
+            dec_sc_apply_t_min=float(getattr(sampling_config, "dec_sc_apply_t_min", 0.0)),
+            df_variant=getattr(sampling_config, "df_variant", "none"),
+            df_commit_thresh=float(getattr(sampling_config, "df_commit_thresh", 0.5)),
+            df_soft_alpha=float(getattr(sampling_config, "df_soft_alpha", 0.5)),
+            df_t_min=float(getattr(sampling_config, "df_t_min", 0.0)),
         )
 
         if _rank() == 0:

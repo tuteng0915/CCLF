@@ -1,0 +1,64 @@
+#!/bin/bash
+# Conditional generation eval on WMT14 De-En (machine translation).
+# Generates 1000 translations and computes sacreBLEU.
+#
+# Key env vars:
+#   CKPT         — HF repo id or local .pt  (default: official ELF-B-de-en)
+#   NUM_SAMPLES  — number of samples        (default 1000)
+#   TAG          — label for the output dir
+#
+# Example:
+#   qsub eval_de_en.pbs
+#   qsub -v CKPT=/path/to/my_de_en.pt,TAG=my_de_en eval_de_en.pbs
+
+#PBS -N elf_eval_deen
+#PBS -P ds_ccds_wei.lu          # <-- update to your project code
+#PBS -q gpu_ded
+#PBS -l select=1:ncpus=12:ngpus=1
+#PBS -l walltime=02:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+module purge
+module load anaconda/2025
+module load cuda/12.4
+eval "$(/usr/local/anaconda2025/bin/conda shell.bash hook)"
+conda activate elf
+
+REPO=/path/to/ELF-torch
+cd "$REPO"
+export PYTHONUNBUFFERED=1
+
+if echo "${CUDA_VISIBLE_DEVICES:-}" | grep -q "GPU-"; then
+    GPU_COUNT=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | wc -l)
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES
+fi
+echo "Job: ${PBS_JOBID}  Node: $(hostname)  GPU: ${CUDA_VISIBLE_DEVICES:-unset}"
+nvidia-smi -L
+
+CKPT="${CKPT:-embedded-language-flows/ELF-B-de-en-torch}"
+NUM_SAMPLES="${NUM_SAMPLES:-1000}"
+TAG="${TAG:-deen_baseline}"
+
+OUTPUT_DIR="outputs/elf_b-de-en-eval-${TAG}"
+mkdir -p pbs/logs
+
+exec > "pbs/logs/eval_de_en_${TAG}.${PBS_JOBID}.log" 2>&1
+
+echo "Checkpoint:  ${CKPT}"
+echo "Num samples: ${NUM_SAMPLES}"
+echo "Output dir:  ${OUTPUT_DIR}"
+
+# Reference: 64-step ODE, CFG=2, SC-CFG=1
+NGPU=1 bash scripts/launch.sh eval \
+    src/configs/training_configs/train_de-en_ELF-B.yml \
+    --checkpoint_path "${CKPT}" \
+    --config_override "num_samples=${NUM_SAMPLES}" \
+    --config_override "output_dir=${OUTPUT_DIR}" \
+    --config_override "use_wandb=false" \
+    --config_override "online_eval=false" \
+    --config_override "use_compile=true"
+
+echo "=== DONE ==="

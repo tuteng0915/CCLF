@@ -1,0 +1,65 @@
+## spec-11: Diffusion Forcing per-position guidance
+## All conditions at 32 ODE steps, baseline checkpoint, N=256 samples
+## df_variant: none | freeze | soft
+
+# Control: standard ODE
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+
+# Variant 1 (freeze): entropy threshold 0.3
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.3
+
+# Variant 1 (freeze): entropy threshold 0.5
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.5
+
+# Variant 1 (freeze): entropy threshold 1.0
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+
+# Variant 3 (soft): alpha=0.3
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.3
+
+# Variant 3 (soft): alpha=0.5
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.5
+
+# Variant 3 (soft): alpha=0.7
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.7

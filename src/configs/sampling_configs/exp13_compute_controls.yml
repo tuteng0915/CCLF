@@ -1,0 +1,44 @@
+# EXP-13: Compute-matched controls for dec_sc
+# Run each mode at steps={8,16,32} with ODE uniform schedule
+
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "none"
+
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "decode"
+
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "extra_denoise"
+
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "decode_shuffled"
+
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "decode_wrong_t"
+
+- sampling_method: ode
+  num_sampling_steps: [8, 16, 32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  dec_sc_mode: "random_residual"

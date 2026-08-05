@@ -373,13 +373,14 @@ def run_training(config, *, force_cpu: bool = False):
                     torch.stack([m["loss"] for m in train_metrics]).mean(),
                     torch.stack([m["l2_loss"] for m in train_metrics]).mean(),
                     torch.stack([m["ce_loss"] for m in train_metrics]).mean(),
+                    torch.stack([m["kd_loss"] for m in train_metrics]).mean(),
                 ])
                 # Average each metric across DDP ranks before logging — done
                 # once per log_freq so we never sync on every train step.
                 if dist.is_available() and dist.is_initialized():
                     dist.all_reduce(stacked, op=dist.ReduceOp.SUM)
                     stacked = stacked / dist.get_world_size()
-                avg_loss, avg_l2, avg_ce = (float(x) for x in stacked.tolist())
+                avg_loss, avg_l2, avg_ce, avg_kd = (float(x) for x in stacked.tolist())
                 now = time.time()
                 steps_per_sec = (global_step - last_log_step) / max(now - last_log_time, 1e-8)
                 current_lr = state.optimizer.param_groups[0]["lr"]
@@ -387,7 +388,8 @@ def run_training(config, *, force_cpu: bool = False):
                 postfix_dict = {
                     "step": f"{global_step}", "loss": f"{avg_loss:.4f}",
                     "l2": f"{avg_l2:.4f}", "ce": f"{avg_ce:.4f}",
-                    "sps": f"{steps_per_sec:.1f}", "lr": f"{current_lr:.2e}",
+                    "kd": f"{avg_kd:.4f}", "sps": f"{steps_per_sec:.1f}",
+                    "lr": f"{current_lr:.2e}",
                 }
                 log_for_0(postfix_dict)
                 epoch_pbar.set_postfix(**postfix_dict)
@@ -395,7 +397,7 @@ def run_training(config, *, force_cpu: bool = False):
                 if rank == 0:
                     tqdm.write(
                         f"INFO - engine - Step {global_step}: loss={avg_loss:.4f}, "
-                        f"l2={avg_l2:.4f}, ce={avg_ce:.4f}, "
+                        f"l2={avg_l2:.4f}, ce={avg_ce:.4f}, kd={avg_kd:.4f}, "
                         f"lr={current_lr:.2e}, steps/sec={steps_per_sec:.2f}"
                     )
                     if config.use_wandb and wandb is not None:
@@ -403,7 +405,8 @@ def run_training(config, *, force_cpu: bool = False):
                         try:
                             wandb.log({
                                 "train_loss": avg_loss, "train_l2_loss": avg_l2,
-                                "train_ce_loss": avg_ce, "lr": current_lr,
+                                "train_ce_loss": avg_ce, "train_kd_loss": avg_kd,
+                                "lr": current_lr,
                                 "epoch": current_epoch_progress, "step": global_step,
                             }, step=global_step)
                         except Exception:

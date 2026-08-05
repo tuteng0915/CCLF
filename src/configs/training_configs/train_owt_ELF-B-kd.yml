@@ -1,0 +1,76 @@
+# KD fine-tuning config for ELF-B on OpenWebText.
+# Distills the decode branch (teacher) into the linear branch (lin_branch, student).
+# Resume from a pretrained checkpoint; the lin_branch is initialized randomly.
+
+# Dataset
+data_path: "embedded-language-flows/openwebtext-t5"
+max_length: 1024
+
+# Encoder
+encoder_model_name: t5-small
+latent_mean: 0.0
+latent_std: 0.2
+
+# Model architecture (must match base checkpoint)
+model: ELF-B
+bottleneck_dim: 128
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+# Denoiser objective (same as base)
+denoiser_p_mean: -1.5
+denoiser_p_std: 0.8
+denoiser_noise_scale: 2.0
+t_eps: 0.05
+time_schedule: "logit_normal"
+
+# Decoder objective (same as base)
+decoder_prob: 0.2
+decoder_noise_scale: 5.0
+decoder_p_mean: 0.8
+decoder_p_std: 0.8
+
+# Conditioning / CFG
+self_cond_prob: 0.5
+
+# KD loss: decode-branch teacher → lin_branch student
+lambda_kd: 1.0
+kd_temperature: 4.0     # soft-label temperature; tau^2 rescaling applied in loss
+kd_gate_low: 0.0        # apply KD at all timesteps
+kd_gate_high: 1.0
+
+# Training (reduced epochs for fine-tuning)
+epochs: 2
+global_batch_size: 512
+blr: 0.0003             # lower LR than pretraining (3e-4 vs 1e-3)
+weight_decay: 0.0
+warmup_epochs: 0.1
+warmup_steps: -1
+optimizer: adamw        # adamw more stable than muon for fine-tuning
+
+# EMA
+ema_decay1: 0.9999
+
+# Sampling
+sampling_configs_path: "src/configs/sampling_configs/uncond_sampling_configs.yml"
+num_samples: 256        # quick eval during training
+
+# Logging & Checkpointing
+log_freq: 100
+save_freq: 1
+eval_freq: 1
+
+# Output
+output_dir: "outputs/elf_b-owt-kd"
+hf_repo_id: null
+resume: null            # set via --config_override resume=... or env var
+
+# Wandb
+use_wandb: true
+wandb_project: elf
+wandb_entity: null
+wandb_run_name: elf_b-owt-kd
+
+# Misc
+seed: 42

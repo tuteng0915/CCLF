@@ -1,0 +1,42 @@
+## EXP-31v2 multi-seed: Key DF conditions for cross-seed verification
+## Focus on none, freeze_0.5, freeze_1.0 to test if sign reversal (kd_cr vs kd2) is real
+## df_t_min=0.7 gate as in spec11v2 (tmin gate prevents early degeneration)
+
+# Control: standard ODE (no DF)
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: none
+
+# freeze_0.5: entropy threshold 0.5 nat, apply only t >= 0.7
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 0.5
+  df_t_min: 0.7
+
+# freeze_1.0: entropy threshold 1.0 nat, apply only t >= 0.7
+# This was the best condition in EXP-31b (kd2: -48.9% PPL) but needs multi-seed
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: freeze
+  df_commit_thresh: 1.0
+  df_t_min: 0.7
+
+# soft_0.3: soft blending alpha=0.3, apply only t >= 0.7
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1.0]
+  time_schedule: uniform
+  df_variant: soft
+  df_soft_alpha: 0.3
+  df_t_min: 0.7

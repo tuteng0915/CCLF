@@ -1,0 +1,88 @@
+# SAR (semi-autoregressive) inference eval grid.
+# t_i = clamp(t + alpha * (0.5 - i/L), 0, 1): left positions lead, right positions lag.
+# alpha=0.0 is standard ODE (baseline), included for direct comparison.
+# Focus on 8/16/32 steps where baseline ODE degrades most.
+
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.0
+
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.2
+
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.5
+
+- sampling_method: ode
+  num_sampling_steps: [8]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.8
+
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.0
+
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.2
+
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.5
+
+- sampling_method: ode
+  num_sampling_steps: [16]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.8
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.0
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.2
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.5
+
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [3]
+  time_schedule: uniform
+  sar_alpha: 0.8

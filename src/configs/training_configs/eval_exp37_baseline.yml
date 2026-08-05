@@ -1,0 +1,40 @@
+## EXP-37a: baseline 1024-token step sweep (8/16/32 steps × none + freeze_1.0)
+
+data_path: "embedded-language-flows/openwebtext-t5"
+max_length: 1024
+tokenizer_name: null
+pad_token: "eos"
+
+encoder_model_name: t5-small
+encoder_checkpoint: null
+latent_mean: 0.0
+latent_std: 0.2
+
+model: ELF-B
+bottleneck_dim: 128
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+self_cond_prob: 0.5
+attn_dropout: 0.0
+proj_dropout: 0.0
+
+denoiser_noise_scale: 2.0
+t_eps: 0.05
+
+num_samples: 256
+batch_size: 4
+seed: 42
+
+online_eval: true
+eval_ppl_model: "gpt2-large"
+eval_ppl_batch_size: 32
+eval_ppl_max_length: 1024
+max_input_length: 1024
+
+output_dir: "outputs/exp37b_baseline_1024"
+use_wandb: false
+use_bf16: true
+use_compile: false
+
+sampling_configs_path: "src/configs/sampling_configs/spec37_1024_step_sweep.yml"

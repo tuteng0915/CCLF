@@ -1,0 +1,65 @@
+# D3 fine-tuning: Gram-matrix alignment loss between final_layer.linear and
+# self_cond_proj (x̂_t portion).
+# Encourages the column-space geometry of the x̂_t producer (final_layer) and
+# x̂_t consumer (self_cond_proj[:, 512:]) to be compatible (EXP-44 motivation).
+# Resume from kd_cr checkpoint.
+
+data_path: "embedded-language-flows/openwebtext-t5"
+max_length: 1024
+
+encoder_model_name: t5-small
+latent_mean: 0.0
+latent_std: 0.2
+
+model: ELF-B
+bottleneck_dim: 128
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+denoiser_p_mean: -1.5
+denoiser_p_std: 0.8
+denoiser_noise_scale: 2.0
+t_eps: 0.05
+time_schedule: "logit_normal"
+
+decoder_prob: 0.2
+decoder_noise_scale: 5.0
+decoder_p_mean: 0.8
+decoder_p_std: 0.8
+
+self_cond_prob: 0.5
+
+# D3: Gram-matrix alignment loss
+lambda_align: 0.05           # small weight; alignment is a regularizer not primary loss
+
+# Keep existing KD loss
+lambda_kd: 1.0
+kd_temperature: 4.0
+kd_gate_low: 0.0
+kd_gate_high: 1.0
+
+epochs: 1
+global_batch_size: 128
+blr: 0.00005
+weight_decay: 0.0
+warmup_epochs: 0.0
+warmup_steps: 20
+optimizer: adamw
+grad_accum_steps: 1
+
+ema_decay1: 0.9999
+
+sampling_configs_path: "src/configs/sampling_configs/uncond_sampling_configs.yml"
+num_samples: 64
+
+log_freq: 50
+save_freq: 1
+eval_freq: 99999
+
+output_dir: "outputs/elf_b-owt-finetune-align"
+hf_repo_id: null
+resume: "converted/elf_b-owt-kd-cr_torch.pt"
+
+use_wandb: false
+seed: 42

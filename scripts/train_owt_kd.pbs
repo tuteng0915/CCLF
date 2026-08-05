@@ -1,0 +1,90 @@
+#!/bin/bash
+# Knowledge-distillation fine-tuning on OpenWebText.
+# Uses train_owt_ELF-B-kd.yml: lambda_kd=1.0 (decode-branch teacher → lin_branch student),
+# kd_temperature=4.0, adamw optimizer, blr=3e-4.
+# The lin_branch head is randomly initialised and trained from scratch.
+#
+# Key env vars:
+#   RESUME       — base checkpoint to start from (local path or HF id)
+#                  default: official ELF-B-owt-torch from HuggingFace
+#   OUTPUT_DIR   — where to write checkpoints and logs
+#   EPOCHS       — number of fine-tuning epochs (default 2)
+#   NGPU         — GPUs to use (default 4)
+#   TAG          — run label (used in W&B run name and output dir)
+#   WANDB_KEY    — WandB API key; set "" to disable W&B logging
+#   LAMBDA_KD    — KD loss weight (default 1.0, override to tune)
+#
+# Example (4-GPU KD run starting from the official baseline):
+#   qsub -v TAG=kd3 scripts/train_owt_kd.pbs
+#
+# Example (resume an interrupted run):
+#   qsub -v TAG=kd3,RESUME=outputs/elf_b-owt-kd3 scripts/train_owt_kd.pbs
+#
+# Example (stronger KD weight):
+#   qsub -v TAG=kd_lam2,LAMBDA_KD=2.0 scripts/train_owt_kd.pbs
+
+#PBS -N elf_train_kd
+#PBS -P ds_ccds_wei.lu          # <-- update to your project code
+#PBS -q gpu_ded
+#PBS -l select=1:ncpus=48:ngpus=4
+#PBS -l walltime=24:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+module purge
+module load anaconda/2025
+module load cuda/12.4
+eval "$(/usr/local/anaconda2025/bin/conda shell.bash hook)"
+conda activate elf
+
+REPO=/path/to/ELF-torch
+cd "$REPO"
+export PYTHONUNBUFFERED=1
+
+if echo "${CUDA_VISIBLE_DEVICES:-}" | grep -q "GPU-"; then
+    GPU_COUNT=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | wc -l)
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES
+fi
+echo "Job: ${PBS_JOBID}  Node: $(hostname)  GPU: ${CUDA_VISIBLE_DEVICES:-unset}"
+nvidia-smi -L
+
+# ── parameters ───────────────────────────────────────────────────────────────
+TAG="${TAG:-kd_run}"
+RESUME="${RESUME:-embedded-language-flows/ELF-B-owt-torch}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/elf_b-owt-${TAG}}"
+EPOCHS="${EPOCHS:-2}"
+NGPU="${NGPU:-4}"
+LAMBDA_KD="${LAMBDA_KD:-1.0}"
+WANDB_KEY="${WANDB_KEY:-}"
+
+mkdir -p pbs/logs
+
+exec > "pbs/logs/train_${TAG}.${PBS_JOBID}.log" 2>&1
+
+echo "Tag:         ${TAG}"
+echo "Resume from: ${RESUME}"
+echo "Output dir:  ${OUTPUT_DIR}"
+echo "Epochs:      ${EPOCHS}"
+echo "NGPU:        ${NGPU}"
+echo "lambda_kd:   ${LAMBDA_KD}"
+
+# Login to WandB if key is provided
+if [[ -n "${WANDB_KEY}" ]]; then
+    wandb login "${WANDB_KEY}"
+    USE_WANDB=true
+else
+    USE_WANDB=false
+fi
+
+NGPU=$NGPU bash scripts/launch.sh train \
+    src/configs/training_configs/train_owt_ELF-B-kd.yml \
+    --config_override "resume=${RESUME}" \
+    --config_override "output_dir=${OUTPUT_DIR}" \
+    --config_override "epochs=${EPOCHS}" \
+    --config_override "lambda_kd=${LAMBDA_KD}" \
+    --config_override "use_wandb=${USE_WANDB}" \
+    --config_override "wandb_run_name=${TAG}"
+
+echo "=== DONE ==="

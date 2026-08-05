@@ -22,6 +22,16 @@ class SamplingConfig:
     self_cond_cfg_scales: list = [1.0]
     time_schedule: str = "logit_normal"  # 'logit_normal' or 'uniform'
     sde_gamma: float = 0.0  # Per-step SDE churn fraction; 0.0 -> pure ODE. Used when sampling_method == "sde".
+    sar_alpha: float = 0.0  # Semi-autoregressive offset: t_i = clamp(t + alpha*(0.5 - i/L), 0, 1). 0.0 = standard.
+    dec_sc_mode: str = "none"  # Decode self-cond mode. Options: none | decode | extra_denoise | decode_shuffled | decode_wrong_t | random_residual
+    dec_sc_apply_t_min: float = 0.0  # Only apply dec_sc_mode when t_next >= this threshold (0.0 = all steps, 0.5 = second half only)
+    save_trajectory: bool = False  # EXP-01: save per-step (t, z_t, x_pred) to trajectory_save_dir
+    trajectory_save_dir: str = "results/exp01/trajectories"  # Output dir for saved trajectories
+    # spec-11: Diffusion Forcing per-position commitment guidance (inference-time, no training)
+    df_variant: str = "none"  # "none" | "freeze" | "soft"
+    df_commit_thresh: float = 0.5  # entropy (nats) below which a position is "committed" (freeze variant)
+    df_soft_alpha: float = 0.5    # max interpolation weight toward x_pred (soft variant)
+    df_t_min: float = 0.0         # only apply DF when t_next >= this value
 
 
 # ============================================
@@ -90,6 +100,12 @@ class Config:
     use_bf16: bool = True  # Use CUDA BF16 autocast for training/eval forward passes.
     use_compile: bool = False  # Wrap the eval/sampling model in torch.compile.
     gradient_checkpointing: bool = False  # Save activation memory by recomputing ELF blocks during backward.
+
+    # KD loss (Idea B — linear-branch student distilled from decoder-head teacher)
+    lambda_kd: float = 0.0       # Weight for KD loss; 0.0 = disabled
+    kd_temperature: float = 4.0  # Softmax temperature τ; gradients scaled by τ²
+    kd_gate_low: float = 0.0     # Apply KD only when t ≥ this value
+    kd_gate_high: float = 1.0    # Apply KD only when t ≤ this value
 
     # EMA
     ema_decay1: float = 0.9999

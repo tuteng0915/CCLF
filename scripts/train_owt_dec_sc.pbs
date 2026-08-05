@@ -1,0 +1,84 @@
+#!/bin/bash
+# dec_sc training: L_sc loss in embedding space.
+# Pushes net_out (main denoising output) toward x̂_t^dec (decode branch teacher).
+# After training, inference quality of dec_sc is preserved without the extra 3rd
+# forward pass — 2-pass inference instead of 3, same quality.
+#
+# Key env vars:
+#   RESUME     — checkpoint to start from (default: official ELF-B-owt-torch)
+#   OUTPUT_DIR — where to write checkpoints
+#   EPOCHS     — fine-tuning epochs (default 2)
+#   NGPU       — GPUs to use (default 4)
+#   TAG        — run label
+#   WANDB_KEY  — WandB API key; set "" to disable
+#   LAMBDA_SC  — L_sc loss weight (default 1.0)
+#
+# Example:
+#   qsub -v TAG=dec_sc scripts/train_owt_dec_sc.pbs
+# Combine with KD:
+#   set lambda_kd in a custom config that extends train_owt_ELF-B-dec-sc.yml
+
+#PBS -N elf_train_dec_sc
+#PBS -P ds_ccds_wei.lu          # <-- update to your project code
+#PBS -q gpu_ded
+#PBS -l select=1:ncpus=48:ngpus=4
+#PBS -l walltime=24:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+module purge
+module load anaconda/2025
+module load cuda/12.4
+eval "$(/usr/local/anaconda2025/bin/conda shell.bash hook)"
+conda activate elf
+
+REPO=/path/to/ELF-torch
+cd "$REPO"
+export PYTHONUNBUFFERED=1
+
+if echo "${CUDA_VISIBLE_DEVICES:-}" | grep -q "GPU-"; then
+    GPU_COUNT=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | wc -l)
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES
+fi
+echo "Job: ${PBS_JOBID}  Node: $(hostname)  GPU: ${CUDA_VISIBLE_DEVICES:-unset}"
+nvidia-smi -L
+
+# ── parameters ───────────────────────────────────────────────────────────────
+TAG="${TAG:-dec_sc}"
+RESUME="${RESUME:-embedded-language-flows/ELF-B-owt-torch}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/elf_b-owt-${TAG}}"
+EPOCHS="${EPOCHS:-2}"
+NGPU="${NGPU:-4}"
+LAMBDA_SC="${LAMBDA_SC:-1.0}"
+WANDB_KEY="${WANDB_KEY:-}"
+
+mkdir -p pbs/logs
+
+exec > "pbs/logs/train_${TAG}.${PBS_JOBID}.log" 2>&1
+
+echo "Tag:         ${TAG}"
+echo "Resume from: ${RESUME}"
+echo "Output dir:  ${OUTPUT_DIR}"
+echo "Epochs:      ${EPOCHS}"
+echo "NGPU:        ${NGPU}"
+echo "lambda_sc:   ${LAMBDA_SC}"
+
+if [[ -n "${WANDB_KEY}" ]]; then
+    wandb login "${WANDB_KEY}"
+    USE_WANDB=true
+else
+    USE_WANDB=false
+fi
+
+NGPU=$NGPU bash scripts/launch.sh train \
+    src/configs/training_configs/train_owt_ELF-B-dec-sc.yml \
+    --config_override "resume=${RESUME}" \
+    --config_override "output_dir=${OUTPUT_DIR}" \
+    --config_override "epochs=${EPOCHS}" \
+    --config_override "lambda_sc=${LAMBDA_SC}" \
+    --config_override "use_wandb=${USE_WANDB}" \
+    --config_override "wandb_run_name=${TAG}"
+
+echo "=== DONE ==="

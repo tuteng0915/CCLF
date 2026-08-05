@@ -68,6 +68,71 @@ The paper numbers were computed on TPU v5p-64; numbers from this PyTorch port
 on 8× L40S / H200 should land within sampling noise (typically <1 PPL or
 <0.5 metric points).
 
+## CCLF Fine-tuned Checkpoints
+
+The following local checkpoints were produced by the CCLF project and are available
+under `converted/` after running the JAX→PyTorch conversion (see below):
+
+| File | Description | SDE-32 PPL |
+| --- | --- | --- |
+| `converted/elf_b-owt-baseline_torch.pt` | Official ELF-B-OWT (step 95085), converted from JAX | ~24.1 |
+| `converted/elf_b-owt-kd2_torch.pt` | Decode-teacher KD fine-tune (400k steps) | ~24.4 |
+| `converted/elf_b-owt-kd-cr_torch.pt` | Commit-release KD fine-tune (700k steps) | ~63.3 |
+
+Load any converted checkpoint by passing its absolute path to `--checkpoint_path`.
+
+## JAX → PyTorch Conversion
+
+To convert a JAX/Orbax ELF checkpoint to a PyTorch `.pt` file:
+
+```bash
+# Install JAX dependencies first (separate from main requirements)
+pip install -r requirements_convert.txt
+
+# Convert (uses ema_params1 by default — correct for inference)
+python convert_jax_to_torch.py \
+    --jax_ckpt /path/to/orbax/checkpoint_NNNNN \
+    --out       converted/my_checkpoint.pt
+
+# Optionally validate against a reference HF checkpoint
+python convert_jax_to_torch.py \
+    --jax_ckpt /path/to/checkpoint_95085 \
+    --out       converted/baseline.pt \
+    --validate  /path/to/ELF-B-owt-torch/checkpoint_95085
+```
+
+The validation compares the converted weights against the official HF EMA params;
+a correct conversion yields max absolute diff < 1e-6.
+
+## PBS Job Scripts
+
+Ready-to-submit PBS scripts are in `scripts/`. Before using, set two things in each file:
+
+1. `#PBS -P ds_ccds_wei.lu` → replace with your cluster project code
+2. `REPO=/path/to/ELF-torch` → absolute path on the cluster
+
+| Script | What it does | Walltime | GPUs |
+| --- | --- | --- | --- |
+| `scripts/eval_owt_uncond.pbs` | Full ODE+SDE grid eval (12 configs, 1000 samples) | 4 h | 1 |
+| `scripts/eval_xsum.pbs` | XSum ROUGE eval (64-step ODE, 1000 samples) | 4 h | 1 |
+| `scripts/eval_de_en.pbs` | WMT14 De-En BLEU eval (64-step ODE, 1000 samples) | 2 h | 1 |
+| `scripts/train_owt_kd.pbs` | KD fine-tuning on OWT, resumes from any checkpoint | 24 h | 4 |
+
+Override parameters via `-v VAR=value` at submission time, e.g.:
+
+```bash
+# Eval our kd2 checkpoint
+qsub -v CKPT=/path/to/converted/elf_b-owt-kd2_torch.pt,TAG=kd2 \
+    scripts/eval_owt_uncond.pbs
+
+# Eval official XSum baseline
+qsub scripts/eval_xsum.pbs
+
+# Start a new KD training run
+qsub -v TAG=kd3,EPOCHS=3,WANDB_KEY=your_key \
+    scripts/train_owt_kd.pbs
+```
+
 ## Training
 
 Launch single-GPU training:

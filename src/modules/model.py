@@ -139,6 +139,14 @@ class ELF(nn.Module):
         DEFAULT_KERNEL_INIT(self.unembed_kernel)
         DEFAULT_BIAS_INIT(self.unembed_bias)
 
+        # Linear branch: lightweight hidden->vocab head used as KD student target.
+        if vocab_size > 0:
+            self.lin_branch = nn.Linear(hidden_size, vocab_size, bias=True)
+            DEFAULT_KERNEL_INIT(self.lin_branch.weight)
+            DEFAULT_BIAS_INIT(self.lin_branch.bias)
+        else:
+            self.lin_branch = None
+
     def build_context(self, t: torch.Tensor,
                       self_cond_cfg_scale: Optional[torch.Tensor] = None) -> list:
         B = t.shape[0]
@@ -164,7 +172,8 @@ class ELF(nn.Module):
         deterministic: bool = True,
         self_cond_cfg_scale: Optional[torch.Tensor] = None,
         decoder_step_active: Optional[bool] = None,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        skip_decoder_logits: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         """x: (N, S, C) or (N, S, 2C) with self-cond. t: (N,). attention_mask: (N, S), 1=valid."""
         B = x.shape[0]
 
@@ -222,12 +231,15 @@ class ELF(nn.Module):
         # Factored decoder unembedding: hidden -> text_encoder_dim -> vocab
         with torch.amp.autocast('cuda', enabled=False):
             decoder_logits = None
-            if decoder_step_active is not None:
+            linear_logits = None
+            if decoder_step_active is not None and not skip_decoder_logits:
                 x_f32 = x.float()
                 hidden = F.gelu(x_f32 @ self.proj_kernel + self.proj_bias, approximate="tanh")
                 decoder_logits = hidden @ self.unembed_kernel + self.unembed_bias
+                if self.lin_branch is not None:
+                    linear_logits = self.lin_branch(x_f32)
             output = self.final_layer(x.float())
-        return output, decoder_logits
+        return output, decoder_logits, linear_logits
 
 
 # Model factory functions

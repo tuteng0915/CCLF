@@ -1,0 +1,28 @@
+## EXP-33: kd_cr + dec_sc + DF — does dec_sc rescue kd_cr's DF failure?
+## EXP-31 (no dec_sc): all DF conditions hurt kd_cr (+17-43%)
+## EXP-33: adds dec_sc_mode=decode — tests if the failure was due to missing dec_sc
+
+# Dataset / tokenizer
+data_path: data/owt/val.jsonl
+max_length: 128
+tokenizer_name: t5-small
+encoder_model_name: t5-small
+
+# Model
+model: ELF-B
+bottleneck_dim: 128
+hidden_size: 768
+num_layers: 12
+num_heads: 12
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+
+# Eval settings
+num_samples: 256
+seed: 123
+batch_size: 16
+output_dir: outputs/exp33_kd_cr_decsc
+
+# Sampling configs
+sampling_configs_path: src/configs/sampling_configs/spec33_df_decsc.yml
