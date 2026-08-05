@@ -137,7 +137,13 @@ def _validate_checkpoint(ckpt: Any):
         raise ValueError(f"checkpoint restore missing keys: {missing_keys}")
 
 
-def load_checkpoint(checkpoint_path: str, state) -> Tuple[Any, int]:
+def load_checkpoint(
+    checkpoint_path: str,
+    state,
+    *,
+    load_optimizer: bool = True,
+    restore_progress: bool = True,
+) -> Tuple[Any, int]:
     """Load an ELF checkpoint.
 
     Uses an existing local path first; otherwise tries HF and then local fallback.
@@ -182,28 +188,29 @@ def load_checkpoint(checkpoint_path: str, state) -> Tuple[Any, int]:
     if unexpected:
         log_for_0(f"load_state_dict unexpected keys (ignored): {unexpected}")
     ema_src = ckpt.get("ema_params1", ckpt["params"])
-    device_map = {n: p.device for n, p in inner_model.named_parameters()}
-    for n, b in inner_model.named_buffers():
-        device_map.setdefault(n, b.device)
-    fallback_device = next(iter(device_map.values()), torch.device("cpu"))
+    # Build EMA for every current parameter. This matters when fine-tuning an
+    # older checkpoint with newly introduced parameters (e.g. WFF's local
+    # time gate): missing EMA entries must start from the model initialization
+    # rather than silently disappearing from evaluation checkpoints.
     state.ema_params1 = {
-        n: t.to(device_map.get(n, fallback_device)) for n, t in ema_src.items()
+        name: ema_src.get(name, param.detach()).detach().clone().to(param.device)
+        for name, param in inner_model.named_parameters()
     }
-    if ckpt.get("opt_state") is not None:
+    if load_optimizer and ckpt.get("opt_state") is not None:
         try:
             state.optimizer.load_state_dict(ckpt["opt_state"])
         except Exception as e:
             log_for_0(f"Optimizer state load failed ({e}); skipping (OK for eval-only use)", level=logging.WARNING)
-    if state.lr_scheduler is not None and ckpt.get("lr_scheduler") is not None:
+    if load_optimizer and state.lr_scheduler is not None and ckpt.get("lr_scheduler") is not None:
         state.lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
-    state.step = int(ckpt["step"])
-    state.epoch = int(ckpt["epoch"])
-    if ckpt.get("dropout_rng") is not None and state.dropout_generator is not None:
+    state.step = int(ckpt["step"]) if restore_progress else 0
+    state.epoch = int(ckpt["epoch"]) if restore_progress else 0
+    if restore_progress and ckpt.get("dropout_rng") is not None and state.dropout_generator is not None:
         try:
             state.dropout_generator.set_state(ckpt["dropout_rng"])
         except Exception:
             pass
-    if ckpt.get("grad_accum_buffers"):
+    if restore_progress and ckpt.get("grad_accum_buffers"):
         buffers = ckpt["grad_accum_buffers"]
         state.grad_accum_buffers = {}
         param_ids = []
@@ -218,6 +225,6 @@ def load_checkpoint(checkpoint_path: str, state) -> Tuple[Any, int]:
             )
         state.grad_accum_param_ids = tuple(param_ids)
 
-    step = int(ckpt["step"])
+    step = int(ckpt["step"]) if restore_progress else 0
     log_for_0(f"Loaded {loaded_from} checkpoint from step {step} (epoch {state.epoch})")
     return state, step

@@ -32,6 +32,10 @@ class SamplingConfig:
     df_commit_thresh: float = 0.5  # entropy (nats) below which a position is "committed" (freeze variant)
     df_soft_alpha: float = 0.5    # max interpolation weight toward x_pred (soft variant)
     df_t_min: float = 0.0         # only apply DF when t_next >= this value
+    # Native Wavefront Flow Forcing sampler. Requires a checkpoint trained
+    # with per_token_time_conditioning=true.
+    wff_delta: float = 0.0
+    wff_order: str = "ltr"  # "ltr" or "rtl"
 
 
 # ============================================
@@ -100,6 +104,17 @@ class Config:
     use_bf16: bool = True  # Use CUDA BF16 autocast for training/eval forward passes.
     use_compile: bool = False  # Wrap the eval/sampling model in torch.compile.
     gradient_checkpointing: bool = False  # Save activation memory by recomputing ELF blocks during backward.
+    max_train_steps: int = None  # Optional exact pilot budget, independent of dataset epoch size.
+    resume_model_only: bool = False  # Load weights/EMA but reset optimizer, scheduler, step, and epoch.
+
+    # Wavefront Flow Forcing. The architecture flag enables native (B,S)
+    # time conditioning. wff_train_prob=0 is the matched synchronous control.
+    per_token_time_conditioning: bool = False
+    wff_train_prob: float = 0.0
+    wff_delta_min: float = 0.05
+    wff_delta_max: float = 0.20
+    wff_ltr_prob: float = 0.5
+    wff_rtl_prob: float = 0.25
 
     # KD loss (Idea B — linear-branch student distilled from decoder-head teacher)
     lambda_kd: float = 0.0       # Weight for KD loss; 0.0 = disabled

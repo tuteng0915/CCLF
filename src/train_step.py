@@ -19,7 +19,8 @@ import torch.nn.functional as F
 from utils.train_utils import TrainState, ema_update
 from utils.encoder_utils import encode_text
 from utils.sampling_utils import (
-    sample_cfg_scale, add_noise, sample_timesteps,
+    sample_cfg_scale, add_noise, sample_timesteps, sample_wff_timesteps,
+    _expand_time_like,
     net_out_to_v_x, restore_cond,
 )
 
@@ -84,6 +85,24 @@ def train_step(
         cliff_hi=float(getattr(config, 'cliff_hi', 0.45)),
     )
 
+    # Native WFF training uses a local time per token.  Setting
+    # per_token_time_conditioning=true with wff_train_prob=0 creates the
+    # architecture-matched synchronous fine-tuning control.
+    if bool(getattr(config, "per_token_time_conditioning", False)):
+        denoiser_t, wff_use_wave, wff_delta, _wff_order = sample_wff_timesteps(
+            t,
+            seq_length,
+            probability=float(getattr(config, "wff_train_prob", 0.0)),
+            delta_min=float(getattr(config, "wff_delta_min", 0.05)),
+            delta_max=float(getattr(config, "wff_delta_max", 0.20)),
+            ltr_probability=float(getattr(config, "wff_ltr_prob", 0.5)),
+            rtl_probability=float(getattr(config, "wff_rtl_prob", 0.25)),
+        )
+    else:
+        denoiser_t = t
+        wff_use_wave = torch.zeros(batch_size, dtype=dtype, device=device)
+        wff_delta = torch.zeros(batch_size, dtype=dtype, device=device)
+
     noise = torch.randn(x0.shape, dtype=dtype, device=device)
 
     if config.pad_token == "pad":
@@ -94,7 +113,7 @@ def train_step(
 
     cond_seq_mask = cond_seq_mask.unsqueeze(-1)  # (B, S, 1)
 
-    denoiser_z = add_noise(x0, noise, t, config, cond_seq_mask=cond_seq_mask)
+    denoiser_z = add_noise(x0, noise, denoiser_t, config, cond_seq_mask=cond_seq_mask)
 
     drop = label_drop_mask.unsqueeze(1)  # (B, 1)
     if config.label_drop_prob > 0:
@@ -121,7 +140,7 @@ def train_step(
     decoder_noise = torch.randn(x0.shape, dtype=dtype, device=device) * decoder_noise_scale
     decoder_z = decoder_lambda_t * x0 + (1 - decoder_lambda_t) * decoder_noise
 
-    t_expanded = t.reshape(-1, 1, 1)
+    t_expanded = _expand_time_like(denoiser_t, x0)
     v_target = (x0 - denoiser_z) / torch.clamp(1 - t_expanded, min=t_eps)
 
     if self_cond_prob > 0:
@@ -201,9 +220,12 @@ def train_step(
     # Per-example branching: build a mixed input (decoder_z for decoder-mode
     # rows, denoiser_z for denoiser-mode rows). One forward computes both
     # heads; we mask CE / L2 losses to their respective rows. 
-    denoiser_t = t
-    decoder_t = torch.ones_like(t)
-    t_mixed = decoder_step_active * decoder_t + (1.0 - decoder_step_active) * t  # (B,)
+    decoder_t = torch.ones_like(denoiser_t)
+    if denoiser_t.dim() == 2:
+        decoder_time_mask = decoder_mask_B1
+    else:
+        decoder_time_mask = decoder_step_active
+    t_mixed = decoder_time_mask * decoder_t + (1.0 - decoder_time_mask) * denoiser_t
     z_mixed = decoder_mask_B11 * decoder_z + (1.0 - decoder_mask_B11) * denoiser_z
 
     # Self-cond shared forward (run on denoiser_z / t — only relevant for
@@ -292,8 +314,10 @@ def train_step(
         gate_low = float(getattr(config, "kd_gate_low", 0.0))
         gate_high = float(getattr(config, "kd_gate_high", 1.0))
         denoiser_mask_B = 1.0 - decoder_step_active          # (B,) 1=denoiser, 0=decoder
-        t_gate_B = ((t >= gate_low) & (t <= gate_high)).float()  # (B,)
-        kd_mask_BS = loss_mask_f * (denoiser_mask_B * t_gate_B).unsqueeze(-1)  # (B, S)
+        t_gate = ((denoiser_t >= gate_low) & (denoiser_t <= gate_high)).float()
+        if t_gate.dim() == 1:
+            t_gate = t_gate.unsqueeze(-1)
+        kd_mask_BS = loss_mask_f * denoiser_mask_B.unsqueeze(-1) * t_gate
 
         with torch.no_grad():
             teacher_soft = F.softmax(decoder_logits.float() / tau, dim=-1)  # (B, S, V)
@@ -348,8 +372,10 @@ def train_step(
         x_dec = restore_cond(x_dec.float().detach(), x0.float(), cond_seq_mask)
 
         denoiser_mask_B = 1.0 - decoder_step_active                          # (B,)
-        t_sc_gate_B = ((t >= sc_gate_low) & (t <= sc_gate_high)).float()     # (B,)
-        sc_mask_BS = loss_mask_f * (denoiser_mask_B * t_sc_gate_B).unsqueeze(-1)
+        t_sc_gate = ((denoiser_t >= sc_gate_low) & (denoiser_t <= sc_gate_high)).float()
+        if t_sc_gate.dim() == 1:
+            t_sc_gate = t_sc_gate.unsqueeze(-1)
+        sc_mask_BS = loss_mask_f * denoiser_mask_B.unsqueeze(-1) * t_sc_gate
         sc_diff = net_out.float() - x_dec                                     # (B, S, d)
         sc_per_token = (sc_diff ** 2).mean(dim=-1)                            # (B, S)
         sc_loss = (sc_per_token * sc_mask_BS).sum() / torch.clamp(sc_mask_BS.sum(), min=1.0)
@@ -368,11 +394,13 @@ def train_step(
         cliff_fall = float(getattr(config, "ce_cliff_fall", 0.60))
         # α_nm(t) peaks between cliff_rise and cliff_fall, ≈0 outside
         alpha_t = (
-            torch.sigmoid(k_cliff * (t - cliff_rise))
-            - torch.sigmoid(k_cliff * (t - cliff_fall))
-        )  # (B,)
+            torch.sigmoid(k_cliff * (denoiser_t - cliff_rise))
+            - torch.sigmoid(k_cliff * (denoiser_t - cliff_fall))
+        )
+        if alpha_t.dim() == 1:
+            alpha_t = alpha_t.unsqueeze(-1)
         denoiser_mask_B = 1.0 - decoder_step_active  # (B,)
-        cliff_mask_BS = loss_mask_f * (denoiser_mask_B * alpha_t).unsqueeze(-1)  # (B, S)
+        cliff_mask_BS = loss_mask_f * denoiser_mask_B.unsqueeze(-1) * alpha_t
         ce_cliff_per_token = F.cross_entropy(
             linear_logits.float().reshape(-1, linear_logits.shape[-1]),
             decoder_targets.reshape(-1),
@@ -444,5 +472,7 @@ def train_step(
         "ce_cliff_loss": ce_cliff_loss_val,
         "intermediate_rec_loss": intermediate_rec_loss_val,
         "align_loss": align_loss_val,
+        "wff_fraction": wff_use_wave.mean().detach(),
+        "wff_mean_delta": wff_delta.mean().detach(),
     }
     return state, metrics

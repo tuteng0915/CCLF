@@ -68,6 +68,7 @@ class ELF(nn.Module):
         num_model_mode_tokens: int = 0,
         vocab_size: int = 0,
         gradient_checkpointing: bool = False,
+        per_token_time_conditioning: bool = False,
     ):
         super().__init__()
         self.text_encoder_dim = text_encoder_dim
@@ -84,6 +85,7 @@ class ELF(nn.Module):
         self.num_model_mode_tokens = num_model_mode_tokens
         self.vocab_size = vocab_size
         self.gradient_checkpointing = gradient_checkpointing
+        self.per_token_time_conditioning = per_token_time_conditioning
 
         # Self-conditioning input projection (only used when input is [z, x_pred]).
         self.self_cond_proj = _make_linear(2 * text_encoder_dim, text_encoder_dim, bias=True)
@@ -97,6 +99,11 @@ class ELF(nn.Module):
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.t_emb_tokens = nn.Parameter(torch.empty(1, num_time_tokens, hidden_size))
         NORMAL_INIT_002(self.t_emb_tokens)
+        if per_token_time_conditioning:
+            # Zero initialization makes a WFF-capable model exactly reproduce a
+            # scalar-time checkpoint before fine-tuning.  Heterogeneous local
+            # time enters as a residual relative to the sequence-mean time.
+            self.local_time_gate = nn.Parameter(torch.zeros(()))
 
         if num_self_cond_cfg_tokens > 0:
             self.self_cond_cfg_embedder = TimestepEmbedder(hidden_size)
@@ -174,15 +181,45 @@ class ELF(nn.Module):
         decoder_step_active: Optional[bool] = None,
         skip_decoder_logits: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """x: (N, S, C) or (N, S, 2C) with self-cond. t: (N,). attention_mask: (N, S), 1=valid."""
+        """Run ELF with scalar or native per-token time conditioning.
+
+        x: (N, S, C) or (N, S, 2C) with self-conditioning.
+        t: (N,) for the original model, or (N, S) for Wavefront Flow
+           Forcing.  The legacy prefix tokens receive mean_i(t_i), while a
+           gated residual time embedding is added to each token state.
+        attention_mask: (N, S), 1=valid.
+        """
         B = x.shape[0]
+        local_t = None
+        if t.dim() == 2:
+            if t.shape != x.shape[:2]:
+                raise ValueError(
+                    f"Per-token time must have shape {tuple(x.shape[:2])}, got {tuple(t.shape)}"
+                )
+            if not self.per_token_time_conditioning:
+                raise ValueError(
+                    "Received per-token time but per_token_time_conditioning is disabled"
+                )
+            local_t = t
+            context_t = t.mean(dim=1)
+        elif t.dim() == 1:
+            context_t = t
+        else:
+            raise ValueError(f"Time must have shape (B,) or (B,S), got {tuple(t.shape)}")
 
         # Self-conditioning: input is [z, x_pred] when 2x encoder dim
         with torch.amp.autocast('cuda', enabled=False):
             if x.shape[-1] == 2 * self.text_encoder_dim:
                 x = self.self_cond_proj(x.float())
             x = self.text_proj(x.float())
-            context_prefix_tokens = self.build_context(t, self_cond_cfg_scale)
+            if local_t is not None:
+                local_time_emb = self.t_embedder(local_t.reshape(-1)).reshape(
+                    B, local_t.shape[1], self.hidden_size
+                )
+                mean_time_emb = self.t_embedder(context_t).unsqueeze(1)
+                local_residual = local_time_emb - mean_time_emb
+                x = x + torch.tanh(self.local_time_gate.float()) * local_residual
+            context_prefix_tokens = self.build_context(context_t, self_cond_cfg_scale)
 
         # Prepend learnable model-mode tokens (gated by decoder_step_active).
         # decoder_step_active may be None / Python bool / (B,) tensor — the last

@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 
 import torch
@@ -8,9 +9,24 @@ import torch.nn.functional as F
 # Noise Schedulers (how to compute z from x0 and noise)
 # ============================================
 
+def _expand_time_like(t: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+    """Broadcast scalar-per-example or per-token time over the channel axis."""
+    if t.dim() == 1:
+        if t.shape[0] != reference.shape[0]:
+            raise ValueError(f"Expected {reference.shape[0]} timesteps, got {t.shape[0]}")
+        return t[:, None, None]
+    if t.dim() == 2:
+        if t.shape != reference.shape[:2]:
+            raise ValueError(
+                f"Expected per-token time shape {tuple(reference.shape[:2])}, got {tuple(t.shape)}"
+            )
+        return t.unsqueeze(-1)
+    raise ValueError(f"Time must have shape (B,) or (B,S), got {tuple(t.shape)}")
+
+
 def add_noise(x0, noise, t, config, cond_seq_mask=None):
     """Flow-matching interpolation z = t*x0 + (1-t)*noise*scale, preserving cond tokens."""
-    t_expanded = t.reshape(-1, 1, 1)
+    t_expanded = _expand_time_like(t, x0)
     z = t_expanded * x0 + (1 - t_expanded) * noise * config.denoiser_noise_scale
     if cond_seq_mask is not None:
         z = cond_seq_mask * x0 + (1 - cond_seq_mask) * z
@@ -77,6 +93,109 @@ def sample_timesteps(
         t = t_lo + 0.05 * torch.rand((batch_size,), dtype=dtype, device=device)
         return t.clamp(0.0, 1.0)
     raise ValueError(f"Unknown time_schedule: {time_schedule}")
+
+
+def sample_wff_timesteps(
+    base_t: torch.Tensor,
+    seq_length: int,
+    probability: float,
+    delta_min: float,
+    delta_max: float,
+    ltr_probability: float = 0.5,
+    rtl_probability: float = 0.25,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Sample native heterogeneous local times for WFF training.
+
+    Returns `(tau, use_wave, delta, order_id)`, where `tau` is `(B,S)` and
+    order ids are 0=LTR, 1=RTL, 2=random.  Non-wave examples retain the
+    original scalar time at every position, providing an exact synchronous
+    training control inside the same model.
+    """
+    if base_t.dim() != 1:
+        raise ValueError(f"base_t must have shape (B,), got {tuple(base_t.shape)}")
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError("WFF probability must lie in [0,1]")
+    if not 0.0 <= delta_min <= delta_max:
+        raise ValueError("Require 0 <= delta_min <= delta_max")
+    if delta_max > 1.0 / math.pi:
+        raise ValueError("WFF delta must be <= 1/pi so local clocks remain monotone")
+    if ltr_probability < 0.0 or rtl_probability < 0.0 or ltr_probability + rtl_probability > 1.0:
+        raise ValueError("Invalid WFF ordering probabilities")
+
+    batch_size = base_t.shape[0]
+    device, dtype = base_t.device, base_t.dtype
+    synchronous = base_t[:, None].expand(batch_size, seq_length)
+    use_wave = torch.rand(batch_size, device=device) < probability
+    delta = delta_min + (delta_max - delta_min) * torch.rand(
+        batch_size, device=device, dtype=dtype
+    )
+
+    order_draw = torch.rand(batch_size, device=device)
+    order_id = torch.full((batch_size,), 2, dtype=torch.long, device=device)
+    order_id = torch.where(order_draw < ltr_probability, torch.zeros_like(order_id), order_id)
+    order_id = torch.where(
+        (order_draw >= ltr_probability)
+        & (order_draw < ltr_probability + rtl_probability),
+        torch.ones_like(order_id),
+        order_id,
+    )
+
+    if seq_length <= 1:
+        ltr_offset = torch.zeros(seq_length, dtype=dtype, device=device)
+    else:
+        rank = torch.linspace(0.0, 1.0, seq_length, dtype=dtype, device=device)
+        ltr_offset = 1.0 - 2.0 * rank
+    rtl_offset = -ltr_offset
+
+    random_scores = torch.rand(batch_size, seq_length, device=device)
+    random_rank = random_scores.argsort(dim=1).argsort(dim=1).to(dtype)
+    if seq_length > 1:
+        random_rank = random_rank / float(seq_length - 1)
+    random_offset = 1.0 - 2.0 * random_rank
+
+    offsets = random_offset
+    offsets = torch.where((order_id == 0)[:, None], ltr_offset[None, :], offsets)
+    offsets = torch.where((order_id == 1)[:, None], rtl_offset[None, :], offsets)
+    # Match the inference clock exactly: the heterogeneous offset vanishes at
+    # both endpoints, so every token begins at pure noise and finishes at the
+    # same clean endpoint. Delta <= 1/pi keeps d tau_i / d t non-negative.
+    envelope = torch.sin(math.pi * base_t)[:, None]
+    wave_tau = (
+        base_t[:, None] + delta[:, None] * envelope * offsets
+    ).clamp(0.0, 1.0)
+    tau = torch.where(use_wave[:, None], wave_tau, synchronous)
+    effective_delta = torch.where(use_wave, delta, torch.zeros_like(delta))
+    return tau, use_wave.to(dtype), effective_delta, order_id
+
+
+def make_wff_time_vector(
+    global_t: float,
+    seq_length: int,
+    delta: float,
+    order: str,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Construct a monotone wavefront clock with synchronous endpoints.
+
+    `sin(pi*s)` turns the offset on only in the interior, so every position
+    starts at pure noise and reaches clean time exactly.  Delta must be at
+    most 1/pi to keep all local clocks monotone in global solver time.
+    """
+    if delta < 0.0 or delta > 1.0 / math.pi:
+        raise ValueError(f"wff_delta must be in [0, 1/pi], got {delta}")
+    if order not in {"ltr", "rtl"}:
+        raise ValueError(f"Unsupported WFF order: {order}")
+    if seq_length <= 1:
+        offset = torch.zeros(seq_length, dtype=dtype, device=device)
+    else:
+        rank = torch.linspace(0.0, 1.0, seq_length, dtype=dtype, device=device)
+        offset = 1.0 - 2.0 * rank
+    if order == "rtl":
+        offset = -offset
+    envelope = math.sin(math.pi * float(global_t))
+    return (float(global_t) + float(delta) * envelope * offset).clamp(0.0, 1.0)
 
 
 def get_sampling_steps(
@@ -151,7 +270,7 @@ def net_out_to_v_x(net_out, z, t, t_eps=5e-2):
     """
     if isinstance(net_out, tuple):
         net_out = net_out[0]
-    t_reshaped = t.reshape(-1, 1, 1)
+    t_reshaped = _expand_time_like(t, z)
     x = net_out
     denom = torch.clamp(1.0 - t_reshaped, min=t_eps)
     v = (x - z) / denom
@@ -252,6 +371,39 @@ def _ode_step(
         cond_seq=cond_seq, cond_seq_mask=cond_seq_mask,
     )
     return z + (t_next - t) * v_pred, x_pred
+
+
+def _wff_ode_step(
+    model, z, t, t_next, x_pred_prev,
+    config, cfg_scale, self_cond_cfg_scale,
+    cond_seq, cond_seq_mask,
+):
+    """Native WFF Euler step using a local clock for every token position."""
+    batch_size, seq_length = z.shape[:2]
+
+    def _batch_time(value):
+        if value.dim() == 1:
+            if value.shape[0] != seq_length:
+                raise ValueError(f"Expected {seq_length} local times, got {value.shape[0]}")
+            return value[None, :].expand(batch_size, -1)
+        if value.dim() == 2 and value.shape == (batch_size, seq_length):
+            return value
+        raise ValueError(
+            f"WFF time must have shape (S,) or (B,S), got {tuple(value.shape)}"
+        )
+
+    t_batch = _batch_time(t).to(dtype=z.dtype, device=z.device)
+    t_next_batch = _batch_time(t_next).to(dtype=z.dtype, device=z.device)
+    v_pred, x_pred = _forward_sample(
+        model=model, z=z, t_batch=t_batch, x_pred_prev=x_pred_prev,
+        config=config, cfg_scale=cfg_scale, self_cond_cfg_scale=self_cond_cfg_scale,
+        cond_seq=cond_seq, cond_seq_mask=cond_seq_mask,
+    )
+    dt = (t_next_batch - t_batch).unsqueeze(-1)
+    z_next = z + dt * v_pred
+    if cond_seq is not None:
+        z_next = restore_cond(z_next, cond_seq, cond_seq_mask)
+    return z_next, x_pred
 
 
 def _sde_step(

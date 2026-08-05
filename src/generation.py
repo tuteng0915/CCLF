@@ -221,6 +221,8 @@ def test_generation_uncond(
             df_commit_thresh=float(getattr(sampling_config, "df_commit_thresh", 0.5)),
             df_soft_alpha=float(getattr(sampling_config, "df_soft_alpha", 0.5)),
             df_t_min=float(getattr(sampling_config, "df_t_min", 0.0)),
+            wff_delta=float(getattr(sampling_config, "wff_delta", 0.0)),
+            wff_order=str(getattr(sampling_config, "wff_order", "ltr")),
         )
 
         out_path = os.path.join(config.output_dir, name, f"all_generated_{epoch_val}_{step_val}.jsonl")
@@ -415,6 +417,8 @@ def test_generation_cond(
             df_commit_thresh=float(getattr(sampling_config, "df_commit_thresh", 0.5)),
             df_soft_alpha=float(getattr(sampling_config, "df_soft_alpha", 0.5)),
             df_t_min=float(getattr(sampling_config, "df_t_min", 0.0)),
+            wff_delta=float(getattr(sampling_config, "wff_delta", 0.0)),
+            wff_order=str(getattr(sampling_config, "wff_order", "ltr")),
         )
 
         if _rank() == 0:

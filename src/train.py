@@ -103,6 +103,10 @@ def run_training(config, *, force_cpu: bool = False):
     log_for_0(f"PyTorch device: {device}, world_size={world}")
     log_for_0(f"BF16 autocast: {bool(getattr(config, 'use_bf16', True)) and device.type == 'cuda'}")
     log_for_0(f"Gradient checkpointing: {bool(getattr(config, 'gradient_checkpointing', True))}")
+    log_for_0(
+        f"Per-token time conditioning: {bool(getattr(config, 'per_token_time_conditioning', False))} | "
+        f"WFF train probability: {float(getattr(config, 'wff_train_prob', 0.0)):.2f}"
+    )
     log_for_0("=" * 60)
 
     if config.use_wandb and rank == 0 and wandb is not None:
@@ -161,6 +165,7 @@ def run_training(config, *, force_cpu: bool = False):
         num_model_mode_tokens=config.num_model_mode_tokens,
         bottleneck_dim=config.bottleneck_dim,
         gradient_checkpointing=bool(getattr(config, "gradient_checkpointing", True)),
+        per_token_time_conditioning=bool(getattr(config, "per_token_time_conditioning", False)),
     ).to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
@@ -189,6 +194,8 @@ def run_training(config, *, force_cpu: bool = False):
 
     steps_per_epoch = len(train_dataset) // total_batch_size
     num_train_steps = steps_per_epoch * config.epochs
+    if config.max_train_steps is not None:
+        num_train_steps = min(num_train_steps, int(config.max_train_steps))
     if config.warmup_steps >= 0:
         num_warmup_steps = config.warmup_steps
     elif config.warmup_epochs is not None:
@@ -245,7 +252,13 @@ def run_training(config, *, force_cpu: bool = False):
             ckpt_path = config.resume
             if "checkpoint_" not in ckpt_path:
                 ckpt_path = find_latest_checkpoint(ckpt_path) or ckpt_path
-            state, resume_step = load_checkpoint(ckpt_path, state)
+            model_only = bool(getattr(config, "resume_model_only", False))
+            state, resume_step = load_checkpoint(
+                ckpt_path,
+                state,
+                load_optimizer=not model_only,
+                restore_progress=not model_only,
+            )
             resume_epoch_fractional = float(state.epoch)
             start_epoch = int(state.epoch)
             log_for_0(f"Resumed from step {resume_step} (epoch {resume_epoch_fractional:.2f})")
@@ -315,6 +328,10 @@ def run_training(config, *, force_cpu: bool = False):
         global_step = start_epoch * steps_per_epoch
         steps_to_skip_in_epoch = 0
     state.step = global_step
+    target_global_step = (
+        global_step + int(config.max_train_steps)
+        if config.max_train_steps is not None else None
+    )
 
     last_log_step = global_step
     train_metrics = []
@@ -324,6 +341,7 @@ def run_training(config, *, force_cpu: bool = False):
     # checkpoint to avoid re-saving immediately after resume.
     last_save_epoch = resume_epoch_fractional if resume_step > 0 else float(start_epoch)
 
+    stop_training = False
     for epoch in range(start_epoch, config.epochs):
         log_for_0(f"\nEpoch {epoch + 1}/{config.epochs}")
 
@@ -374,13 +392,17 @@ def run_training(config, *, force_cpu: bool = False):
                     torch.stack([m["l2_loss"] for m in train_metrics]).mean(),
                     torch.stack([m["ce_loss"] for m in train_metrics]).mean(),
                     torch.stack([m["kd_loss"] for m in train_metrics]).mean(),
+                    torch.stack([m["wff_fraction"] for m in train_metrics]).mean(),
+                    torch.stack([m["wff_mean_delta"] for m in train_metrics]).mean(),
                 ])
                 # Average each metric across DDP ranks before logging — done
                 # once per log_freq so we never sync on every train step.
                 if dist.is_available() and dist.is_initialized():
                     dist.all_reduce(stacked, op=dist.ReduceOp.SUM)
                     stacked = stacked / dist.get_world_size()
-                avg_loss, avg_l2, avg_ce, avg_kd = (float(x) for x in stacked.tolist())
+                avg_loss, avg_l2, avg_ce, avg_kd, avg_wff_frac, avg_wff_delta = (
+                    float(x) for x in stacked.tolist()
+                )
                 now = time.time()
                 steps_per_sec = (global_step - last_log_step) / max(now - last_log_time, 1e-8)
                 current_lr = state.optimizer.param_groups[0]["lr"]
@@ -389,6 +411,7 @@ def run_training(config, *, force_cpu: bool = False):
                     "step": f"{global_step}", "loss": f"{avg_loss:.4f}",
                     "l2": f"{avg_l2:.4f}", "ce": f"{avg_ce:.4f}",
                     "kd": f"{avg_kd:.4f}", "sps": f"{steps_per_sec:.1f}",
+                    "wff": f"{avg_wff_frac:.2f}", "wff_d": f"{avg_wff_delta:.3f}",
                     "lr": f"{current_lr:.2e}",
                 }
                 log_for_0(postfix_dict)
@@ -398,6 +421,7 @@ def run_training(config, *, force_cpu: bool = False):
                     tqdm.write(
                         f"INFO - engine - Step {global_step}: loss={avg_loss:.4f}, "
                         f"l2={avg_l2:.4f}, ce={avg_ce:.4f}, kd={avg_kd:.4f}, "
+                        f"wff_frac={avg_wff_frac:.3f}, wff_delta={avg_wff_delta:.3f}, "
                         f"lr={current_lr:.2e}, steps/sec={steps_per_sec:.2f}"
                     )
                     if config.use_wandb and wandb is not None:
@@ -406,6 +430,8 @@ def run_training(config, *, force_cpu: bool = False):
                             wandb.log({
                                 "train_loss": avg_loss, "train_l2_loss": avg_l2,
                                 "train_ce_loss": avg_ce, "train_kd_loss": avg_kd,
+                                "train_wff_fraction": avg_wff_frac,
+                                "train_wff_mean_delta": avg_wff_delta,
                                 "lr": current_lr,
                                 "epoch": current_epoch_progress, "step": global_step,
                             }, step=global_step)
@@ -415,6 +441,11 @@ def run_training(config, *, force_cpu: bool = False):
                 train_metrics = []
                 last_log_step = global_step
                 last_log_time = now
+
+            if target_global_step is not None and global_step >= target_global_step:
+                stop_training = True
+                log_for_0(f"Reached max_train_steps={config.max_train_steps} at step {global_step}")
+                break
 
             # Intra-epoch checkpoint saving (fractional save_freq, e.g., 0.1 epoch)
             if 0 < config.save_freq < 1:
@@ -427,6 +458,9 @@ def run_training(config, *, force_cpu: bool = False):
         epoch_pbar.close()
         current_epoch = epoch + 1
         state.epoch = current_epoch
+
+        if stop_training:
+            break
 
         if config.save_freq >= 1 and current_epoch % config.save_freq == 0:
             save_checkpoint(state, config.output_dir, global_step, hf_repo_id=config.hf_repo_id)

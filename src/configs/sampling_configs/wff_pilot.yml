@@ -1,0 +1,22 @@
+# Matched native-sampler comparison for the WFF pilot.
+- sampling_method: ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+
+- sampling_method: wff_ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  wff_delta: 0.10
+  wff_order: ltr
+
+- sampling_method: wff_ode
+  num_sampling_steps: [32]
+  cfgs: [1]
+  self_cond_cfg_scales: [1]
+  time_schedule: uniform
+  wff_delta: 0.20
+  wff_order: ltr

@@ -133,6 +133,9 @@ def main():
         vocab_size=vocab_size,
         num_model_mode_tokens=config.num_model_mode_tokens,
         bottleneck_dim=config.bottleneck_dim,
+        per_token_time_conditioning=bool(
+            getattr(config, "per_token_time_conditioning", False)
+        ),
     ).to(device)
 
     # Train state template (only used to plumb EMA params + step/epoch).

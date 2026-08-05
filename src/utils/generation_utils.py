@@ -6,7 +6,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from configs.config import Config, SamplingConfig
-from utils.sampling_utils import restore_cond, _ode_step, _sde_step
+from utils.sampling_utils import (
+    restore_cond, _ode_step, _sde_step, _wff_ode_step,
+    make_wff_time_vector,
+)
 
 
 # ============================================
@@ -242,6 +245,10 @@ def _generate_samples_single_batch(
     n = t_steps.shape[0]
     sde_gamma = getattr(sampling_config, "sde_gamma", 0.0)
     sar_alpha = float(getattr(sampling_config, "sar_alpha", 0.0))
+    wff_delta = float(getattr(sampling_config, "wff_delta", 0.0))
+    wff_order = str(getattr(sampling_config, "wff_order", "ltr"))
+    if method == "wff_ode" and sar_alpha > 0.0:
+        raise ValueError("wff_ode and sar_alpha cannot be enabled together")
 
     # SAR: fix the initial noise and precompute per-position time offsets.
     # t_i = clamp(t + alpha * (0.5 - i/L), 0, 1) shifts left positions ahead and right behind.
@@ -269,6 +276,18 @@ def _generate_samples_single_batch(
                 )
             elif method == "ode":
                 z, x_pred = _ode_step(z=z, t=t, t_next=t_next, x_pred_prev=x_pred, **step_kwargs)
+            elif method == "wff_ode":
+                tau = make_wff_time_vector(
+                    t, max_length, wff_delta, wff_order,
+                    device=z.device, dtype=z.dtype,
+                )
+                tau_next = make_wff_time_vector(
+                    t_next, max_length, wff_delta, wff_order,
+                    device=z.device, dtype=z.dtype,
+                )
+                z, x_pred = _wff_ode_step(
+                    z=z, t=tau, t_next=tau_next, x_pred_prev=x_pred, **step_kwargs,
+                )
             else:
                 raise ValueError(f"Invalid sampling method: {method}")
 
@@ -312,7 +331,20 @@ def _generate_samples_single_batch(
         t = t_steps[-2].item()
         t_next = t_steps[-1].item()
         z_before = z.detach().cpu().clone() if save_traj else None
-        z, x_pred = _ode_step(z=z, t=t, t_next=t_next, x_pred_prev=x_pred, **step_kwargs)
+        if method == "wff_ode":
+            tau = make_wff_time_vector(
+                t, max_length, wff_delta, wff_order,
+                device=z.device, dtype=z.dtype,
+            )
+            tau_next = make_wff_time_vector(
+                t_next, max_length, wff_delta, wff_order,
+                device=z.device, dtype=z.dtype,
+            )
+            z, x_pred = _wff_ode_step(
+                z=z, t=tau, t_next=tau_next, x_pred_prev=x_pred, **step_kwargs,
+            )
+        else:
+            z, x_pred = _ode_step(z=z, t=t, t_next=t_next, x_pred_prev=x_pred, **step_kwargs)
         if save_traj:
             traj_steps.append({
                 "t": t,
@@ -370,11 +402,15 @@ def _dlm_decode_batch(z: torch.Tensor, model: nn.Module, t_final_val,
 def _build_run_name(sampling_method, num_sampling_steps, cfg_scale, self_cond_cfg_scale,
                     time_schedule, sde_gamma, suffix, sar_alpha=0.0, dec_sc_mode="none",
                     dec_sc_apply_t_min=0.0, df_variant="none", df_commit_thresh=0.5,
-                    df_soft_alpha=0.5, df_t_min=0.0):
+                    df_soft_alpha=0.5, df_t_min=0.0,
+                    wff_delta=0.0, wff_order="ltr"):
     ts_str = f"-ts_{time_schedule}"
     sccfg_str = f"-sccfg{self_cond_cfg_scale}" if self_cond_cfg_scale != 1.0 else ""
     sde_str = f"-gamma{sde_gamma}" if sampling_method == "sde" else ""
     sar_str = f"-sar{sar_alpha}" if sar_alpha > 0.0 else ""
+    wff_str = (
+        f"-wff{wff_delta}-{wff_order}" if sampling_method == "wff_ode" else ""
+    )
     dec_str = f"-decsc_{dec_sc_mode}" if dec_sc_mode and dec_sc_mode != "none" else ""
     tmin_str = f"-tmin{dec_sc_apply_t_min}" if dec_sc_apply_t_min > 0.0 and dec_str else ""
     if df_variant and df_variant != "none":
@@ -388,4 +424,4 @@ def _build_run_name(sampling_method, num_sampling_steps, cfg_scale, self_cond_cf
     else:
         df_str = ""
         df_tmin_str = ""
-    return f"{sampling_method}-steps{num_sampling_steps}-cfg{cfg_scale}{sccfg_str}{ts_str}{sde_str}{sar_str}{dec_str}{tmin_str}{df_str}{df_tmin_str}-{suffix}"
+    return f"{sampling_method}-steps{num_sampling_steps}-cfg{cfg_scale}{sccfg_str}{ts_str}{sde_str}{sar_str}{wff_str}{dec_str}{tmin_str}{df_str}{df_tmin_str}-{suffix}"
