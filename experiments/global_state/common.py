@@ -50,6 +50,16 @@ def pos_histogram(text, buckets=POS_BUCKETS):
     return hist
 
 
+def frobenius_cosine(X, Y):
+    """X, Y: (L,d) numpy, same shape -> scalar cosine of the flattened
+    matrices. Primary similarity for EXP-GS16/GS17 (a direction measure,
+    unlike CKA which is a representation-similarity statistic -- see
+    EXP-GS16-spec.md Section 4)."""
+    x = X.reshape(-1)
+    y = Y.reshape(-1)
+    return float(x @ y / (np.linalg.norm(x) * np.linalg.norm(y) + 1e-12))
+
+
 def cosine_rows(a, b):
     """a, b: (N,d) numpy -> (N,) cosine similarity per row."""
     a_n = a / (np.linalg.norm(a, axis=1, keepdims=True) + 1e-12)
@@ -124,6 +134,9 @@ def load_adapter(model_name, checkpoint, config, device):
         from adapters.elf_adapter import ELFAdapter
         assert config, "--config is required for --model elf"
         adapter = ELFAdapter.load(checkpoint, config, device)
+    elif model_name == "plaid":
+        from adapters.plaid_adapter import PlaidAdapter
+        adapter = PlaidAdapter.load(device=device)
     else:
         from adapters.langflow_adapter import LangFlowAdapter
         if checkpoint and checkpoint != "baseline":

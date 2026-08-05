@@ -88,4 +88,28 @@ if sc_patch_xhat is not None:
 
 ## 结果
 
-**状态：PLANNED**
+**状态：DONE (2026-08-03)**
+
+N=64, 32 steps, 128 tokens, seed=42, GPU 3.
+
+| arm | PPL | I (vs kd2_native) | non-ASCII | rep |
+|-----|-----|-------------------|-----------|-----|
+| kd2_native (λ=0) | 247.66 | 0.00 | 1.6% | 12.5% |
+| patch_lam05 (λ=0.5) | 288.01 | +40.35 | 4.7% | 9.4% |
+| **patch_lam10 (λ=1.0)** | **282.24** | **+34.58** | 6.2% | 9.4% |
+| zeros_sc | 341.21 | +93.55 | 0.0% | 17.2% |
+| kd_cr_native | 303.37 | +55.71 | 20.3% | 4.7% |
+
+**判读（per spec 决策表）: NO FLIP — SC 兼容性来自 backbone 本身，非 x̂_t 格式。**
+
+- patch_lam10 I=+34.58（正值，未翻转为负）→ 决策表第四行："无论 patch 什么都无法翻转 → SC 差异来自 backbone 本身（EXP-44 候选）"
+- zeros_sc (+93.55) >> patch_lam10 (+34.58)：SC 信号内容确实有贡献（kd_cr x̂_t 比零好），
+  但不足以翻转符号 → 内容贡献是次要的，backbone 的信号处理能力（self_cond_proj）是主因。
+- kd_cr_native PPL=303.37（高于 kd2，因 kd_cr 生成 20.3% 非 ASCII，GPT-2 评分偏高）。
+
+**与 EXP-44 的一致性：**  
+EXP-44 Phase 2 显示 self_cond_proj swap 让 kd2 SC interaction 从正翻负（ΔΔI=−182），
+而 EXP-45 在不换 self_cond_proj 的情况下仅换 x̂_t 内容无法翻转 → 两个实验共同确认
+self_cond_proj（而非 x̂_t 方向）是 SC 兼容性的因果关键。
+
+Results: `results/exp45_sc_activation_patch/patch_results.json`

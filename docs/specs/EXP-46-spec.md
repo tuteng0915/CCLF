@@ -120,4 +120,48 @@ EXP-46 最直接，因为它问的是"δs_t 通过 SC 机制对 velocity 的贡�
 
 ## 结果
 
-**状态：PLANNED**
+**状态：DONE (2026-08-03)**
+
+N=64, 6 t 点, seed=42, 128 tokens, finite-difference JVP (ε=1e-3), GPU 3.
+比较对象: kd2 vs kd_cr；tangent = normalize(x̂_t_kd_cr − x̂_t_kd2)；recovery = x̂_t_model − z_t。
+
+### 主要结果
+
+| t | model | cos_align mean | frac_pos | jvp_mag |
+|---|-------|---------------|----------|---------|
+| 0.10 | kd2 | +0.0163 | 0.719 | 0.356 |
+| 0.10 | kd_cr | +0.0141 | 0.734 | 0.219 |
+| 0.20 | kd2 | **−0.0250** | **0.156** | 0.428 |
+| 0.20 | kd_cr | −0.0076 | 0.375 | 0.455 |
+| **0.30** | **kd2** | **−0.0215** | **0.312** | 0.619 |
+| **0.30** | **kd_cr** | **+0.0606** | **0.828** | 0.677 |
+| 0.50 | kd2 | +0.0894 | 1.000 | 0.704 |
+| 0.50 | kd_cr | +0.1152 | 1.000 | 0.885 |
+| 0.70 | kd2 | +0.0707 | 1.000 | 1.158 |
+| 0.70 | kd_cr | +0.0912 | 1.000 | 0.907 |
+| 0.90 | kd2 | +0.0278 | 0.953 | 3.848 ⚠️ |
+| 0.90 | kd_cr | −0.0241 | 0.141 | 3.273 ⚠️ |
+
+⚠️ t=0.90 的 jvp_mag 异常大（3.5-3.8 vs 0.2-1.2 at other t），接近终态时有限差分数值不稳，cos_align 不可信。
+
+### 关键发现：t=0.30 是分歧点
+
+t=0.30 正好落在 GS17 formal 确认的关键承诺窗口（τ_50_stable≈0.20，τ_affinity≈0.32）内：
+- **kd_cr J_SC**：cos_align = +0.061，frac_pos = 0.828 → 83% 的轨迹上 SC conditioning correction 与 recovery 方向对齐
+- **kd2 J_SC**：cos_align = −0.022，frac_pos = 0.312 → 69% 的轨迹上 SC conditioning correction **反对齐**（在不该改变 velocity 的方向上用力）
+
+t≥0.50 两个模型的 J_SC 都与 recovery 正对齐（frac_pos=1.0），差距缩小。
+
+### 与 EXP-44/45 的综合解读
+
+三个实验共同构成完整机制图：
+
+| 实验 | 测量 | 结论 |
+|------|------|------|
+| EXP-44 P2 | self_cond_proj swap → SC 翻转 | self_cond_proj 是因果机制 |
+| EXP-45 | x̂_t content swap → 不翻转 | x̂_t 格式不是主因 |
+| **EXP-46** | **J_SC · δs vs recovery @t=0.30** | **kd2 的 J_SC 在关键窗口反对齐；kd_cr 的正对齐** |
+
+综合：kd_cr 和 kd2 各自的 (final_layer → x̂_t → self_cond_proj → J_SC) 是协同适应的封闭对。kd2 的 self_cond_proj 学到的 Jacobian 在早期-中期生成阶段（t=0.20-0.30）对 SC 扰动的响应方向错误；kd_cr 的 J_SC 在同一窗口正确对齐。这解释了为什么 SC 对 kd_cr 有益但对 kd2 有害，以及为什么 EXP-45 的 x̂_t 替换无效（self_cond_proj 本身才是决定 J_SC 方向的权重矩阵）。
+
+Results: `results/exp46_sc_jacobian/jacobian.json`

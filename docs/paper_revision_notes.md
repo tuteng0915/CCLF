@@ -2655,6 +2655,239 @@ GS8/GS13 的 LangFlow 数字现在可以引用，但必须带上"信号弱于 EL
 
 ---
 
+### Q.9 GS16/GS17（机制链第二、三环）：把 exploration-collapse 精化为可证伪的三段式（2026-07-31）
+
+用户提供了比此前 GS1-GS15 严格得多的新一批 spec（EXP-GS16~20，自带校准协议、多重
+对照、决策规则），要求依次执行。GS16（Calibrated Endpoint Bank, Specificity, and
+Affinity Collapse）和 GS17（Local Residual Dynamics and Unified Transition Timing）
+是其中的 P0，已在 ELF baseline、n_traj=16（同一批 16 条真实轨迹，两实验可交叉验证）
+上跑完 pilot。这是目前 GS 系列里方法论最严格、结果最干净的一次正面机制发现。
+
+**GS16 核心结果**：用"一步匹配冲击"协议校准扰动幅度后，在 `t_bank=0.20` 建立固定
+候选端点池（自身端点 + K=8 个校准扰动分支的去重终点），给该轨迹之后每个 checkpoint
+打分。`S_self(t)`（自身端点相对优势）在 `t_bank` 附近与 0 统计不可区分；`rank_self=1`
+的轨迹占比在 `t=0.36→0.43` 一步之内从 12-25% 跳到 **100%（16/16）**；亲和度熵从
+0.87 骤降到 0.54 并保持平台；position-shuffled 对照确认信号是真正的位置特异性度量。
+**exploration-collapse 判定标准的三条全部满足**，curved-transport 的判定标准不满足。
+
+**GS17 核心结果（精化了这个二元判定）**：`cos_endpoint(t)`（局部速度是否朝自身真实
+终点方向）从 `t=0.05` 起就高达 `+0.81`——局部运动从很早就有方向性，不是随机探索；
+但 `V_self(t)`（自身终点 vs GS16 其它候选端点的相对进度优势）在 `t<0.23` 时接近 0，
+说明这个早期方向性对多个候选完成几乎一视同仁，直到 `t≈0.23-0.29` 才转正。**这把
+GS16 的二元"探索 vs 已选定"精化成三段：早期方向性存在但不针对具体终点（common-
+manifold transport）→ 候选端点可行性在窄窗口内塌缩（两种独立方法交叉确认同一窗口）
+→ 点估计先于扰动鲁棒性定型**。事件顺序统计：GS16 测出的候选坍缩窗口（`t=0.30-0.36`）
+在全部 16 条轨迹上都晚于该轨迹自己逐位置 top-1 稳定的中位时间（`tau_50_stable≈
+0.24-0.30`），`P(tau_affinity<=tau_50_stable)=0`（0/16，无一例外）——"看起来已经
+决定"和"真的对扰动免疫"是两个略微错开、顺序一致的事件。
+
+**对论文的影响**：这组结果给第 7-8 节的五阶段/核心 hypothesis 的 Stage 3-4 提供了
+一个可以直接引用、有决策规则支持、双方法交叉验证的量化版本，建议替换掉原来"collective
+lexical reorganization -> lexical crystallization"这两句相对笼统的描述。具体压缩
+形式见 `docs/global_state_formation_synthesis.md` 对应小节。
+
+**需要如实注明的局限**：
+- 只有 ELF baseline、n_traj=16、单一 t_bank、无完整层级 bootstrap（spec 要求的
+  正式规模 n_traj>=48、多 seed、ELF+LangFlow 尚未做）。
+- GS16 的两种扰动校准协议只实现了一种（"一步匹配冲击"）。
+- GS17 的 `tau_velocity`（"取导数最大值"检测器）在 4/16 条轨迹上明显被轨迹末端
+  数值不稳定污染，需要更稳健的检测方法，相关的事件顺序统计（`P(tau_velocity<=
+  tau_50_stable)=0.75`）应打折扣看待。
+- **GS15 的负结果需要重新定级为局限**：用户指出 GS15 的 `A_linear` 对照本身
+  "偷看"了 `R_star`（终点是插值的锚点，`t=t_end` 时 `A_linear` 被定义强行=1），
+  不是一个不知道未来的公平零假设——"rollout 全程比朴素插值还慢"这条此前被当作
+  GS 系列少有的正面动力学发现之一，现在需要弱化表述，不再直接引用为干净结论。
+
+**GS18（Conditional Reviewer Controls）尚未执行**：spec 自带 stop rule，要求"只在
+对应论点仍是论文核心主张时才跑"，需要用户确认 GS12 的"高秩残差承载 lexical 信息"
+和 GS5 的"collective coordination"这两条目前是否仍打算作为论文核心论点，再决定
+是否执行 Part A / Part B。GS19（异步去噪消融，P2 AFTER P0）和 GS20（CDCD 跨架构
+复现，P2 DEFERRED，需要先搭新 adapter）按 spec 自身的优先级标注，暂不执行。
+
+---
+
+### Q.10 GS18（Conditional Reviewer Controls）：一条核心结论被收窄，另一条被加固（2026-08-01）
+
+GS18 是此前一直被 stop rule 挡住的 conditional 实验（spec 原文："只在对应论点仍是
+论文核心主张时才跑，不要自动两部分都跑"）。确认 GS12 的"高秩残差承载 lexical 信息"
+和 GS5 的"transition 是集体的"目前仍是论文核心论点后，两部分都执行了 pilot 规模。
+
+**Part A（rank/energy-matched 残差对照）——决策规则不满足，需要收窄 GS3/GS12 的
+表述**：固定 k、比较 top-k vs middle-k vs bottom-k vs random-k 四种同维度子空间，
+top-k 在几乎所有 k（1 到 128）上，在 token 恢复、结构 R²、保留能量三个指标上都
+**全面碾压**其它三种（如 k=128, raw representation: top tok_acc=0.067 vs
+middle=0.007, bottom=0.000, random=0.020）。这说明 GS12"完整残差远好于低秩 G"
+这个结论**更可能主要是维度/能量效应**（完整残差比一个 k=8 的截断多出几百个
+维度），而不是"lexical 信息特意编码在非主成分方向"。**建议论文措辞从"分布式
+高秩编码"收窄为"需要足够多维度，不是某几个特殊方向的专利"**——这不推翻
+"token identity 依赖高秩 residual、去掉它 token 恢复崩溃"这条更朴素的结论
+（GS3/GS4/GS12 多次跨架构复现的那条），只是去掉了一个更强、实际上不成立的
+附加解释。⚠️ 还发现一个需要谨慎对待的现象：大 k 时移除 top-k 反而让测量到的
+margin 大幅上升（k=128, model repr: +16.2），大概率是 margin 指标在大幅扰动下
+的伪影（默认竞争者 token 固定在未扰动状态算出），不代表模型"变聪明了"。
+
+**Part B（common-factor-controlled collective dynamics）——决策规则基本满足，
+加固方向性结论但重塑时间形状**：改用 GS17 的真实 free-running rollout（GS5 原来
+只用 oracle state），逐步剔除位置、当前 margin、序列级 logit 范数/熵/margin 等
+混杂因素后，剩余空间相关长度在 16 个 checkpoint 里有 13 个都超过 5 种独立 null
+模型（位置/序列 shuffle、循环移位、符号翻转、方差匹配高斯）的 95 分位——**"存在
+真实、不能被这些混杂因素解释掉的集体协调"这条方向性结论，在比 GS5 严格得多的
+对照下依然站得住**。但具体时间形状变了：不是 GS5 报告的"cliff 之后单一尖峰"，
+而是早期（t<0.35，涵盖并早于 GS17 的 `tau_50_stable` 中位数~0.24-0.30）持续偏高、
+中段（0.4-0.7）回落、晚期（0.75-0.93）又有一次目前还没有解释的回升。**建议论文
+把"崩溃点后单一尖峰"这个具体说法，改成"预承诺期到承诺期整体偏高、时间结构比
+单峰更复杂"**。
+
+**对论文 Stage 3-4（五阶段叙事）的影响**：Stage 3（collective reorganization）
+的存在性证据变强了（双重对照支持"不是混杂因素"），但时间细节要放宽；Stage 4
+（lexical crystallization 依赖高秩 residual）本身不受影响，但如果之前的表述
+暗示"分布式编码/刻意避开主成分"这类更强机制含义，需要按 Part A 的结果弱化。
+
+**局限**：两部分都是 pilot 规模，均低于 spec 正式要求（Part A n=64 单一 t，
+Part B n_traj=32/17 checkpoint/200 次置换，spec 分别要求 ≥128、≥128/≥33/1000），
+也都还没做 LangFlow 复现。Part A 的第一次尝试有一个真实的实现效率问题（同一条
+序列的 SVD 在 k/kind 循环里被重复计算了约 8 倍，跑了很久没出结果），已定位并修复
+（改成每条序列只算一次 SVD、跨 k 复用），修复前后在同一个 smoke test 上数值完全
+一致，确认不是正确性问题只是性能问题。
+
+---
+
+### Q.11 GS19（异步去噪消融）：干净负结果，不建议训练 Wavefront Flow Forcing（2026-08-01）
+
+GS16-18（P0/P1）完成后，spec 自身的优先级标注（"AFTER P0"）解除了 GS19 的门槛，
+已执行 pilot。这是本轮 GS16-20 系列里唯一的真正**采样器干预**实验（不是被动分析
+已有轨迹）：给每个位置分配不同的局部去噪进度 `tau_i(s)`（而非全局统一标量 t），
+用已训练模型在标量时间下产出的 `(xhat, eps_hat)` 反推每个位置在自己局部进度下
+"应该"是什么样子，测试打破同步是否有助于 GS16-18 揭示的"协调坍缩"瓶颈。
+
+**结果是干净的"all fail"**（精确命中 spec 决策表最后一行）：LTR、RTL、
+fixed_random、confidence_adaptive 四种顺序，在全部三个期望信号上都失败——
+`tau_stable`（token 收敛时间）不降反升（16.79→19.8-21.7 步）、revision 次数
+几乎翻倍（5.57→8.2-9.7）、生成质量普遍变差（Gen.PPL 76.8→144-442，RTL 更是
+75% 样本退化）。四种顺序、三个指标同时一致失败，不是边缘信号。**建议：不要
+基于当前证据投入训练 Wavefront Flow Forcing。**
+
+**如何理解**：这个负结果更可能说明"把逐位置局部时间作为对已训练标量时间模型的
+事后采样技巧"这条路径不通，而不是说明"逐位置局部时间"这个想法本身没有价值——
+GS16-18 的机制（早期方向性但候选未定→窄窗口坍缩→集体协调）是在"所有位置同一
+时刻联合处理"这个训练假设下观察到的，模型的内部计算可能已经和这个假设深度绑定。
+要真正检验"原生支持局部时间是否能缓解协调瓶颈"，需要从头训练一个原生 WFF 模型，
+而不是靠事后干预——但这超出了当前证据能支持的范围，GS19 本身只能说"不建议现在
+投入这个训练方向"。
+
+**实现中发现并修复了一个真实正确性 bug**：初版用 `adapter.forward_state` 计算
+`xhat`，但 `forward_state` 的自条件（self-conditioning）路径是一个更简单、
+恒定确定性的读出方式，和 `adapter.solver_step` 实际采样时用的机制
+（`_ode_step`/`_forward_sample`，按 `self_cond_prob` 混合条件/无条件前向）不是
+同一套计算——导致 `delta=0` 的"同步"对照臂本身都和一个普通 rollout 对不上
+（仅 8% token 一致）。改用 `solver_step` 自己返回的 `xhat` 后，验证到 100%
+token 一致，才重新跑的 pilot。
+
+**局限**：pilot 规模（n=32，单 seed，单 Delta=0.20，6+1 种顺序里实现了 5 种）
+远低于 spec 正式要求（256 配对样本×3 seed×两个 Delta）。鉴于四臂三指标同时一致
+失败，扩大规模大概率不会反转这个方向性结论，但尚未验证。GS20（CDCD 跨架构复现）
+仍按 spec 标注为 DEFERRED，未执行。
+
+---
+
+### Q.12 GS20：第三个架构（Plaid 替代 CDCD）复现，一条结论确认、一条暴露边界条件（2026-08-02）
+
+CDCD（spec 原定的第三个连续扩散语言模型家族）确认 DeepMind 官方从未发布代码或
+checkpoint（只有两个非官方、不完整、同样没有 checkpoint 的社区复现）。改用 **Plaid**
+（Gulrajani & Hashimoto, NeurIPS 2023, "Likelihood-Based Diffusion Language Models"）
+替代：同样是连续 embedding 空间扩散、训练语料 OpenWebText2（和 ELF/LangFlow 的 OWT
+系语料同源）、有真实发布的 1B 参数 checkpoint。搭建独立 conda 环境编译 FlashAttention
++ NVIDIA Apex（过程中修了几个版本兼容性问题：CUDA 工具链版本不匹配、`torch._six` 在
+新版 torch 里已移除），写了完整的 `PlaidAdapter`，GS20 spec 自带的 6 项 adapter-gate
+检查（干净解码、oracle 加噪正确性、单步 solver、固定种子复现、生成质量、log-SNR 单调性）
+全部通过后，在 Plaid 上跑了 GS16/GS17 的 pilot 规模复现。
+
+**GS16——第三次独立确认，比 ELF 更干净**：`S_self` 在 `t_bank` 处仍与 0 无区别，
+`rank_self=1` 比例从 `t_bank` 的 12% **在下一个 checkpoint 就跳到 100%**（一步之内，
+比 ELF 的 2-3 步窗口更窄），熵同步骤降并进入平台。exploration-collapse 这个核心机制，
+现在是本轮 GS16-20 系列里唯一一个真正获得跨架构（ELF + Plaid）确认的发现。
+
+**GS17——如实报告一个真实的边界条件，按 GS20 spec 自带的判定规则处理**（"a CDCD
+disagreement is a boundary condition, not a failed replication to hide"）：
+- `cos_endpoint(t)` 曲线形状和 ELF 定性不同（Plaid 上早期低、先降后升，峰值仅 0.38；
+  ELF 上从一开始就高，峰值 0.99）。
+- `V_self(t)` 在 Plaid 上中段出现一段持续为负（t=0.46-0.93），ELF 没有这个模式。
+- **事件顺序反转**：候选坍缩 vs 逐位置稳定的先后顺序，ELF 上是坍缩晚于稳定
+  （`P(tau_affinity<=tau_50_stable)=0.0`），Plaid 上是坍缩早于稳定（`=1.0`）。
+
+**最可能的共同解释，而非确认的机制分歧**：(1) Plaid 的原生 `solver_step` 是随机
+ancestral 采样（每步注入高斯噪声），GS17 用有限差分估计局部速度时会混入这个采样噪声，
+这是 ELF/LangFlow 的确定性 Euler step 完全没有的混淆因素；(2) 这次复现直接沿用了 ELF
+校准出的 `t_bank=0.20`，没有针对 Plaid 自己的 log-SNR schedule 重新校准——`tau_affinity`
+在全部 8 条轨迹上都精确等于 `t_bank` 本身，说明真实坍缩起点很可能比 `t_bank` 更早、这次
+测量范围根本没有覆盖到。这正是本项目自己反复确认过的"不能跨架构直接比 nominal t，必须
+按各自的 log-SNR schedule 重新校准"（Q.4、EXP-INDEX 六条跨架构教训的第 2 条）这次在
+GS20 上又被踩了一遍。
+
+**对论文的建议**：GS16 的核心发现（exploration-collapse，早期无专属性+窄窗口坍缩）现在
+可以作为跨两个真实架构（ELF、Plaid）确认的结果引用，是本轮 GS16-20 系列里少数经得起
+"三个独立方法/架构都支持"这个最高标准的发现。GS17 的局部速度/事件顺序结果**不建议**
+现在就引用为跨架构结论——需要先做两件事才能下结论：(a) 针对 Plaid 自己的 schedule 重新
+校准 `t_bank`（而非沿用 ELF 的 0.20），(b) 想办法把采样器噪声从有限差分速度估计里分离
+出去（比如同一状态多次采样求平均，或者找 Plaid 是否有解析的期望漂移可用）。在这两点
+解决之前，Plaid 上的"事件顺序反转"应该在论文里作为一个诚实记录的开放问题，而不是当作
+"GS17 的机制在其它架构上不成立"这样的强结论。
+
+**局限**：pilot 规模（n_traj=8，spec 正式要求 ≥32×3 seed×8 分支）、单 seed、`t_bank`
+未针对 Plaid 重新校准。GS18（rank-matched/collective coordination）和 GS19（异步去噪）
+尚未在 Plaid 上尝试——GS18 Part A 尤其需要重新设计，因为 Plaid 的 embedding 维度只有
+16（远小于 ELF 的 512），"k 从 1 扫到 128"这个 ELF 尺度的协议在这么低维的空间里不成立。
+
+---
+
+### Q.13 GS20 完整记分卡：GS16-19 全部在 Plaid 上跑完，一个跨方法论的元发现（2026-08-03）
+
+Q.12 之后，GS18（两部分）和 GS19 也在 Plaid 上跑完了，GS16-19 现在都有 ELF+Plaid 两个
+架构的对照。完整记分卡：
+
+| 实验 | ELF 发现 | Plaid 结果 | 判定 |
+|---|---|---|---|
+| GS16 端点专属性坍缩 | 早期无区别，窄窗口坍缩到 rank_self=1 | 同一模式，坍缩窗口更窄（1 步 vs 2-3 步） | **跨架构确认** |
+| GS17 局部速度动力学 | cos_endpoint 早期即高，坍缩滞后于 token 稳定 | cos_endpoint 早期低且非单调，坍缩反而领先于 token 稳定 | **边界条件** |
+| GS18-A rank/energy 对照 | top-k 全面碾压同维度 middle/bottom/random-k | 同一方向，k∈{1,2,4,8} 全部复现 | **跨架构确认** |
+| GS18-B 集体协调 | 16 个 checkpoint 里 13 个打赢全部 5 种 null | 只有 1/16，多数卡在 null p95 边缘 | **边界条件** |
+| GS19 异步去噪消融 | "all fail"，Gen.PPL 变差 2-6x | "all fail"，变差 3-14.4x，更彻底 | **跨架构确认** |
+
+**本轮最值得写进论文方法论部分的发现，可能比任何单条实验结论都重要**：三个跨架构
+确认的实验（GS16、GS18-A、GS19）共同点是都在测"最终落点"——GS16 的分支端点、GS19 的
+最终生成文本、GS18-A 单个时刻的静态子空间结构，都不需要对连续噪声状态做逐步差分。
+两个出现边界条件的实验（GS17、GS18-B）共同点是都依赖对**相邻状态做差分**——GS17 的
+有限差分局部速度、GS18-B 的位置间 margin 增量空间相关性。Plaid 的原生采样器是随机
+ancestral 过程（每步给每个位置独立注入高斯噪声），这和 ELF/LangFlow 的确定性 Euler/
+EDM step 有本质区别——这个噪声源几乎必然会污染任何"逐步差分"类的度量，不管两个架构
+背后的真实机制是否一致。**这不能被解读成"GS17/GS18-B 的机制只在 ELF 上成立"**，更
+准确的解读是"这套方法论对确定性 vs 随机采样器的敏感度"本身是一个需要控制的变量。
+
+**对论文的建议**：
+1. GS16、GS18-A、GS19 三条结论现在都有扎实的跨架构证据，可以直接引用，论文正文可以
+   明确写"在两个架构独立复现"。
+2. GS17、GS18-B 的 Plaid 结果不建议现在下"机制在其它架构不成立"这样的结论，应该在
+   Limitations 或 Discussion 里如实报告这个"边界条件"，并说明两个未排除的混杂因素：
+   (a) `t_bank=0.20` 是直接沿用 ELF 的校准值，从未针对 Plaid 自己的 log-SNR schedule
+   重新校准；(b) Plaid 原生随机采样器的逐步噪声注入，会以一种 ELF/LangFlow 都不存在的
+   方式污染任何基于相邻状态差分的度量。
+3. "结论对确定性 vs 随机采样器的敏感度"这条元发现本身，建议作为一个独立的方法论
+   footnote 或 appendix 小节——这是本项目第一次系统性地把"跨架构复现"和"跨采样器
+   随机性复现"这两件事分开检验，得到的这个二分模式（终点类指标稳健、轨迹微分类指标
+   不稳健）本身就是一个有价值的方法论警示，适用于未来任何想要对比确定性和随机采样器
+   的工作。
+
+**工程附注**：过程中修了 `plaid` conda 环境的两个依赖/ABI 问题（nltk 触发的
+libstdc++ CXXABI 版本冲突、用 `LD_PRELOAD` 绕过；缺 `scikit-learn`），以及一个真实的
+`PlaidAdapter` bug——`make_oracle_state` 漏掉了 `@torch.no_grad()`，调用 Plaid 自己
+学出来的 `gamma_bounds`/`noise_schedule` 模块时会保留梯度图，导致后续 `.numpy()`
+报错。GS16/17/19 都是从纯噪声起步、从不调用 `make_oracle_state`，所以这个 bug 直到
+GS18 Part A（第一个需要真实 oracle 加噪文本的脚本）才第一次被触发。已在
+`plaid_adapter.py` 里修复（`_gamma`/`make_oracle_state`/`make_null_state` 全部加上
+`@torch.no_grad()`）。
+
+---
+
 ## Section R: Phase-Transition Suite（EXP-PT1–10）完整结果与论文影响（2026-07-26，DONE⚠️）
 
 对应 `docs/phase_transition_experiment_suite.md` 提出的全新实验组，独立于本文档
