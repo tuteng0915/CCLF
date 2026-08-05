@@ -6,3 +6,11 @@
 	path = models/LangFlow
 	url = https://github.com/tuteng0915/CCLF.git
 	branch = vendor/langflow-main
+[submodule "models/duo"]
+	path = models/duo
+	url = https://github.com/s-sahoo/duo.git
+	branch = main
+[submodule "models/mdlm"]
+	path = models/mdlm
+	url = https://github.com/kuleshov-group/mdlm.git
+	branch = master
