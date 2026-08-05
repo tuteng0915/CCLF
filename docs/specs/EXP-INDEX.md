@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-03（GS17 formal 3-seed DONE；EXP-46 DONE：t=0.30 kd_cr cos_align=+0.061 vs kd2 cos_align=−0.022（kd2 J_SC 在承诺窗口反对齐）；EXP-56b baseline arm DONE：prog_t50_c70 I=−11.26（9% PPL 改善，optimal t 右移规律：kd2/kd_cr/baseline = 0.30/0.40/0.50）；82 个实验）
+**更新时间**: 2026-08-06（EXP-60 native WFF paired training pilot implemented；GS17 formal 3-seed DONE；EXP-46 DONE：t=0.30 kd_cr cos_align=+0.061 vs kd2 cos_align=−0.022（kd2 J_SC 在承诺窗口反对齐）；EXP-56b baseline arm DONE：prog_t50_c70 I=−11.26（9% PPL 改善，optimal t 右移规律：kd2/kd_cr/baseline = 0.30/0.40/0.50）；83 个实验）
 
 ---
 
@@ -137,6 +137,7 @@ GS16 calibrated endpoint bank + specificity
 | **EXP-57** | **DONE** | ELF kd_cr+kd2 | 叠加 h10 SC + progressive commitment（arms: standard/h10_only/prog_only/h10_prog）| **堆叠反协同**：kd_cr h10_prog I=−90（劣于 prog_only −164 和 h10_only −124）；kd2 h10_prog I=−95（介于两者之间）；h10 SC 使置信高于阈值的位置比例下降（34-44% vs 61-70%），破坏 commitment 效果；最优：kd2/kd_cr 均为 EXP-56b prog_t30/40；见 EXP-57-spec.md |
 | **EXP-58** | **DONE** | ELF kd_cr+kd2 | Pipeline ODE（diffusion forcing 近似）：T=16 组，31 次模型调用，两种共享 t 方案（global/avg）；+ conditioned generation 评估（ROUGE-L）防 PPL hacking | **kd_cr pipeline_avg 最健康**：I=−142 D1=0.310↑ D2=0.809↑（多样性上升，无 PPL hacking 迹象）；kd_cr pipeline_global 可疑：PPL=37（异常低）D2↓22% ROUGE-L=0.012（无实质前缀延续）；**kd2 两种方案均崩溃**（global I=+549，avg I=+200），异步调度破坏 kd2 的 h10 SC 交互；conditioned eval 确认 ROUGE-L 可有效检测 PPL hacking；见 EXP-58-spec.md |
 | **EXP-59** | **DONE** | ELF kd_cr | EXP-58 kd_cr pipeline_avg 多种子验证（3 seeds: 42/123/456，N=256/seed，pipeline_avg vs standard）| **I=−153.6±30.7（95% CI，n=3，df=2）**；D1=0.308±0.009↑ D2=0.810±0.009↑（3 seeds 全部方向一致）；σ(I)=12.3（CV=8%，低种子方差）；EXP-58 结论稳健确认；见 EXP-59-spec.md |
+| **EXP-60** | **IMPLEMENTED / PENDING TRAIN** | ELF kd_cr | Native Wavefront Flow Forcing：配对的同步 control 与局部时间训练各 500 steps，检验 GS19 的失败是否只是 train--test mismatch | 只有 `training × sampler` 交互为正且标准 ODE 质量不退化才继续；否则停止 WFF；见 EXP-60-spec.md |
 | EXP-22 | DONE⚠️ | LangFlow | LangFlow 每位置承诺时序（EXP-16 对应） | t<0.80 几乎无位置承诺（模型内有效）；⚠️ 所有 ELF–LangFlow nominal-t 比较无效（EXP-03 已证 log-SNR 不可比）；"LangFlow 比 ELF 晚 0.63t"必须从论文删除；H<1 nat 阈值跨模型不可比；committed_wrong 低是选择效应 |
 | EXP-24 | DONE⚠️ | LangFlow | LangFlow 轨迹稳定性（EXP-14 对应） | LangFlow mean_last_flip=8.3/32（26%）vs ELF baseline 21.2/32（66%，EXP-14v2）；⚠️ 原对比表使用旧版 EXP-14 无效数字（83.4%→正确值 67.6%）；argmax stability≠commitment；LangFlow 可能有 self-conditioning；缺少 entropy/margin 分析 |
 
