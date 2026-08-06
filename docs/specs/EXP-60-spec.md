@@ -106,8 +106,9 @@ The causal comparison is the interaction
    `local_time_gate` gradient in the WFF arm. Stop rather than interpreting a
    dead gate as a negative scientific result.
 
-The first server launch reached the training step but exposed a Transformers
-compatibility error: current T5 mask utilities require boolean masks, whereas
-ELF stores its binary encoder mask as float32. The wrapper now converts the
-mask to bool at the Hugging Face boundary. This is an infrastructure failure,
+The first server launches exposed a Transformers compatibility error: current
+T5 mask utilities require boolean 2D padding masks, whereas ELF stored an
+equivalent float32 `[B,L,L]` pairwise mask even for unconditional data. The
+wrapper now converts mask dtype to bool, and the unconditional collator returns
+the exactly equivalent 2D key-padding mask. This is an infrastructure failure,
 not an EXP-60 result; both matched arms must be relaunched from step zero.
