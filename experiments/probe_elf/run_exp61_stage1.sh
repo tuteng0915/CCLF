@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# EXP-61 Stage 1: factorize raw/EMA weights and initial-noise scale.
+# EXP-61 Stage 1: isolate the initial-noise-scale protocol change.
 # Run from the ELF-torch repository root inside the `elf` environment, e.g.
 # CUDA_VISIBLE_DEVICES=5 bash experiments/probe_elf/run_exp61_stage1.sh
 
@@ -28,7 +28,5 @@ run_cell() {
     2>&1 | tee "${exp61_log}"
 }
 
-run_cell params 1.0 cell_a_legacy
-run_cell ema 1.0 cell_b_ema
-run_cell params 2.0 cell_c_native_noise
-run_cell ema 2.0 cell_d_native
+run_cell auto 1.0 cell_a_legacy_noise
+run_cell auto 2.0 cell_b_native_noise

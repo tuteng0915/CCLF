@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """EXP-61: revalidate Pipeline ODE under ELF's native evaluation path.
 
-The historical EXP-58/59 scripts sampled z0 ~ N(0, I) and loaded raw params.
-Native ELF generation samples z0 = denoiser_noise_scale * eps (scale 2.0 in
-the relevant configs) and evaluates EMA weights when available.  This script
-keeps the old implementation intact and makes both factors explicit.
+The historical EXP-58/59 scripts sampled z0 ~ N(0, I). Native ELF generation
+samples z0 = denoiser_noise_scale * eps (scale 2.0 in the relevant configs).
+
+The converted checkpoints use the generic outer key ``params`` even when the
+converter selected JAX ``ema_params1`` (its default). ``auto`` therefore
+matches the native loader: prefer an explicit PyTorch EMA shadow when present,
+otherwise use the converted ``params`` payload. Explicit ``params``/``ema``
+choices remain available for provenance audits of newly trained checkpoints.
 """
 
 import argparse
@@ -109,6 +113,8 @@ def degeneration_rate(texts):
 
 
 def load_weights(checkpoint, source):
+    if source == "auto":
+        return checkpoint.get("ema_params1", checkpoint["params"])
     if source == "params":
         return checkpoint["params"]
     if "ema_params1" not in checkpoint:
@@ -119,7 +125,9 @@ def load_weights(checkpoint, source):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", choices=CHECKPOINTS, required=True)
-    parser.add_argument("--weights", choices=("params", "ema"), default="ema")
+    parser.add_argument(
+        "--weights", choices=("auto", "params", "ema"), default="auto"
+    )
     parser.add_argument("--noise_scale", type=float, default=2.0)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument(
