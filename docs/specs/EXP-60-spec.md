@@ -1,7 +1,7 @@
 # EXP-60 Spec — Native Wavefront Flow Forcing Training Pilot
 
-**Status**: IMPLEMENTED; unit preflight passed, paired training pending
-**Priority**: P1 method pilot after EXP-61
+**Status**: DONE / NEGATIVE — paired pilot does not improve the sampler interaction
+**Priority**: closed method pilot
 **Model**: ELF-B `kd_cr`, OpenWebText, length 128  
 **Code**: `models/ELF-torch/src/` and
 `models/ELF-torch/experiments/probe_elf/eval_wff_pilot.py`
@@ -92,6 +92,49 @@ The causal comparison is the interaction
   not merely unseen at training time.
 - A learned nonzero local-time gate is necessary but not sufficient evidence;
   it only proves that the model used the new input.
+
+## Result (`2026-08-06`)
+
+Both matched arms completed 500 steps from the same converted `kd_cr`
+checkpoint. Evaluation used EMA weights, fixed seed 42, `n=256`, noise scale 2,
+SC-CFG 3, length 128, and ODE-32.
+
+| training | sampler | PPL | delta vs own standard | D1 | D2 | rep-4 |
+|---|---|---:|---:|---:|---:|---:|
+| sync control | standard | 1086.7 | 0.0 | 0.408 | 0.944 | 0.000 |
+| sync control | LTR, delta 0.10 | 1053.8 | -32.9 | 0.404 | 0.937 | 0.001 |
+| sync control | LTR, delta 0.20 | 979.8 | -106.9 | 0.383 | 0.915 | 0.005 |
+| sync control | RTL, delta 0.20 | 1002.3 | -84.4 | 0.394 | 0.926 | 0.001 |
+| WFF-trained | standard | 1114.0 | 0.0 | 0.425 | 0.949 | 0.000 |
+| WFF-trained | LTR, delta 0.10 | 1126.6 | +12.6 | 0.422 | 0.941 | 0.001 |
+| WFF-trained | LTR, delta 0.20 | 1031.7 | -82.3 | 0.398 | 0.921 | 0.005 |
+| WFF-trained | RTL, delta 0.20 | 1019.2 | -94.8 | 0.404 | 0.931 | 0.001 |
+
+The pre-registered interaction, defined as WFF-trained sampler delta minus
+control-trained sampler delta, is:
+
+| sampler | interaction delta PPL | interpretation |
+|---|---:|---|
+| LTR, delta 0.10 | +45.5 | worse after WFF training |
+| LTR, delta 0.20 | +24.6 | worse after WFF training |
+| RTL, delta 0.20 | -10.4 | small improvement only in the reverse-direction arm |
+
+The WFF-trained standard sampler is also 27.3 PPL worse than the matched
+control. Stronger waves lower PPL in both training arms but reduce D1/D2 and
+increase repetition, so they are not clean quality gains.
+
+The local-time gate barely moved:
+
+| training | raw gate | EMA gate |
+|---|---:|---:|
+| sync control | +1.03e-4 | +3.41e-6 |
+| WFF-trained | -9.49e-4 | -1.41e-5 |
+
+This rejects the proposed explanation that the inference-only failure is
+removed simply by exposing the model to heterogeneous clocks during a short
+matched fine-tune. Do not expand this implementation to more seeds or formal
+training. Any future revisit must first remove the near-zero gate bottleneck
+and pass a cheap training-by-sampler interaction gate.
 
 ## Preflight checks before launching
 
