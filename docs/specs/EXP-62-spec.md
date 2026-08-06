@@ -5,6 +5,10 @@
 **Base model**: official ELF-B OpenWebText baseline  
 **Pilot config**: `src/configs/training_configs/finetune_owt_ELF-B-panel.yml`
 
+The launcher uses `conda run --no-capture-output` so loss and failure logs are
+visible in tmux during the 2,000-step run rather than buffered until process
+exit.
+
 ## 1. Motivation
 
 Most intervention results currently depend on two historically trained
