@@ -50,8 +50,10 @@ kd_full(step) - ct_control(step),
 
 not `kd_cr - baseline` or `kd2 - baseline`.
 
-Save matched intermediate checkpoints so this contrast can be evaluated at
-the same training budgets. Random-seed replication is not part of the panel.
+The 2,000-step pilot saves the matched final checkpoints and serves only as a
+go/no-go comparison. If promoted, the formal runs must save matched
+intermediate checkpoints so the contrast can be evaluated at the same
+training budgets. Random-seed replication is not part of the panel.
 
 ## 4. Stage B — temporal KD panel
 
@@ -121,7 +123,8 @@ only for checkpoints promoted beyond screening.
 Treat this as a controlled intervention panel, not an estimate of a population
 over training seeds. Report:
 
-- recipe effect relative to the matched `ct_control` at each saved budget;
+- pilot recipe effect relative to the matched `ct_control` at 2,000 steps;
+- for promoted formal runs, recipe effect at each matched saved budget;
 - temporal-window trend across controlled interventions;
 - correlation between mechanism fingerprints and sampler response, labelled
   exploratory at this panel size.
@@ -132,8 +135,10 @@ random initialization.
 
 ## 8. Decision rules
 
-- **Controlled KD effect**: `kd_full` moves consistently away from the matched
-  continued-training control across saved training budgets.
+- **Pilot controlled KD effect**: `kd_full` materially differs from the matched
+  continued-training control at 2,000 steps on the compact fingerprint.
+- **Formal controlled KD effect**: after promotion, the difference persists
+  across matched saved training budgets rather than appearing at one endpoint.
 - **Temporal mechanism**: early/transition/late windows show an ordered or
   sign-changing effect under the shared initialization and data order.
 - **Training drift**: `ct_control` changes the mechanism or sampler metrics as
