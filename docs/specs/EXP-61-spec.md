@@ -88,8 +88,8 @@ Primary native cell D:
 
 ```text
 checkpoints = {baseline, kd_cr, kd2}
-seeds       = {42, 123, 456}
-n           = 256 sequences / seed
+seed        = 42 (fixed for reproducibility, not an experimental axis)
+n           = 256 paired initial-noise samples
 length      = 128
 arms        = {standard ODE-32, pipeline_avg T=16 / 31 calls}
 ```
@@ -101,9 +101,10 @@ Metrics:
 - 4-gram repetition;
 - empty/non-ASCII/repetition degeneration rate;
 - four fixed qualitative samples per arm;
-- paired per-seed difference and 95% CI over seeds.
+- paired bootstrap interval over the fixed initial-noise bank when needed.
 
-The independent replication unit is the generation seed, not tokens.
+Do not add generation-seed sweeps. Robustness is tested across checkpoint,
+length, solver budget, and native versus legacy evaluation path.
 
 This length-128 cell is the historical-comparability result, not sufficient
 evidence of native-length robustness. Any checkpoint on which Pipeline appears
@@ -120,8 +121,8 @@ The existing single-seed Gutenberg experiment gives `kd_cr` Pipeline ODE a
 lower suffix PPL but lower ROUGE-L than standard (`~0.027` versus `~0.050`).
 This is not a clean semantic-quality win.
 
-For any checkpoint with a healthy Stage-2 result, run 3 seeds on fixed
-OpenWebText prefix/suffix pairs and report:
+For any checkpoint with a healthy Stage-2 result, use one fixed set of
+OpenWebText prefix/suffix pairs and paired initial noise, and report:
 
 - suffix Gen.PPL and D1/D2;
 - token ROUGE-L;
@@ -136,9 +137,9 @@ unconditional sampler heuristic rather than a general denoising method.
 
 ## 7. Decision rule
 
-- **Method survives**: `kd_cr` native-cell Pipeline reduces Gen.PPL on all
-  three seeds, D1/D2 and degeneration remain healthy, and conditional quality
-  is not materially worse.
+- **Method survives**: `kd_cr` native-cell Pipeline reduces Gen.PPL at both
+  length 128 and 1024, survives the solver-budget check, D1/D2 and degeneration
+  remain healthy, and conditional quality is not materially worse.
 - **Checkpoint-scoped sampler**: native unconditional result survives only on
   `kd_cr`, while baseline and `kd2` fail. Keep the result, but explicitly limit
   scope and investigate the KD-window interaction.

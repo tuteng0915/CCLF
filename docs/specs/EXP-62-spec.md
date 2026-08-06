@@ -21,40 +21,38 @@ fine-tuned checkpoints, not more analyses of two historical endpoints.
 ## 2. Scientific questions
 
 1. How much of the observed behavior is ordinary continued-training drift?
-2. How large is seed-to-seed variation under one fixed KD recipe?
-3. Does the KD time window produce a systematic early-to-late trend larger
-   than training-seed variation?
+2. Does the KD effect persist across matched training budgets?
+3. Does the KD time window produce a systematic early-to-late trend under a
+   fixed initialization and data order?
 4. Which mechanism measurements predict downstream sampler stability across
    checkpoints?
 
-## 3. Stage A — variance and drift controls (required first)
+## 3. Stage A — objective and drift controls (required first)
 
 All runs start from the same official baseline checkpoint and share data,
 batch order policy, optimizer, learning rate, total optimizer steps, sequence
 length, and architecture.
 
-| family | KD | seeds | purpose |
+| family | KD | randomization | purpose |
 |---|---|---|---|
-| `ct_control` | none (`lambda_kd=0`) | 42, 123, 456 | ordinary continued-training drift |
-| `kd_full` | full trajectory, `lambda_kd=1` | 42, 123, 456 | KD effect and within-recipe variance |
+| `ct_control` | none (`lambda_kd=0`) | fixed seed 42 | ordinary continued-training drift |
+| `kd_full` | full trajectory, `lambda_kd=1` | same initialization and data order | controlled KD effect |
 
 The primary causal contrast is
 
 ```text
-mean(kd_full replicas) - mean(ct_control replicas),
+kd_full(step) - ct_control(step),
 ```
 
 not `kd_cr - baseline` or `kd2 - baseline`.
 
-Stop after Stage A if within-recipe variance is comparable to the historical
-`kd_cr`/`kd2` differences. In that case the paper must frame checkpoint
-sensitivity as an optimization-instability result rather than a clean
-time-window effect.
+Save matched intermediate checkpoints so this contrast can be evaluated at
+the same training budgets. Random-seed replication is not part of the panel.
 
 ## 4. Stage B — temporal KD panel
 
-Run one seed first for three equal-width windows under the same native
-logit-normal denoiser time distribution:
+Run the three equal-width windows with the same fixed initialization and data
+order under the native logit-normal denoiser time distribution:
 
 | family | KD gate | intended role |
 |---|---|---|
@@ -67,9 +65,8 @@ every family; only the KD mask changes. The KD loss is normalized over active
 positions, so `lambda_kd` has the same nominal scale, though the number and
 difficulty of active examples must still be logged.
 
-Replicate a window with seeds 123 and 456 only if its effect is larger than
-the Stage-A seed variance or it brackets a sign change in sampler stability.
-This sequential design avoids an uninformative full hyperparameter grid.
+Compare each window against the matched continued-training and full-KD runs at
+the same optimizer budget. This avoids an uninformative random-seed grid.
 
 ## 5. Pilot budget and formal budget
 
@@ -92,7 +89,6 @@ Promote at most two families after the pilot:
 
 - sequence length 1024;
 - matched effective token budget and optimizer steps;
-- three training seeds;
 - checkpoints saved at multiple training budgets to separate recipe from
   training duration.
 
@@ -118,27 +114,24 @@ only for checkpoints promoted beyond screening.
 
 ## 7. Analysis
 
-Treat training seed as the independent replicate. Report:
+Treat this as a controlled intervention panel, not an estimate of a population
+over training seeds. Report:
 
-- within-family mean and variance;
-- recipe effect relative to matched `ct_control`;
-- temporal-window trend with uncertainty;
+- recipe effect relative to the matched `ct_control` at each saved budget;
+- temporal-window trend across controlled interventions;
 - correlation between mechanism fingerprints and sampler response, labelled
   exploratory at this panel size.
 
-Tokens and generated sequences are measurement units within a checkpoint,
-not independent evidence for a training-recipe effect.
+The design supports conclusions about these matched checkpoints. It does not
+support a claim about training-seed variance or average recipe effects over
+random initialization.
 
 ## 8. Decision rules
 
-- **Stable KD effect**: all `kd_full` seeds move consistently away from their
-  paired continued-training controls, with between-recipe effect larger than
-  within-recipe variation.
+- **Controlled KD effect**: `kd_full` moves consistently away from the matched
+  continued-training control across saved training budgets.
 - **Temporal mechanism**: early/transition/late windows show an ordered or
-  sign-changing effect that survives replication of the decisive windows.
-- **Optimization instability**: replicas of one recipe span the historical
-  `kd_cr`/`kd2` behavior. The paper should emphasize instability and stop
-  attributing opposite sampler responses to named checkpoint recipes.
+  sign-changing effect under the shared initialization and data order.
 - **Training drift**: `ct_control` changes the mechanism or sampler metrics as
   much as KD. Existing KD claims must be expressed relative to continued
   training, not the original baseline.

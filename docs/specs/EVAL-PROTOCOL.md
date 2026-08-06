@@ -27,20 +27,22 @@ Unless an experiment is explicitly reproducing a legacy cell:
 - match evaluator truncation to generated length (1024 for length-1024 runs);
 - report generated length, evaluator length, solver, step count, model calls,
   self-conditioning scale, checkpoint state, and noise scale in every result;
-- treat generation seed or training seed—not tokens—as the independent
-  replication unit.
+- use one fixed sampling seed (`42`) for reproducibility and paired initial
+  noise; do not treat random-seed reruns as a robustness axis;
+- spend replication budget on more samples and controlled changes in length,
+  solver budget, sampler, and checkpoint.
 
 ## 3. Staged test matrix
 
 Do not run the full Cartesian product on every idea. Promote it in stages.
 
-| tier | length | solver budget | samples | seeds | purpose |
+| tier | length | solver budget | samples | sampling | purpose |
 |---|---:|---:|---:|---|---|
-| smoke | 128 | ODE-32 | 64 | 42 | catch implementation failures |
-| primary paired result | 128 | ODE-32 | 256 | 42, 123, 456 | compare with the existing method archive |
-| native-length check | 1024 | ODE-32 | 256 | 42, 123, 456 | rule out length-specific conclusions |
-| solver check | 128 | ODE-16 and ODE-64 | 128 | 42 initially; replicate if sign changes | rule out one-budget tuning |
-| official-fidelity check | 1024 | native SDE-32 (logit-normal, gamma 1.5, SC-CFG 3) | 256 | 42, 123, 456 | required only for claims about normal ELF generation quality |
+| smoke | 128 | ODE-32 | 64 | fixed seed 42 | catch implementation failures |
+| primary paired result | 128 | ODE-32 | 256 | fixed seed 42, paired noise | compare with the existing method archive |
+| native-length check | 1024 | ODE-32 | 256 | fixed seed 42, paired noise | rule out length-specific conclusions |
+| solver check | 128 | ODE-16 and ODE-64 | 256 | reuse the same fixed noise bank | rule out one-budget tuning |
+| official-fidelity check | 1024 | native SDE-32 (logit-normal, gamma 1.5, SC-CFG 3) | 256 | fixed seed 42 | required only for claims about normal ELF generation quality |
 
 For Pipeline, pair ODE-16/32/64 with `T=8/16/32`, giving 15/31/63 model calls.
 Compare quality at nearly matched model-call budgets and report the one-call
@@ -52,10 +54,13 @@ If compute is constrained, the irreducible formal set is:
 (length=128, ODE=32) + (length=1024, ODE=32)
 ```
 
-The solver check can be single-seed until it reveals a sign or rank change.
 Length 512 is an optional localization point, not a mandatory default: use it
 when a 128-versus-1024 discrepancy appears or when reproducing the historical
 length-sensitivity experiments.
+
+If uncertainty bars are needed, use a paired bootstrap over the fixed bank of
+generated examples. Generality is established by controlled settings and
+checkpoints, not by changing the pseudorandom seed.
 
 ## 4. Decision rules
 

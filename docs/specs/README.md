@@ -18,7 +18,7 @@ completed historical records. The active paper plan is deliberately small.
 See [DEAD-ENDS.md](DEAD-ENDS.md) before reviving an old experiment.
 `EXP-INDEX.md` remains the complete historical ledger.
 Use [EVAL-PROTOCOL.md](EVAL-PROTOCOL.md) for the shared generation lengths,
-solver budgets, seeds, and promotion rules; do not infer a universal default
+solver budgets, fixed sampling bank, and promotion rules; do not infer a universal default
 from one historical script.
 
 ## Current active queue
@@ -30,13 +30,13 @@ about validating the method claims exposed during presentation assembly:
 |---|---|---|---|
 | [EXP-61](EXP-61-spec.md) | **RUNNING / P0** | Does Pipeline ODE survive the native ELF evaluation path (`noise_scale=2`, EMA), and does it work on baseline? | legacy result is reproduced and the 3-checkpoint native comparison is complete |
 | [EXP-60](EXP-60-spec.md) | **IMPLEMENTED / P1** | Did inference-only asynchronous schedules fail merely because local time was unseen during training? | paired synchronous/WFF fine-tunes and sampler interaction are evaluated |
-| [EXP-62](EXP-62-spec.md) | **READY / P1** | Are KD effects larger than ordinary continued-training drift and training-seed variation? | matched control/KD replicas complete before temporal-window variants are promoted |
+| [EXP-62](EXP-62-spec.md) | **READY / P1** | Does KD differ from ordinary continued-training drift under matched initialization, data order, and budget? | matched control/KD runs complete before temporal-window variants are promoted |
 
 Conditional after EXP-61:
 
 | package | status | purpose |
 |---|---|---|
-| EXP-61 Stage 3 | **CONDITIONAL / P1** | multi-seed conditional semantic-quality validation for any surviving Pipeline arm |
+| EXP-61 Stage 3 | **CONDITIONAL / P1** | fixed-bank conditional semantic-quality validation for any surviving Pipeline arm |
 | GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
 Recommended order: `EXP-61 smoke -> EXP-61 native formal + EXP-60 paired training -> conditional quality / cross-architecture only for surviving claims`.
