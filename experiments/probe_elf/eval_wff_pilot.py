@@ -32,7 +32,6 @@ from utils.sampling_utils import (
 N_STEPS = 32
 MAX_LENGTH = 128
 BATCH_SIZE = 16
-SCCFG = 1.0
 OUT_DIR = Path("results/exp60_wff_pilot")
 
 MODEL_CFG = dict(
@@ -119,7 +118,7 @@ def decode_z(z, model, device):
 
 
 @torch.no_grad()
-def run_standard(z0, model, t_steps, device):
+def run_standard(z0, model, t_steps, device, sccfg):
     z, x_pred = z0.clone(), torch.zeros_like(z0)
     cfg = _Cfg()
     with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
@@ -132,7 +131,7 @@ def run_standard(z0, model, t_steps, device):
                 model=model,
                 config=cfg,
                 cfg_scale=1.0,
-                self_cond_cfg_scale=SCCFG,
+                self_cond_cfg_scale=sccfg,
                 cond_seq=None,
                 cond_seq_mask=None,
             )
@@ -140,7 +139,7 @@ def run_standard(z0, model, t_steps, device):
 
 
 @torch.no_grad()
-def run_wff(z0, model, t_steps, device, delta, order):
+def run_wff(z0, model, t_steps, device, delta, order, sccfg):
     z, x_pred = z0.clone(), torch.zeros_like(z0)
     cfg = _Cfg()
     with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
@@ -161,7 +160,7 @@ def run_wff(z0, model, t_steps, device, delta, order):
                 model=model,
                 config=cfg,
                 cfg_scale=1.0,
-                self_cond_cfg_scale=SCCFG,
+                self_cond_cfg_scale=sccfg,
                 cond_seq=None,
                 cond_seq_mask=None,
             )
@@ -185,6 +184,7 @@ def main():
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n_seq", type=int, default=256)
+    parser.add_argument("--sccfg", type=float, default=3.0)
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -209,7 +209,10 @@ def main():
         print(f"load_state_dict missing={missing}, unexpected={unexpected}")
     model.eval().to(device)
     gate = float(torch.tanh(model.local_time_gate.detach()).cpu())
-    print(f"label={args.label} seed={args.seed} local_time_gate={gate:+.6f}")
+    print(
+        f"label={args.label} seed={args.seed} sccfg={args.sccfg:g} "
+        f"local_time_gate={gate:+.6f}"
+    )
 
     generator = torch.Generator(device=device).manual_seed(args.seed)
     all_z0 = torch.randn(
@@ -230,9 +233,11 @@ def main():
         for start in range(0, args.n_seq, BATCH_SIZE):
             z0 = all_z0[start:start + BATCH_SIZE]
             z = (
-                run_standard(z0, model, t_steps, device)
+                run_standard(z0, model, t_steps, device, args.sccfg)
                 if wave is None
-                else run_wff(z0, model, t_steps, device, wave[0], wave[1])
+                else run_wff(
+                    z0, model, t_steps, device, wave[0], wave[1], args.sccfg
+                )
             )
             token_ids = decode_z(z, model, device)
             texts.extend(ids_to_texts(token_ids.cpu(), elf_tokenizer))
@@ -255,12 +260,14 @@ def main():
             f"D2={result['d2']:.3f} rep4={result['rep4']:.3f}"
         )
 
-    out_path = OUT_DIR / f"{args.label}_seed{args.seed}.json"
+    safe_sccfg = str(args.sccfg).replace(".", "p")
+    out_path = OUT_DIR / f"{args.label}_sc{safe_sccfg}_seed{args.seed}.json"
     with open(out_path, "w", encoding="utf-8") as handle:
         json.dump(
             {
                 "label": args.label,
                 "seed": args.seed,
+                "sccfg": args.sccfg,
                 "n_seq": args.n_seq,
                 "checkpoint": args.checkpoint,
                 "local_time_gate": gate,
