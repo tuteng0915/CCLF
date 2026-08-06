@@ -89,3 +89,15 @@ The causal comparison is the interaction
 - A learned nonzero local-time gate is necessary but not sufficient evidence;
   it only proves that the model used the new input.
 
+## Preflight checks before launching
+
+1. Run `python tests/test_wff.py`. The fresh ELF flow head is intentionally
+   zero-initialized, so the gate-gradient unit test explicitly initializes a
+   nonzero synthetic output head; otherwise every backbone gradient is
+   mechanically zero and the test gives a false alarm.
+2. Verify `delta=0` WFF sampling is numerically identical to ordinary ODE.
+3. Verify both arms load the same `kd_cr` weights and that the only config
+   difference is `wff_train_prob` (`0.0` versus `0.5`).
+4. After the first logged optimizer step, require finite loss and a nonzero
+   `local_time_gate` gradient in the WFF arm. Stop rather than interpreting a
+   dead gate as a negative scientific result.

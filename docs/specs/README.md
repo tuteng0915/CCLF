@@ -27,6 +27,7 @@ about validating the method claims exposed during presentation assembly:
 |---|---|---|---|
 | [EXP-61](EXP-61-spec.md) | **READY / P0** | Does Pipeline ODE survive the native ELF evaluation path (`noise_scale=2`, EMA), and does it work on baseline? | legacy result is reproduced and the 3-checkpoint native comparison is complete |
 | [EXP-60](EXP-60-spec.md) | **IMPLEMENTED / P1** | Did inference-only asynchronous schedules fail merely because local time was unseen during training? | paired synchronous/WFF fine-tunes and sampler interaction are evaluated |
+| [EXP-62](EXP-62-spec.md) | **READY / P1** | Are KD effects larger than ordinary continued-training drift and training-seed variation? | matched control/KD replicas complete before temporal-window variants are promoted |
 
 Conditional after EXP-61:
 

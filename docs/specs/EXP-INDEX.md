@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-06（EXP-61 Pipeline native-path revalidation READY；EXP-60 native WFF paired training pilot implemented；GS17 formal 3-seed DONE；84 个实验）
+**更新时间**: 2026-08-06（EXP-62 controlled fine-tuning checkpoint panel READY；EXP-61 Pipeline native-path revalidation READY；EXP-60 native WFF paired training pilot implemented；85 个实验）
 
 ---
 
@@ -139,6 +139,7 @@ GS16 calibrated endpoint bank + specificity
 | **EXP-59** | **DONE** | ELF kd_cr | EXP-58 kd_cr pipeline_avg 多种子验证（3 seeds: 42/123/456，N=256/seed，pipeline_avg vs standard）| **I=−153.6±30.7（95% CI，n=3，df=2）**；D1=0.308±0.009↑ D2=0.810±0.009↑（3 seeds 全部方向一致）；σ(I)=12.3（CV=8%，低种子方差）；EXP-58 结论稳健确认；见 EXP-59-spec.md |
 | **EXP-60** | **IMPLEMENTED / PENDING TRAIN** | ELF kd_cr | Native Wavefront Flow Forcing：配对的同步 control 与局部时间训练各 500 steps，检验 GS19 的失败是否只是 train--test mismatch | 只有 `training × sampler` 交互为正且标准 ODE 质量不退化才继续；否则停止 WFF；见 EXP-60-spec.md |
 | **EXP-61** | **READY / P0** | ELF baseline+kd_cr+kd2 | 用原生 `noise_scale=2` 与 EMA 权重重验 Pipeline ODE，并分解旧结果中的 noise/EMA protocol mismatch | 在通过前 EXP-59 的 method claim 视为 provisional；同时补 baseline checkpoint 与条件语义质量；见 EXP-61-spec.md |
+| **EXP-62** | **READY / P1** | ELF baseline fine-tuning panel | matched continued-training controls + full-KD replicas establish drift/seed variance, then early/transition/late KD windows test temporal causality | 先判断 recipe effect 是否大于 training-seed variance，再扩正式 checkpoint；见 EXP-62-spec.md |
 | EXP-22 | DONE⚠️ | LangFlow | LangFlow 每位置承诺时序（EXP-16 对应） | t<0.80 几乎无位置承诺（模型内有效）；⚠️ 所有 ELF–LangFlow nominal-t 比较无效（EXP-03 已证 log-SNR 不可比）；"LangFlow 比 ELF 晚 0.63t"必须从论文删除；H<1 nat 阈值跨模型不可比；committed_wrong 低是选择效应 |
 | EXP-24 | DONE⚠️ | LangFlow | LangFlow 轨迹稳定性（EXP-14 对应） | LangFlow mean_last_flip=8.3/32（26%）vs ELF baseline 21.2/32（66%，EXP-14v2）；⚠️ 原对比表使用旧版 EXP-14 无效数字（83.4%→正确值 67.6%）；argmax stability≠commitment；LangFlow 可能有 self-conditioning；缺少 entropy/margin 分析 |
 
