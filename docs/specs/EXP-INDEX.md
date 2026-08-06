@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-06（EXP-60/61 DONE/NEGATIVE；EXP-62 controlled fine-tuning checkpoint panel READY/P0；85 个实验）
+**更新时间**: 2026-08-06（EXP-60/61 DONE/NEGATIVE；EXP-62 controlled fine-tuning checkpoint panel RUNNING/P0；85 个实验）
 
 ---
 
@@ -139,7 +139,7 @@ GS16 calibrated endpoint bank + specificity
 | **EXP-59** | **DONE** | ELF kd_cr | EXP-58 kd_cr pipeline_avg 多种子验证（3 seeds: 42/123/456，N=256/seed，pipeline_avg vs standard）| **I=−153.6±30.7（95% CI，n=3，df=2）**；D1=0.308±0.009↑ D2=0.810±0.009↑（3 seeds 全部方向一致）；σ(I)=12.3（CV=8%，低种子方差）；EXP-58 结论稳健确认；见 EXP-59-spec.md |
 | **EXP-60** | **DONE / NEGATIVE** | ELF kd_cr | Native Wavefront Flow Forcing：配对的同步 control 与局部时间训练各 500 steps，检验 GS19 的失败是否只是 train--test mismatch | LTR interaction 分别恶化 +45.5/+24.6 PPL，标准 ODE 也恶化 27.3，gate 近零；停止当前 WFF 实现；见 EXP-60-spec.md |
 | **EXP-61** | **DONE / NEGATIVE** | ELF kd_cr | 以 2×2 矩阵重验 Pipeline ODE 的 noise scale 与 SC-CFG protocol；converted payload provenance 单独审计 | n=256 下 legacy noise 1 改善 142 PPL，但 native noise 2 恶化 197 PPL；当前 Pipeline claim 终止，不扩展 baseline/kd2；见 EXP-61-spec.md |
-| **EXP-62** | **READY / P1** | ELF baseline fine-tuning panel | matched continued-training controls + full-KD replicas establish drift/seed variance, then early/transition/late KD windows test temporal causality | 先判断 recipe effect 是否大于 training-seed variance，再扩正式 checkpoint；见 EXP-62-spec.md |
+| **EXP-62** | **RUNNING / P0** | ELF baseline fine-tuning panel | matched continued-training controls + full-KD replicas establish drift/seed variance, then early/transition/late KD windows test temporal causality | Stage A 的 matched 2k-step control/full-KD pilot 已在服务器运行；先判断 recipe effect 是否大于 ordinary continued-training drift，再决定是否扩 early/transition/late；见 EXP-62-spec.md |
 | EXP-22 | DONE⚠️ | LangFlow | LangFlow 每位置承诺时序（EXP-16 对应） | t<0.80 几乎无位置承诺（模型内有效）；⚠️ 所有 ELF–LangFlow nominal-t 比较无效（EXP-03 已证 log-SNR 不可比）；"LangFlow 比 ELF 晚 0.63t"必须从论文删除；H<1 nat 阈值跨模型不可比；committed_wrong 低是选择效应 |
 | EXP-24 | DONE⚠️ | LangFlow | LangFlow 轨迹稳定性（EXP-14 对应） | LangFlow mean_last_flip=8.3/32（26%）vs ELF baseline 21.2/32（66%，EXP-14v2）；⚠️ 原对比表使用旧版 EXP-14 无效数字（83.4%→正确值 67.6%）；argmax stability≠commitment；LangFlow 可能有 self-conditioning；缺少 entropy/margin 分析 |
 
@@ -284,7 +284,7 @@ embedding）存在系统性尺度差异，就会出现看似"没有信号"实则
 ## 快速状态一览
 
 - **DONE**: 69 个实验 (EXP-01–16, EXP-20–22, EXP-24–32 + EXP-30b + EXP-36 + EXP-37a/b/c + EXP-04v2 + EXP-05v3 + EXP-01v3(×3) + EXP-07v2(×3) + 2 dense probes + EXP-07 64-step + **EXP-12v2** + **EXP-11v2** + **EXP-25v2** + **EXP-26v2** + **EXP-27v2** + **EXP-36v2-factorial**(3 ckpt) + **EXP-31v2**(kd_cr+kd2 5-seed) + **EXP-30v2** + **EXP-29 audit** + **EXP-40** + **EXP-39** + **EXP-41** + **EXP-42** + **EXP-38** + **EXP-43** + **EXP-47**⚠️ + **EXP-44**⚠️ Phase1+2 + **EXP-48** + **EXP-49** + **EXP-50** + **EXP-51** + **EXP-52** + **EXP-53** + **EXP-54**)
-- **RUNNING**: 无
+- **RUNNING**: EXP-62 Stage A（matched 2k-step continued-training control vs full-KD）
 - **ZOMBIE**: PID 3143093 (EXP-21 LangFlow hidden probe, CPU, needs manual kill)
 - **INVALID**: EXP-33/34/35 — 使用无 tmin gate 的 dec_sc，产生退化文本，PPL 无效
 - **SLOW**: PID 3143093 (EXP-21 SAGA, CPU) — 已被 fast GPU 版本替代，**需用户手动 kill**

@@ -29,7 +29,7 @@ training. The remaining active queue is:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [EXP-62](EXP-62-spec.md) | **READY / P0** | Does KD differ from ordinary continued-training drift under matched initialization, data order, and budget? | matched control/KD runs complete before temporal-window variants are promoted |
+| [EXP-62](EXP-62-spec.md) | **RUNNING / P0** | Does KD differ from ordinary continued-training drift under matched initialization, data order, and budget? | matched 2k-step control/full-KD pilot is running; temporal-window variants remain gated on this comparison |
 
 Completed decision:
 

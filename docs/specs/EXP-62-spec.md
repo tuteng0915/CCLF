@@ -1,7 +1,7 @@
 # EXP-62 Spec — Controlled Fine-Tuning Checkpoint Panel
 
-**Status**: READY  
-**Priority**: P1 — expand the experimental objects before more checkpoint-specific interventions  
+**Status**: RUNNING (Stage A matched 2k-step control/full-KD pilot)
+**Priority**: P0 — establish a controlled KD effect before more checkpoint-specific interventions
 **Base model**: official ELF-B OpenWebText baseline  
 **Pilot config**: `src/configs/training_configs/finetune_owt_ELF-B-panel.yml`
 
