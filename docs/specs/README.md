@@ -28,7 +28,7 @@ about validating the method claims exposed during presentation assembly:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [EXP-61](EXP-61-spec.md) | **RUNNING / P0** | Does Pipeline ODE survive native ELF initial noise (`noise_scale=2`), and does it work on baseline? | legacy result is reproduced and the 3-checkpoint native comparison is complete |
+| [EXP-61](EXP-61-spec.md) | **RUNNING / P0** | Does Pipeline ODE survive the native ELF ODE recipe (noise 2, SC-CFG 3), and does it work on baseline? | legacy result is reproduced and the 3-checkpoint native comparison is complete |
 | [EXP-60](EXP-60-spec.md) | **IMPLEMENTED / P1** | Did inference-only asynchronous schedules fail merely because local time was unseen during training? | paired synchronous/WFF fine-tunes and sampler interaction are evaluated |
 | [EXP-62](EXP-62-spec.md) | **READY / P1** | Does KD differ from ordinary continued-training drift under matched initialization, data order, and budget? | matched control/KD runs complete before temporal-window variants are promoted |
 
