@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 1 || $# -gt 3 ]]; then
-  echo "Usage: $0 FAMILY [SEED] [GPU]"
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "Usage: $0 FAMILY [GPU]"
   echo "Families: ct_control kd_full kd_early kd_transition kd_late"
   exit 2
 fi
 
 family="$1"
-seed="${2:-42}"
-gpu="${3:-0}"
+gpu="${2:-0}"
+seed="42"
 
 case "$family" in
   ct_control)
@@ -27,7 +27,7 @@ case "$family" in
     exit 2 ;;
 esac
 
-run_name="exp62_${family}_s${seed}"
+run_name="exp62_${family}"
 output_dir="outputs/${run_name}"
 log_dir="logs/exp62"
 mkdir -p "$log_dir"

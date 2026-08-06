@@ -122,7 +122,12 @@ def main():
     parser.add_argument("--weights", choices=("params", "ema"), default="ema")
     parser.add_argument("--noise_scale", type=float, default=2.0)
     parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="reproducibility seed; keep fixed across controlled comparisons",
+    )
     parser.add_argument("--n_seq", type=int, default=64)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--max_length", type=int, default=128)
