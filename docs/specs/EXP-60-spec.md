@@ -1,7 +1,7 @@
 # EXP-60 Spec — Native Wavefront Flow Forcing Training Pilot
 
-**Status**: IMPLEMENTED; runtime validation and paired training pending  
-**Priority**: P2 method pilot  
+**Status**: IMPLEMENTED; unit preflight passed, paired training pending
+**Priority**: P1 method pilot after EXP-61
 **Model**: ELF-B `kd_cr`, OpenWebText, length 128  
 **Code**: `models/ELF-torch/src/` and
 `models/ELF-torch/experiments/probe_elf/eval_wff_pilot.py`
