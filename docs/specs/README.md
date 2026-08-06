@@ -20,30 +20,22 @@ See [DEAD-ENDS.md](DEAD-ENDS.md) before reviving an old experiment.
 
 ## Current active queue
 
-There are only **two core mechanism experiments**:
+GS16--GS20 are now completed at pilot or formal scale. The active queue is
+about validating the method claims exposed during presentation assembly:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [GS16](EXP-GS16-spec.md) | **ACTIVE / P0** | Is the final endpoint already specific, or does endpoint affinity collapse late? | fixed endpoint bank is calibrated and self-specificity is estimated |
-| [GS17](EXP-GS17-spec.md) | **ACTIVE / P0** | Is motion endpoint-parallel or orthogonal, and when does stable commitment occur? | local velocity and event timing distinguish curved transport from late selection |
+| [EXP-61](EXP-61-spec.md) | **READY / P0** | Does Pipeline ODE survive the native ELF evaluation path (`noise_scale=2`, EMA), and does it work on baseline? | legacy result is reproduced and the 3-checkpoint native comparison is complete |
+| [EXP-60](EXP-60-spec.md) | **IMPLEMENTED / P1** | Did inference-only asynchronous schedules fail merely because local time was unseen during training? | paired synchronous/WFF fine-tunes and sampler interaction are evaluated |
 
-After GS16--GS17:
+Conditional after EXP-61:
 
 | package | status | purpose |
 |---|---|---|
-| [GS18](EXP-GS18-spec.md) | **CONDITIONAL / P1** | rank/energy control and common-factor control; run only for claims retained in the paper |
-| [GS19](EXP-GS19-spec.md) | **ACTIVE AFTER P0 / P2** | asynchronous schedule ablation before Wavefront Flow Forcing training |
-| [GS20](EXP-GS20-spec.md) | **DEFERRED / P2** | minimal CDCD replication after the ELF mechanism is identified |
+| EXP-61 Stage 3 | **CONDITIONAL / P1** | multi-seed conditional semantic-quality validation for any surviving Pipeline arm |
+| GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
-Recommended order:
-
-```text
-GS16 calibrated endpoint bank + specificity
-    -> GS17 velocity + unified timing
-    -> decide which GS18 controls are still necessary
-    -> GS19 asynchronous intervention
-    -> GS20 CDCD replication
-```
+Recommended order: `EXP-61 smoke -> EXP-61 native formal + EXP-60 paired training -> conditional quality / cross-architecture only for surviving claims`.
 
 ## Evidence already supporting the paper
 
@@ -88,4 +80,3 @@ Add a new file only if all are true:
 Otherwise append a stage to the existing package. Do not create more topic
 probes, static representation visualizations, or nominal-time cross-model
 comparisons for the current paper.
-
