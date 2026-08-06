@@ -65,6 +65,10 @@ Use identical initial noise for each checkpoint and sampler arm:
 3. native WFF ODE-32, LTR `Delta=0.20`;
 4. native WFF ODE-32, RTL `Delta=0.20`.
 
+Use the native ODE initialization (`z0 = 2 epsilon`) and SC-CFG 3. The first
+Pipeline audit showed that a method conclusion can reverse between noise scale
+1 and 2, so SC-CFG and noise scale must be written into every WFF result.
+
 Primary quality metrics are GPT-2-large Gen.PPL, Distinct-1/2, 4-gram
 repetition, and qualitative degeneration. If quality is retained, a second
 stage measures `tau_first`, `tau_stable`, revisions, branch entropy, and the
