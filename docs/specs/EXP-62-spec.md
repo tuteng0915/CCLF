@@ -1,6 +1,6 @@
 # EXP-62 Spec — Controlled Fine-Tuning Checkpoint Panel
 
-**Status**: RUNNING (Stage A matched 2k-step control/full-KD pilot)
+**Status**: RUNNING (Stage A generation gate passed; Stage B temporal windows training)
 **Priority**: P0 — establish a controlled KD effect before more checkpoint-specific interventions
 **Base model**: official ELF-B OpenWebText baseline  
 **Pilot config**: `src/configs/training_configs/finetune_owt_ELF-B-panel.yml`
@@ -88,6 +88,24 @@ the same optimizer budget. This avoids an uninformative random-seed grid.
 This pilot creates inexpensive experimental objects for mechanism screening.
 It is not directly comparable to the historical 400k/700k, length-1024 KD
 runs in training compute.
+
+### Stage A pilot result (`2026-08-06`)
+
+Both matched runs completed 2,000 steps and saved raw and EMA parameters. The
+first gate uses EMA weights, the identical seed-42 initial-noise bank,
+`n=256`, length 128, native `z0 = 2 epsilon`, ODE-32, and SC-CFG 3:
+
+| training | PPL | D1 | D2 | rep-4 | degeneration |
+|---|---:|---:|---:|---:|---:|
+| continued-training control | 261.8 | 0.394 | 0.860 | 0.008 | 0.008 |
+| full-trajectory KD | 220.0 | 0.441 | 0.873 | 0.007 | 0.004 |
+| full-KD minus control | **-41.8** | **+0.047** | **+0.013** | **-0.001** | **-0.004** |
+
+This is a positive controlled generation signal, not yet a temporal-mechanism
+result. It passes the pilot promotion gate for `kd_early`, `kd_transition`,
+and `kd_late`; all three Stage B runs are now active. Do not promote a window
+to formal scale until its matched native generation and compact dynamics card
+are complete.
 
 ### Formal promotion
 
