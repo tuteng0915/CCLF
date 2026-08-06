@@ -1,6 +1,6 @@
 # EXP-61 Spec — Native-Path Revalidation of Pipeline ODE
 
-**Status**: RUNNING — Stage-0 smoke passed; Stage-1 factorization launched
+**Status**: RUNNING — Stage-0 smoke passed; Stage-1 noise correction launched
 **Priority**: P0 — must be resolved before treating Pipeline ODE as a method result  
 **Models**: ELF-B baseline, `kd_cr`, `kd2`  
 **Primary script**: `experiments/probe_elf/pipeline_native_revalidation_exp61.py`  
@@ -14,7 +14,7 @@ sampling initialization differs from ELF's native evaluation path:
 | component | EXP-58/59 custom path | native ELF path |
 |---|---|---|
 | initial latent | `z0 = randn(...)` | `z0 = 2.0 * randn(...)` |
-| checkpoint weights | `params` | EMA weights when available |
+| checkpoint payload | converted `params` | converted `params` |
 | reported checkpoints | `kd_cr`, `kd2` | baseline not tested |
 
 The training and evaluation configs set `denoiser_noise_scale: 2.0`, and
@@ -23,16 +23,24 @@ EXP-58/59 established a paired result under a non-native initial-noise
 distribution, but did not yet establish that Pipeline ODE improves normal ELF
 generation.
 
+The checkpoint-key audit corrected an initially suspected EMA mismatch. The
+JAX-to-PyTorch converter selects JAX `ema_params1` by default but stores the
+converted tensor dictionary under the generic PyTorch key `params`. The
+current converted files have no separate `ema_params1` key. Thus loading
+`checkpoint["params"]` does **not** by itself imply that EXP-58/59 used raw
+training weights. Raw-versus-EMA attribution would require separately
+converted source checkpoints and is not part of the primary revalidation.
+
 This is a protocol revalidation, not a robustness embellishment. Until it is
 resolved, the EXP-59 method claim is provisional.
 
 ## 2. Questions
 
 1. Does the published EXP-59 result reproduce under its exact legacy path?
-2. Does Pipeline ODE still help `kd_cr` under native noise and EMA weights?
+2. Does Pipeline ODE still help `kd_cr` under native initial noise?
 3. Does it work on the ELF baseline checkpoint?
-4. Which factor explains any change: noise scale, EMA weights, or their
-   interaction?
+4. Can the converted checkpoint's JAX source (`ema_params1` versus raw
+   `params`) be verified from conversion records or a reference comparison?
 5. If unconditional quality survives, does conditioned semantic continuation
    survive as well?
 
@@ -57,24 +65,23 @@ The first server smoke (`2026-08-06`, `n=64`) reproduced the legacy direction:
 | Pipeline | 188.78 | 0.435 | 0.896 | 0.000 | 0.547 |
 
 This is an implementation check, not method evidence: the degeneration flag
-also worsened, and the run deliberately used the legacy raw-parameter,
-noise-scale-1 path. Stage 1 must determine whether either observation survives
-the native path.
+also worsened, and the run deliberately used the legacy noise-scale-1 path.
+Stage 1 must determine whether either observation survives native noise.
 
-## 4. Stage 1 — factorized path correction
+## 4. Stage 1 — initial-noise correction
 
 Use identical initial Gaussian draws within every paired comparison.
 
 | cell | weights | noise scale | purpose |
 |---|---|---:|---|
-| A | params | 1.0 | exact legacy reference |
-| B | EMA | 1.0 | isolate weight selection |
-| C | params | 2.0 | isolate initial-noise distribution |
-| D | EMA | 2.0 | native primary result |
+| A | converted checkpoint (`auto`) | 1.0 | exact legacy reference |
+| B | same checkpoint (`auto`) | 2.0 | native primary result |
 
-Run the four cells on `kd_cr`, seed 42, `n=64` smoke. Retain all four at
-`n=256` only if the native result changes sign or magnitude enough to require
-attribution; otherwise run the native cell formally.
+Run both cells on `kd_cr`, seed 42, `n=64` smoke. If the result changes sign or
+magnitude, retain both at `n=256` to attribute the change to initial noise;
+otherwise run the native cell formally. For a newly trained PyTorch checkpoint
+that contains both keys, `--weights params` and `--weights ema` can be used as
+a secondary weight-sensitivity audit.
 
 Reproducible runner:
 
@@ -84,7 +91,7 @@ CUDA_VISIBLE_DEVICES=5 bash experiments/probe_elf/run_exp61_stage1.sh
 
 ## 5. Stage 2 — checkpoint scope
 
-Primary native cell D:
+Primary native cell B:
 
 ```text
 checkpoints = {baseline, kd_cr, kd2}
@@ -146,8 +153,9 @@ unconditional sampler heuristic rather than a general denoising method.
 - **Legacy-path artifact**: benefit disappears or reverses primarily when
   `noise_scale` changes from 1 to 2. Retract the current Pipeline method claim
   from the main story; retain it as an evaluation-path cautionary result.
-- **EMA sensitivity**: sign depends on `params` versus EMA. Report both and
-  stop using an unspecified checkpoint state in method comparisons.
+- **Checkpoint provenance unresolved**: converted source cannot be verified.
+  Preserve the result as applying to the exact converted artifact and record
+  its checksum; do not label it raw or EMA without evidence.
 
 ## 8. Relation to EXP-60
 
