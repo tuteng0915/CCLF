@@ -105,3 +105,9 @@ The causal comparison is the interaction
 4. After the first logged optimizer step, require finite loss and a nonzero
    `local_time_gate` gradient in the WFF arm. Stop rather than interpreting a
    dead gate as a negative scientific result.
+
+The first server launch reached the training step but exposed a Transformers
+compatibility error: current T5 mask utilities require boolean masks, whereas
+ELF stores its binary encoder mask as float32. The wrapper now converts the
+mask to bool at the Hugging Face boundary. This is an infrastructure failure,
+not an EXP-60 result; both matched arms must be relaunched from step zero.
