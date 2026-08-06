@@ -8,7 +8,7 @@ changing the conclusion across experiments
 
 | role | generated length | trajectory / solver | sample scale | interpretation |
 |---|---:|---|---:|---|
-| native ELF checkpoint evaluation | 1024 | SDE-32/64, logit-normal; native noise scale 2 and EMA | config-dependent | official generation-quality reference |
+| native ELF checkpoint evaluation | 1024 | SDE-32/64, logit-normal; native noise scale 2 and the checkpoint's inference payload | config-dependent | official generation-quality reference |
 | current mechanism evidence | 1024 | GS16: ODE-32; GS17: dense ODE-128 | GS16: 48 trajectories x 3 seeds; GS17: 48 x 2 completed seeds in the current ledger | paper's rollout-dynamics setting |
 | current Pipeline result | 128 | standard ODE-32 vs Pipeline `T=16` / 31 model calls | 256 sequences x 3 seeds | cheap method result requiring native-path and native-length revalidation |
 
@@ -20,7 +20,10 @@ OpenWebText context and is required before making a general method claim.
 
 Unless an experiment is explicitly reproducing a legacy cell:
 
-- load EMA weights;
+- load the checkpoint's inference payload: explicit `ema_params1` for native
+  PyTorch training checkpoints; for converted JAX artifacts, use the converted
+  `params` payload and record its provenance (the converter defaults to JAX
+  `ema_params1`, but the output key is still named `params`);
 - initialize `z0 = 2 * epsilon` for the relevant ELF checkpoints;
 - use paired initial noise for paired sampler comparisons;
 - use uniform-time ODE for mechanism and controlled sampler comparisons;
