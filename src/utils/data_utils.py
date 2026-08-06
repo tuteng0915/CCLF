@@ -87,7 +87,8 @@ def get_dataloader(
     def collate_fn(batch_list):
         input_ids_list = [np.array(item["input_ids"]) for item in batch_list]
 
-        if "condition_input_ids" in batch_list[0]:
+        has_condition = "condition_input_ids" in batch_list[0]
+        if has_condition:
             seq_list, cond_lens = [], []
             for item in batch_list:
                 cond = np.array(item["condition_input_ids"])[:max_input_seq_length]
@@ -104,6 +105,13 @@ def get_dataloader(
         is_cond = pos < cond_lens[:, None]
         is_valid = pos < total_lens[:, None]
         encoder_attn, attn, pred = build_self_attn_cond_masks(is_cond, is_valid, xp=np)
+        # In unconditional data every query row of the pairwise encoder mask is
+        # identical to the ordinary key-padding mask. Returning the native 2D
+        # form is exactly equivalent and is required by recent Transformers
+        # T5 mask utilities, which no longer accept a user-provided [B,L,L]
+        # padding mask.
+        if not has_condition:
+            encoder_attn = attn
         result = {
             "input_ids": ids,
             "encoder_attention_mask": encoder_attn,
