@@ -23,23 +23,28 @@ from one historical script.
 
 ## Current active queue
 
-GS16--GS20 are now completed at pilot or formal scale. The active queue is
-about validating the method claims exposed during presentation assembly:
+GS16--GS20 are now completed at pilot or formal scale. EXP-61 has also closed
+the historical Pipeline claim: its improvement reverses under native ELF
+initial noise. The remaining active queue is:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [EXP-61](EXP-61-spec.md) | **RUNNING / P0** | Does Pipeline ODE survive the native ELF ODE recipe (noise 2, SC-CFG 3), and does it work on baseline? | legacy result is reproduced and the 3-checkpoint native comparison is complete |
-| [EXP-60](EXP-60-spec.md) | **IMPLEMENTED / P1** | Did inference-only asynchronous schedules fail merely because local time was unseen during training? | paired synchronous/WFF fine-tunes and sampler interaction are evaluated |
+| [EXP-60](EXP-60-spec.md) | **RUNNING / P0** | Did inference-only asynchronous schedules fail merely because local time was unseen during training? | paired synchronous/WFF fine-tunes and sampler interaction are evaluated |
 | [EXP-62](EXP-62-spec.md) | **READY / P1** | Does KD differ from ordinary continued-training drift under matched initialization, data order, and budget? | matched control/KD runs complete before temporal-window variants are promoted |
 
-Conditional after EXP-61:
+Completed decision:
+
+| package | status | result |
+|---|---|---|
+| [EXP-61](EXP-61-spec.md) | **DONE / NEGATIVE** | Pipeline improves legacy noise-scale-1 ODE but worsens native-noise ODE by +197 PPL at n=256; do not promote the current sampler |
+
+Conditional after the active experiments:
 
 | package | status | purpose |
 |---|---|---|
-| EXP-61 Stage 3 | **CONDITIONAL / P1** | fixed-bank conditional semantic-quality validation for any surviving Pipeline arm |
 | GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
-Recommended order: `EXP-61 smoke -> EXP-61 native formal + EXP-60 paired training -> conditional quality / cross-architecture only for surviving claims`.
+Recommended order: `EXP-60 paired training -> controlled EXP-62 checkpoint panel -> cross-architecture formalization only if required by the final paper claim`.
 
 ## Evidence already supporting the paper
 

@@ -1,6 +1,6 @@
 # EXP-61 Spec — Native-Path Revalidation of Pipeline ODE
 
-**Status**: RUNNING — Stage-1 n=64 complete; n=256 confirmation launched
+**Status**: DONE / NEGATIVE — native ODE protocol reverses the Pipeline result
 **Priority**: P0 — must be resolved before treating Pipeline ODE as a method result  
 **Models**: ELF-B baseline, `kd_cr`, `kd2`  
 **Primary script**: `experiments/probe_elf/pipeline_native_revalidation_exp61.py`  
@@ -87,20 +87,25 @@ native cells at `n=256`; retain B/C formally only if attribution matters. For a
 newly trained PyTorch checkpoint that contains both keys, `--weights params`
 and `--weights ema` can be used as a secondary weight-sensitivity audit.
 
-The complete `n=64` factorization gives:
+The complete factorization gives:
 
-| recipe | standard PPL | Pipeline PPL | Pipeline minus standard |
-|---|---:|---:|---:|
-| noise 1, SC-CFG 1 | 309.59 | 188.78 | -120.82 |
-| noise 2, SC-CFG 1 | 1170.92 | 1185.99 | +15.08 |
-| noise 1, SC-CFG 3 | 306.32 | 192.64 | -113.68 |
-| noise 2, SC-CFG 3 | 1148.68 | 1197.70 | +49.02 |
+| recipe | n | standard PPL | Pipeline PPL | Pipeline minus standard |
+|---|---:|---:|---:|---:|
+| noise 1, SC-CFG 1 | 64 | 309.59 | 188.78 | -120.82 |
+| noise 2, SC-CFG 1 | 64 | 1170.92 | 1185.99 | +15.08 |
+| noise 1, SC-CFG 3 | 64 | 306.32 | 192.64 | -113.68 |
+| noise 2, SC-CFG 3 | 64 | 1148.68 | 1197.70 | +49.02 |
+| noise 1, SC-CFG 1 | 256 | 338.05 | 196.27 | -141.78 |
+| noise 2, SC-CFG 1 | 256 | 1070.67 | 1244.42 | +173.75 |
+| noise 1, SC-CFG 3 | 256 | 340.33 | 195.47 | -144.86 |
+| noise 2, SC-CFG 3 | 256 | 1054.08 | 1251.46 | +197.38 |
 
 The sign tracks initial noise, while changing SC-CFG alone has little effect.
-Because both arms have poor absolute PPL under noise scale 2, this is evidence
-that the old positive result is protocol-sensitive, not yet a claim about
-official native SDE quality. The four cells are running at `n=256` before the
-Pipeline claim is formally removed or narrowed.
+Both arms have poor absolute ODE PPL under noise scale 2, so this does not make
+a claim about official native SDE quality. It does establish that the current
+Pipeline improvement does not survive the model's native initial-noise
+distribution. The old positive method claim must be removed from the main
+story.
 
 Reproducible runner:
 
@@ -109,6 +114,11 @@ CUDA_VISIBLE_DEVICES=5 bash experiments/probe_elf/run_exp61_stage1.sh
 ```
 
 ## 5. Stage 2 — checkpoint scope
+
+**Stopped by Stage 1.** Do not expand the current implementation to baseline
+or `kd2`: the primary `kd_cr` result already reverses under native noise. The
+matrix below is retained as the promotion protocol for a future redesigned
+sampler, not as an active job.
 
 Primary native cell D:
 
@@ -142,6 +152,8 @@ length-128 ODE-16/64 solver checks. The script exposes `--max_length`,
 standard arm.
 
 ## 6. Stage 3 — conditional quality, only if Stage 2 survives
+
+**Not promoted.** The unconditional native-noise gate failed.
 
 The existing single-seed Gutenberg experiment gives `kd_cr` Pipeline ODE a
 lower suffix PPL but lower ROUGE-L than standard (`~0.027` versus `~0.050`).
@@ -178,6 +190,6 @@ unconditional sampler heuristic rather than a general denoising method.
 
 ## 8. Relation to EXP-60
 
-EXP-61 has priority over native WFF training because it audits an existing
-positive claim already shown in the presentation. EXP-60 tests a new model
-hypothesis and may run in parallel after both scripts pass smoke tests.
+EXP-61 closes the existing Pipeline claim as a legacy-initialization artifact.
+EXP-60 is now the primary method experiment because it trains the model on the
+heterogeneous clocks it will see at inference time.
