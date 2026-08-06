@@ -33,7 +33,7 @@ log_dir="logs/exp62"
 mkdir -p "$log_dir"
 
 export CUDA_VISIBLE_DEVICES="$gpu"
-conda run -n elf python -u src/train.py \
+conda run --no-capture-output -n elf python -u src/train.py \
   --config src/configs/training_configs/finetune_owt_ELF-B-panel.yml \
   --config_override "lambda_kd=${lambda_kd}" \
   --config_override "kd_gate_low=${gate_low}" \
