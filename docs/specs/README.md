@@ -17,6 +17,9 @@ completed historical records. The active paper plan is deliberately small.
 
 See [DEAD-ENDS.md](DEAD-ENDS.md) before reviving an old experiment.
 `EXP-INDEX.md` remains the complete historical ledger.
+Use [EVAL-PROTOCOL.md](EVAL-PROTOCOL.md) for the shared generation lengths,
+solver budgets, seeds, and promotion rules; do not infer a universal default
+from one historical script.
 
 ## Current active queue
 

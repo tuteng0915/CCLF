@@ -112,6 +112,9 @@ Every trained checkpoint gets the same evaluation card:
 
 This is intentionally smaller than rerunning the entire experiment archive.
 It tests the axes that currently show checkpoint instability.
+Run it through the staged settings in [`EVAL-PROTOCOL.md`](EVAL-PROTOCOL.md):
+length-128 smoke first, then the native length-1024 and solver-budget checks
+only for checkpoints promoted beyond screening.
 
 ## 7. Analysis
 
@@ -147,4 +150,3 @@ not independent evidence for a training-recipe effect.
 - instruction SFT or a new dataset only after the OpenWebText control panel is
   understood, because changing data and objective together would destroy the
   causal interpretation.
-

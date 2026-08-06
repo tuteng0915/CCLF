@@ -87,6 +87,15 @@ Metrics:
 
 The independent replication unit is the generation seed, not tokens.
 
+This length-128 cell is the historical-comparability result, not sufficient
+evidence of native-length robustness. Any checkpoint on which Pipeline appears
+healthy must also pass the standardized promotion checks in
+[`EVAL-PROTOCOL.md`](EVAL-PROTOCOL.md): length 1024 at ODE-32, plus the
+length-128 ODE-16/64 solver checks. The script exposes `--max_length`,
+`--n_steps`, `--pipeline_groups`, and `--ppl_max_length`; keep
+`pipeline_groups=n_steps/2` so Pipeline uses one fewer model call than the
+standard arm.
+
 ## 6. Stage 3 — conditional quality, only if Stage 2 survives
 
 The existing single-seed Gutenberg experiment gives `kd_cr` Pipeline ODE a
@@ -126,4 +135,3 @@ unconditional sampler heuristic rather than a general denoising method.
 EXP-61 has priority over native WFF training because it audits an existing
 positive claim already shown in the presentation. EXP-60 tests a new model
 hypothesis and may run in parallel after both scripts pass smoke tests.
-
