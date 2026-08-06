@@ -1,6 +1,6 @@
 # EXP-61 Spec — Native-Path Revalidation of Pipeline ODE
 
-**Status**: RUNNING — Stage-0 passed; Stage-1 native ODE factorization launched
+**Status**: RUNNING — Stage-1 n=64 complete; n=256 confirmation launched
 **Priority**: P0 — must be resolved before treating Pipeline ODE as a method result  
 **Models**: ELF-B baseline, `kd_cr`, `kd2`  
 **Primary script**: `experiments/probe_elf/pipeline_native_revalidation_exp61.py`  
@@ -87,17 +87,20 @@ native cells at `n=256`; retain B/C formally only if attribution matters. For a
 newly trained PyTorch checkpoint that contains both keys, `--weights params`
 and `--weights ema` can be used as a secondary weight-sensitivity audit.
 
-The first partial correction, B at SC-CFG 1, already reversed the PPL direction:
+The complete `n=64` factorization gives:
 
 | recipe | standard PPL | Pipeline PPL | Pipeline minus standard |
 |---|---:|---:|---:|
 | noise 1, SC-CFG 1 | 309.59 | 188.78 | -120.82 |
 | noise 2, SC-CFG 1 | 1170.92 | 1185.99 | +15.08 |
+| noise 1, SC-CFG 3 | 306.32 | 192.64 | -113.68 |
+| noise 2, SC-CFG 3 | 1148.68 | 1197.70 | +49.02 |
 
-Because both arms have poor absolute PPL in the second row, this is evidence
-that the old positive result is protocol-sensitive, not yet a final native
-quality comparison. Cell D must be evaluated before the method claim is
-decided.
+The sign tracks initial noise, while changing SC-CFG alone has little effect.
+Because both arms have poor absolute PPL under noise scale 2, this is evidence
+that the old positive result is protocol-sensitive, not yet a claim about
+official native SDE quality. The four cells are running at `n=256` before the
+Pipeline claim is formally removed or narrowed.
 
 Reproducible runner:
 
