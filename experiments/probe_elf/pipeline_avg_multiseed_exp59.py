@@ -104,7 +104,7 @@ def decode_z(z, model, device):
 
 
 @torch.no_grad()
-def run_standard(z0, model, t_steps, device):
+def run_standard(z0, model, t_steps, device, sccfg=SCCFG):
     z = z0.clone()
     xp = torch.zeros_like(z)
     cfg = _Cfg()
@@ -113,13 +113,13 @@ def run_standard(z0, model, t_steps, device):
         for i in range(t_steps.shape[0] - 1):
             z, xp = _ode_step(z=z, t=t_steps[i].item(), t_next=t_steps[i+1].item(),
                               x_pred_prev=xp, model=model, config=cfg,
-                              cfg_scale=1.0, self_cond_cfg_scale=SCCFG,
+                              cfg_scale=1.0, self_cond_cfg_scale=sccfg,
                               cond_seq=None, cond_seq_mask=None)
     return z
 
 
 @torch.no_grad()
-def run_pipeline_avg(z0, model, T, device):
+def run_pipeline_avg(z0, model, T, device, sccfg=SCCFG):
     cfg = _Cfg()
     B, N, D = z0.shape
     CHUNK = max(1, N // T)
@@ -141,7 +141,7 @@ def run_pipeline_avg(z0, model, T, device):
             z_full, x_pred = _ode_step(
                 z=z, t=t, t_next=t_next, x_pred_prev=xp,
                 model=model, config=cfg,
-                cfg_scale=1.0, self_cond_cfg_scale=SCCFG,
+                cfg_scale=1.0, self_cond_cfg_scale=sccfg,
                 cond_seq=None, cond_seq_mask=None,
             )
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """EXP-61: revalidate Pipeline ODE under ELF's native evaluation path.
 
-The historical EXP-58/59 scripts sampled z0 ~ N(0, I). Native ELF generation
-samples z0 = denoiser_noise_scale * eps (scale 2.0 in the relevant configs).
+The historical EXP-58/59 scripts sampled z0 ~ N(0, I) and used SC-CFG 1.
+Native ELF ODE generation samples z0 = denoiser_noise_scale * eps (scale 2.0
+in the relevant configs) and uses SC-CFG 3.
 
 The converted checkpoints use the generic outer key ``params`` even when the
 converter selected JAX ``ema_params1`` (its default). ``auto`` therefore
@@ -129,6 +130,7 @@ def main():
         "--weights", choices=("auto", "params", "ema"), default="auto"
     )
     parser.add_argument("--noise_scale", type=float, default=2.0)
+    parser.add_argument("--sccfg", type=float, default=3.0)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument(
         "--seed",
@@ -167,7 +169,8 @@ def main():
 
     print(
         f"checkpoint={args.checkpoint} weights={args.weights} "
-        f"noise_scale={args.noise_scale:g} seed={args.seed} n={args.n_seq} "
+        f"noise_scale={args.noise_scale:g} sccfg={args.sccfg:g} "
+        f"seed={args.seed} n={args.n_seq} "
         f"length={args.max_length} ode_steps={args.n_steps} "
         f"pipeline_calls={2 * args.pipeline_groups - 1}"
     )
@@ -207,9 +210,13 @@ def main():
         for start in range(0, args.n_seq, args.batch_size):
             z0 = all_z0[start:start + args.batch_size]
             if arm == "standard":
-                z = legacy.run_standard(z0, model, t_steps, device)
+                z = legacy.run_standard(
+                    z0, model, t_steps, device, sccfg=args.sccfg
+                )
             else:
-                z = legacy.run_pipeline_avg(z0, model, args.pipeline_groups, device)
+                z = legacy.run_pipeline_avg(
+                    z0, model, args.pipeline_groups, device, sccfg=args.sccfg
+                )
             token_ids = legacy.decode_z(z, model, device)
             texts.extend(legacy.ids_to_texts(token_ids.cpu(), elf_tokenizer))
 
@@ -239,8 +246,9 @@ def main():
         )
 
     safe_scale = str(args.noise_scale).replace(".", "p")
+    safe_sccfg = str(args.sccfg).replace(".", "p")
     out_path = OUT_DIR / (
-        f"{args.label}_{args.checkpoint}_{args.weights}_ns{safe_scale}_"
+        f"{args.label}_{args.checkpoint}_{args.weights}_ns{safe_scale}_sc{safe_sccfg}_"
         f"l{args.max_length}_ode{args.n_steps}_seed{args.seed}_n{args.n_seq}.json"
     )
     with open(out_path, "w", encoding="utf-8") as handle:
@@ -250,6 +258,7 @@ def main():
                 "checkpoint_path": str(checkpoint_path),
                 "weights": args.weights,
                 "noise_scale": args.noise_scale,
+                "sccfg": args.sccfg,
                 "seed": args.seed,
                 "n_seq": args.n_seq,
                 "max_length": args.max_length,
