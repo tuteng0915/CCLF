@@ -72,6 +72,12 @@ class T5Encoder(nn.Module):
         was_training = self.model.training
         if deterministic:
             self.model.eval()
+        # Recent Transformers mask utilities combine masks with boolean
+        # operations. ELF's data pipeline stores binary masks as float32 for
+        # compatibility with the original implementation, so normalize the
+        # dtype at the Hugging Face boundary.
+        if attention_mask is not None and attention_mask.dtype != torch.bool:
+            attention_mask = attention_mask.to(dtype=torch.bool)
         try:
             out = self.model(input_ids=input_ids, attention_mask=attention_mask)
         finally:
