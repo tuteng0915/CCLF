@@ -57,6 +57,14 @@ class WFFTest(unittest.TestCase):
 
     def test_local_time_gate_receives_gradient(self):
         model = _small_model().train()
+        # ELF intentionally zero-initializes the fresh flow head.  Without a
+        # nonzero downstream head, *every* backbone gradient is zero in this
+        # synthetic-from-scratch test, including the local-time gate.  Real
+        # WFF fine-tuning loads a trained kd-cr head, so make that condition
+        # explicit here rather than mistaking the zero-init invariant for a
+        # dead local-time path.
+        with torch.no_grad():
+            model.final_layer.linear.weight.normal_(std=0.02)
         x = torch.randn(2, 6, 8)
         tau = torch.tensor([
             [0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
