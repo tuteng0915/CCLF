@@ -1,6 +1,6 @@
 # EXP-61 Spec — Native-Path Revalidation of Pipeline ODE
 
-**Status**: READY  
+**Status**: RUNNING — Stage-0 smoke passed; Stage-1 factorization launched
 **Priority**: P0 — must be resolved before treating Pipeline ODE as a method result  
 **Models**: ELF-B baseline, `kd_cr`, `kd2`  
 **Primary script**: `experiments/probe_elf/pipeline_native_revalidation_exp61.py`  
@@ -49,6 +49,18 @@ Acceptance gate: the `n=256` run should reproduce EXP-59 seed-42 within normal
 numerical tolerance (standard PPL about 338, pipeline PPL about 196, and the
 same D1/D2 direction). If it does not, stop and audit code/version drift.
 
+The first server smoke (`2026-08-06`, `n=64`) reproduced the legacy direction:
+
+| arm | Gen.PPL | D1 | D2 | rep-4 | degeneration |
+|---|---:|---:|---:|---:|---:|
+| standard | 309.59 | 0.317 | 0.851 | 0.014 | 0.250 |
+| Pipeline | 188.78 | 0.435 | 0.896 | 0.000 | 0.547 |
+
+This is an implementation check, not method evidence: the degeneration flag
+also worsened, and the run deliberately used the legacy raw-parameter,
+noise-scale-1 path. Stage 1 must determine whether either observation survives
+the native path.
+
 ## 4. Stage 1 — factorized path correction
 
 Use identical initial Gaussian draws within every paired comparison.
@@ -63,6 +75,12 @@ Use identical initial Gaussian draws within every paired comparison.
 Run the four cells on `kd_cr`, seed 42, `n=64` smoke. Retain all four at
 `n=256` only if the native result changes sign or magnitude enough to require
 attribution; otherwise run the native cell formally.
+
+Reproducible runner:
+
+```bash
+CUDA_VISIBLE_DEVICES=5 bash experiments/probe_elf/run_exp61_stage1.sh
+```
 
 ## 5. Stage 2 — checkpoint scope
 
