@@ -1,6 +1,6 @@
 # EXP-63 Spec — Corrected JAX-Aligned KD Control
 
-**Status**: STAGE B POSITIVE; TRAINING-SEED REPLICATION RUNNING / P0
+**Status**: COMPLETE / POSITIVE EARLY-WINDOW EFFECT / P0
 **Models**: matched ELF-B continued-training control and clean-teacher KD
 
 ## Why EXP-62 must not answer the KD-window question
@@ -132,3 +132,28 @@ revisions. Early KD also preserves its PPL advantage at ODE-16/64
 This supports an early lexical-conditioning effect, not a transition-window
 alignment effect. Before finer time slicing, replicate matched control/early
 continued training with an independent training seed.
+
+## Independent training-seed replication
+
+With training seed 7 (new data order, training noise, and randomly initialized
+linear student branch), the result replicates:
+
+| checkpoint | ODE-32 PPL | first endpoint | stable endpoint | revisions |
+|---|---:|---:|---:|---:|
+| seed-7 control | 257.4 | .319 | .348 | 5.79 |
+| seed-7 early | **224.2** | **.302** | **.330** | **5.47** |
+
+The seed-7 paired bootstrap intervals are `[-.0225,-.0128]` for first,
+`[-.0232,-.0127]` for stable, and `[-.394,-.253]` for revisions. The early
+effect therefore survives training seed, generation-noise seed, and ODE solver
+changes.
+
+## Conclusion and boundary
+
+Correct clean-teacher KD is not broadly beneficial at every denoising time.
+Its useful causal support is concentrated before the measured collective
+transition: early localization improves endpoint quality and makes commitment
+earlier and less revision-heavy, whereas transition-only KD worsens PPL and
+late-only KD is nearly neutral. This does **not** yet identify the narrowest
+sub-window or establish length-1024 scaling; those are follow-ups, not part of
+the present positive claim.
