@@ -355,6 +355,15 @@ def train_step(
         gate_k = float(getattr(config, "kd_gate_k", 10.0))
         denoiser_mask_B = 1.0 - decoder_step_active          # (B,) 1=denoiser, 0=decoder
         t_gate = _kd_omega_gate(denoiser_t.float(), gate_k, gate_low, gate_high)
+        window_low = float(getattr(config, "kd_window_low", -1.0))
+        window_high = float(getattr(config, "kd_window_high", -1.0))
+        if window_low >= 0.0 and window_high > window_low:
+            window_k = float(getattr(config, "kd_window_k", 40.0))
+            # Localize a subset of the historical objective without replacing
+            # or amplifying its original smooth temporal weighting.
+            t_gate = t_gate * _kd_omega_gate(
+                denoiser_t.float(), window_k, window_low, window_high
+            )
         if t_gate.dim() == 1:
             t_gate = t_gate.unsqueeze(-1)
         kd_mask_BS = loss_mask_f * denoiser_mask_B.unsqueeze(-1) * t_gate

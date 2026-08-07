@@ -123,6 +123,11 @@ class Config:
     kd_gate_low: float = 0.25    # Smooth gate rising edge
     kd_gate_high: float = 0.95   # Smooth gate falling edge
     kd_gate_k: float = 10.0      # Sigmoid sharpness for the temporal gate
+    # Optional selector used for temporal localization. When enabled, its
+    # weight multiplies (rather than replaces) the historical broad gate.
+    kd_window_low: float = -1.0
+    kd_window_high: float = -1.0
+    kd_window_k: float = 40.0
     kd_normalize_active: bool = False  # False reproduces JAX loss-mask normalization
 
     # EMA
