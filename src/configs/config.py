@@ -116,11 +116,14 @@ class Config:
     wff_ltr_prob: float = 0.5
     wff_rtl_prob: float = 0.25
 
-    # KD loss (Idea B — linear-branch student distilled from decoder-head teacher)
+    # KD loss: noisy-state linear branch distilled from the clean-state
+    # decoder teacher, matching the original JAX recipe.
     lambda_kd: float = 0.0       # Weight for KD loss; 0.0 = disabled
     kd_temperature: float = 4.0  # Softmax temperature τ; gradients scaled by τ²
-    kd_gate_low: float = 0.0     # Apply KD only when t ≥ this value
-    kd_gate_high: float = 1.0    # Apply KD only when t ≤ this value
+    kd_gate_low: float = 0.25    # Smooth gate rising edge
+    kd_gate_high: float = 0.95   # Smooth gate falling edge
+    kd_gate_k: float = 10.0      # Sigmoid sharpness for the temporal gate
+    kd_normalize_active: bool = False  # False reproduces JAX loss-mask normalization
 
     # EMA
     ema_decay1: float = 0.9999

@@ -29,6 +29,21 @@ def _trainable_params(model: nn.Module):
     return [p for p in model.parameters() if p.requires_grad]
 
 
+def _kd_omega_gate(t, k, t_low=0.25, t_high=0.95):
+    """Smooth plateau gate used by the original JAX KD objective."""
+    return torch.sigmoid(k * (t - t_low)) * (1.0 - torch.sigmoid(k * (t - t_high)))
+
+
+def _kd_kl_per_token(teacher_logits, student_logits, temperature):
+    """Temperature-scaled KL(teacher || student), without reduction."""
+    teacher_log_soft = F.log_softmax(teacher_logits.float() / temperature, dim=-1)
+    teacher_soft = teacher_log_soft.exp()
+    student_log_soft = F.log_softmax(student_logits.float() / temperature, dim=-1)
+    return (
+        teacher_soft * (teacher_log_soft - student_log_soft)
+    ).sum(dim=-1) * (temperature ** 2)
+
+
 def train_step(
     state: TrainState,
     encoder: nn.Module,
@@ -217,6 +232,30 @@ def train_step(
 
     model.train()
 
+    # Original JAX KD teacher: clean x0 passed through the decoder at t=1.
+    # It is a separate, deterministic, stop-gradient forward.  Using the
+    # decoder logits from the noisy mixed forward would instead perform head
+    # self-distillation at z_t and is not the historical KD objective.
+    lambda_kd = float(getattr(config, "lambda_kd", 0.0))
+    teacher_logits_detached = None
+    if lambda_kd > 0:
+        tau = float(getattr(config, "kd_temperature", 4.0))
+        teacher_input = (
+            torch.cat([x0, torch.zeros_like(x0)], dim=-1)
+            if self_cond_prob > 0 else x0
+        )
+        teacher_t = torch.ones(batch_size, dtype=dtype, device=device)
+        teacher_active = torch.ones(batch_size, dtype=dtype, device=device)
+        with torch.no_grad(), torch.amp.autocast('cuda', dtype=torch.bfloat16, enabled=use_bf16):
+            _, teacher_logits, _ = model(
+                teacher_input,
+                teacher_t,
+                deterministic=True,
+                self_cond_cfg_scale=self_cond_cfg_scale,
+                decoder_step_active=teacher_active,
+            )
+        teacher_logits_detached = teacher_logits.float().detach()
+
     # Per-example branching: build a mixed input (decoder_z for decoder-mode
     # rows, denoiser_z for denoiser-mode rows). One forward computes both
     # heads; we mask CE / L2 losses to their respective rows. 
@@ -304,25 +343,25 @@ def train_step(
     l2_loss_val = ((l2_per_token * l2_mask).sum()
                    / torch.clamp(l2_mask.sum(), min=1.0)).detach()
 
-    # KD loss: distill decoder-head (teacher) into linear branch (student).
-    # Applied to denoiser-mode examples at timesteps in [kd_gate_low, kd_gate_high].
+    # KD loss: distill the clean-state decoder teacher into the noisy-state
+    # linear branch. Applied only to denoiser-mode examples with a smooth
+    # temporal gate, matching the original JAX implementation.
     # Idea B: set kd_entropy_mask=true to up-weight wrong-committed positions.
-    lambda_kd = getattr(config, "lambda_kd", 0.0)
     kd_loss_val = torch.zeros(1, device=device)
     if lambda_kd > 0 and linear_logits is not None:
         tau = float(getattr(config, "kd_temperature", 4.0))
         gate_low = float(getattr(config, "kd_gate_low", 0.0))
         gate_high = float(getattr(config, "kd_gate_high", 1.0))
+        gate_k = float(getattr(config, "kd_gate_k", 10.0))
         denoiser_mask_B = 1.0 - decoder_step_active          # (B,) 1=denoiser, 0=decoder
-        t_gate = ((denoiser_t >= gate_low) & (denoiser_t <= gate_high)).float()
+        t_gate = _kd_omega_gate(denoiser_t.float(), gate_k, gate_low, gate_high)
         if t_gate.dim() == 1:
             t_gate = t_gate.unsqueeze(-1)
         kd_mask_BS = loss_mask_f * denoiser_mask_B.unsqueeze(-1) * t_gate
 
-        with torch.no_grad():
-            teacher_soft = F.softmax(decoder_logits.float() / tau, dim=-1)  # (B, S, V)
-        student_log_soft = F.log_softmax(linear_logits.float() / tau, dim=-1)  # (B, S, V)
-        kd_per_token = -(teacher_soft * student_log_soft).sum(dim=-1) * (tau ** 2)  # (B, S)
+        kd_per_token = _kd_kl_per_token(
+            teacher_logits_detached, linear_logits, tau
+        )  # (B, S), KL(teacher || student)
 
         # Idea B: per-position entropy mask — up-weight wrong-committed positions.
         # Additive form: w_i = 1 + kd_entropy_beta * (1−H/logV) * 1[student≠teacher]
@@ -335,14 +374,20 @@ def train_step(
                 H_student = -(p_student * (p_student + 1e-10).log()).sum(-1) # (B, S)
                 log_V = math.log(linear_logits.shape[-1])
                 confidence = (1.0 - H_student / log_V).clamp(0.0, 1.0)      # (B, S)
-                teacher_top1 = decoder_logits.argmax(dim=-1)                 # (B, S)
+                teacher_top1 = teacher_logits_detached.argmax(dim=-1)        # (B, S)
                 student_top1 = linear_logits.argmax(dim=-1)                  # (B, S)
                 wrong_mask = (student_top1 != teacher_top1).float()          # (B, S)
                 # Additive: base weight 1 everywhere, +beta*confidence on wrong positions
                 entropy_weight = 1.0 + beta * confidence * wrong_mask        # (B, S)
             kd_mask_BS = kd_mask_BS * entropy_weight
 
-        kd_loss = (kd_per_token * kd_mask_BS).sum() / torch.clamp(kd_mask_BS.sum(), min=1.0)
+        if bool(getattr(config, "kd_normalize_active", False)):
+            kd_denom = kd_mask_BS.sum()
+        else:
+            # JAX reduce_token_loss divides by the ordinary token mask, not by
+            # omega(t); the gate therefore controls both support and strength.
+            kd_denom = loss_mask_f.sum()
+        kd_loss = (kd_per_token * kd_mask_BS).sum() / torch.clamp(kd_denom, min=1.0)
         kd_loss_val = kd_loss.detach()
         loss = loss + lambda_kd * kd_loss
 
