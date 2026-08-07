@@ -69,6 +69,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n_seq", type=int, default=256)
     parser.add_argument("--sccfg", type=float, default=3.0)
+    parser.add_argument("--n_steps", type=int, default=N_STEPS)
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -95,7 +96,7 @@ def main():
     all_z0 = torch.randn(
         args.n_seq, MAX_LENGTH, 512, generator=generator, device=device
     ) * _Cfg.denoiser_noise_scale
-    t_steps = get_sampling_steps(N_STEPS, time_schedule="uniform", device=device)
+    t_steps = get_sampling_steps(args.n_steps, time_schedule="uniform", device=device)
 
     texts = []
     for start in range(0, args.n_seq, BATCH_SIZE):
@@ -118,7 +119,8 @@ def main():
         f"deg={result['degeneration_rate']:.3f}"
     )
 
-    out_path = OUT_DIR / f"{args.label}_seed{args.seed}.json"
+    step_suffix = "" if args.n_steps == N_STEPS else f"_ode{args.n_steps}"
+    out_path = OUT_DIR / f"{args.label}_seed{args.seed}{step_suffix}.json"
     with open(out_path, "w", encoding="utf-8") as handle:
         json.dump(
             {
@@ -128,7 +130,7 @@ def main():
                 "seed": args.seed,
                 "n_seq": args.n_seq,
                 "length": MAX_LENGTH,
-                "ode_steps": N_STEPS,
+                "ode_steps": args.n_steps,
                 "noise_scale": _Cfg.denoiser_noise_scale,
                 "sccfg": args.sccfg,
                 "result": result,
