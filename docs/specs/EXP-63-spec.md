@@ -101,9 +101,11 @@ Run three equal-width windows from the same baseline and data order:
 | `kd_transition` | `[0.30, 0.55]` | Is the coordination window causal? |
 | `kd_late` | `[0.55, 0.80]` | Is late lexical cleanup sufficient? |
 
-Use the corrected clean teacher, true KL, ordinary-token normalization, and a
-steeper smooth gate `k=40`. Equal width and identical `lambda_kd=1` make the
-three localized interventions comparable; they are not equal-total-mass to
-the broad Stage A gate. Evaluate ODE-32 and true-rollout dynamics first. Only
+Use the corrected clean teacher, true KL, ordinary-token normalization, and
+the historical broad gate `[0.25, 0.95]` with `k=10`. Each intervention
+multiplies that broad weight by a local selector with `k=40`; the selector
+therefore isolates a subset of the historical objective instead of replacing
+and accidentally amplifying it. The three selectors have equal width and use
+identical `lambda_kd=1`. Evaluate ODE-32 and true-rollout dynamics first. Only
 run solver 16/64 for a window that improves both quality and the commitment
 fingerprint.
