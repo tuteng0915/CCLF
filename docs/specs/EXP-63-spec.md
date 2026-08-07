@@ -1,6 +1,6 @@
 # EXP-63 Spec — Corrected JAX-Aligned KD Control
 
-**Status**: READY / P0
+**Status**: STAGE A COMPLETE; STAGE B LAUNCHING / P0
 **Models**: matched ELF-B continued-training control and clean-teacher KD
 
 ## Why EXP-62 must not answer the KD-window question
@@ -74,3 +74,36 @@ Runner:
 bash experiments/probe_elf/run_exp63_corrected_kd.sh ct_control 0
 bash experiments/probe_elf/run_exp63_corrected_kd.sh kd_jax_full 1
 ```
+
+## Stage A result
+
+The corrected objective removes the catastrophic low-PPL/fragmented-text
+failure of EXP-62, but its effect after 2,000 matched continued-training steps
+is modest rather than method-level:
+
+| checkpoint | ODE-16 PPL | ODE-32 PPL | ODE-64 PPL | D1 / D2 (ODE-32) |
+|---|---:|---:|---:|---:|
+| control | 775.4 | 261.8 | 109.0 | .394 / .860 |
+| corrected KD | 736.0 | 261.6 | 98.5 | .423 / .877 |
+
+On true rollout, corrected KD changes mean first-endpoint time from `.318` to
+`.310` and stable-endpoint time from `.347` to `.338`, while revisions change
+from `5.74` to `5.90`. Thus KD preserves qualitative quality and gives a small,
+solver-consistent signal, but it does not establish a strong improvement.
+
+## Stage B — temporal localization
+
+Run three equal-width windows from the same baseline and data order:
+
+| family | gate interval | question |
+|---|---:|---|
+| `kd_early` | `[0.05, 0.30]` | Does KD before the transition matter? |
+| `kd_transition` | `[0.30, 0.55]` | Is the coordination window causal? |
+| `kd_late` | `[0.55, 0.80]` | Is late lexical cleanup sufficient? |
+
+Use the corrected clean teacher, true KL, ordinary-token normalization, and a
+steeper smooth gate `k=40`. Equal width and identical `lambda_kd=1` make the
+three localized interventions comparable; they are not equal-total-mass to
+the broad Stage A gate. Evaluate ODE-32 and true-rollout dynamics first. Only
+run solver 16/64 for a window that improves both quality and the commitment
+fingerprint.
