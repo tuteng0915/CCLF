@@ -1,7 +1,7 @@
 # EXP-62 Spec — Controlled Fine-Tuning Checkpoint Panel
 
-**Status**: RUNNING (Stage A generation gate passed; Stage B temporal windows training)
-**Priority**: P0 — establish a controlled KD effect before more checkpoint-specific interventions
+**Status**: SUPERSEDED FOR KD CAUSAL CLAIMS — valid negative result for a mismatched noisy-head self-distillation objective
+**Priority**: closed; replaced by EXP-63
 **Base model**: official ELF-B OpenWebText baseline  
 **Pilot config**: `src/configs/training_configs/finetune_owt_ELF-B-panel.yml`
 
@@ -101,11 +101,35 @@ first gate uses EMA weights, the identical seed-42 initial-noise bank,
 | full-trajectory KD | 220.0 | 0.441 | 0.873 | 0.007 | 0.004 |
 | full-KD minus control | **-41.8** | **+0.047** | **+0.013** | **-0.001** | **-0.004** |
 
-This is a positive controlled generation signal, not yet a temporal-mechanism
-result. It passes the pilot promotion gate for `kd_early`, `kd_transition`,
-and `kd_late`; all three Stage B runs are now active. Do not promote a window
-to formal scale until its matched native generation and compact dynamics card
-are complete.
+The initial metric-only reading was positive, but unselected samples from both
+KD runs were code-like, fragmented pseudo-text. The original degeneration
+heuristic missed most of these failures. Lower GPT-2 PPL therefore cannot be
+read as better generation.
+
+### Stage B result and objective audit (`2026-08-08`)
+
+All three windows completed 2,000 steps. Under the same ODE-32 gate:
+
+| training | PPL | D1 | D2 | rep-4 | degeneration |
+|---|---:|---:|---:|---:|---:|
+| continued-training control | 261.8 | 0.394 | 0.860 | 0.008 | 0.008 |
+| noisy-head KD, full | 220.0 | 0.441 | 0.873 | 0.007 | 0.004 |
+| noisy-head KD, early | **159.5** | 0.451 | 0.866 | 0.014 | 0.016 |
+| noisy-head KD, transition | 311.3 | 0.379 | 0.855 | 0.004 | 0.000 |
+| noisy-head KD, late | 273.0 | 0.396 | 0.861 | 0.007 | 0.004 |
+
+The PPL ordering survives ODE-16/32/64, but degeneration grows with solver
+steps and is strongest for early KD: at ODE-64, early KD reaches PPL 53.5
+while the automatic degeneration flag rises to 9.8%, and inspected samples
+are plainly repetitive fragments. This is metric gaming, not a method win.
+
+The implementation audit then found that this panel did not train the
+historical JAX objective. PyTorch used the decoder logits from the same noisy
+mixed forward as the teacher, a hard temporal mask, and active-only
+normalization. JAX uses a separate stop-gradient clean-`x0`, `t=1` decoder
+teacher, a smooth sigmoid plateau, and ordinary-token normalization. Thus the
+window ordering above applies only to this mismatched noisy-head
+self-distillation objective. EXP-63 replaces it with a corrected replication.
 
 ### Formal promotion
 

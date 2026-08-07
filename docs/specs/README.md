@@ -29,7 +29,7 @@ training. The remaining active queue is:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [EXP-62](EXP-62-spec.md) | **RUNNING / P0** | Does KD differ from ordinary continued-training drift, and which KD time window causes the effect? | matched full-KD improves native PPL by 41.8 with healthy diversity; early/transition/late windows are now training |
+| [EXP-63](EXP-63-spec.md) | **READY / P0** | Does the original clean-teacher JAX KD objective differ from ordinary continued-training drift? | matched corrected control/full-KD must pass qualitative generation before any temporal windows are reopened |
 
 Completed decision:
 
@@ -37,6 +37,7 @@ Completed decision:
 |---|---|---|
 | [EXP-61](EXP-61-spec.md) | **DONE / NEGATIVE** | Pipeline improves legacy noise-scale-1 ODE but worsens native-noise ODE by +197 PPL at n=256; do not promote the current sampler |
 | [EXP-60](EXP-60-spec.md) | **DONE / NEGATIVE** | WFF training worsens both LTR sampler interactions and standard ODE quality; the local-time gate remains near zero |
+| [EXP-62](EXP-62-spec.md) | **SUPERSEDED / NEGATIVE** | noisy-head self-distillation lowers PPL but produces fragmented pseudo-text; implementation does not match the original clean-teacher JAX KD objective |
 
 Conditional after the active experiments:
 
@@ -44,7 +45,7 @@ Conditional after the active experiments:
 |---|---|---|
 | GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
-Recommended order: `controlled EXP-62 checkpoint panel -> redesign a method only from the controlled result -> cross-architecture formalization only if required by the final paper claim`.
+Recommended order: `corrected EXP-63 clean-teacher control -> temporal windows only if qualitative quality survives -> cross-architecture formalization only if required`.
 
 ## Evidence already supporting the paper
 
