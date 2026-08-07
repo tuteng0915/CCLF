@@ -1,6 +1,6 @@
 # EXP-63 Spec — Corrected JAX-Aligned KD Control
 
-**Status**: STAGE A COMPLETE; STAGE B LAUNCHING / P0
+**Status**: STAGE B POSITIVE; TRAINING-SEED REPLICATION RUNNING / P0
 **Models**: matched ELF-B continued-training control and clean-teacher KD
 
 ## Why EXP-62 must not answer the KD-window question
@@ -109,3 +109,26 @@ and accidentally amplifying it. The three selectors have equal width and use
 identical `lambda_kd=1`. Evaluate ODE-32 and true-rollout dynamics first. Only
 run solver 16/64 for a window that improves both quality and the commitment
 fingerprint.
+
+## Stage B result
+
+Only the early selector improves both generation and rollout dynamics:
+
+| checkpoint | ODE-32 PPL | first endpoint | stable endpoint | revisions |
+|---|---:|---:|---:|---:|
+| control | 261.8 | .318 | .347 | 5.74 |
+| broad corrected KD | 261.6 | .310 | .338 | 5.90 |
+| early | **211.0** | **.301** | **.329** | **5.55** |
+| transition | 278.6 | .319 | .345 | 5.76 |
+| late | 254.9 | .316 | .344 | 5.78 |
+
+The early-control paired sequence bootstrap gives 95% intervals
+`[-.0219,-.0126]` for first-endpoint progress,
+`[-.0227,-.0127]` for stable-endpoint progress, and `[-.265,-.113]` for
+revisions. Early KD also preserves its PPL advantage at ODE-16/64
+(`634.8/82.6` versus `775.4/109.0`) and on a second seed-123 initial-noise bank
+(`198.4` versus `270.3` at ODE-32).
+
+This supports an early lexical-conditioning effect, not a transition-window
+alignment effect. Before finer time slicing, replicate matched control/early
+continued training with an independent training seed.
