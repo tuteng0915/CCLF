@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 1 || $# -gt 2 ]]; then
-  echo "Usage: $0 FAMILY [GPU]"
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+  echo "Usage: $0 FAMILY [GPU] [SEED]"
   echo "Families: ct_control kd_jax_full kd_early kd_transition kd_late"
   exit 2
 fi
 
 family="$1"
 gpu="${2:-0}"
+seed="${3:-42}"
 
 case "$family" in
   ct_control)
@@ -27,6 +28,9 @@ case "$family" in
 esac
 
 run_name="exp63_${family}"
+if [[ "$seed" != "42" ]]; then
+  run_name="${run_name}_seed${seed}"
+fi
 mkdir -p logs/exp63
 
 export CUDA_VISIBLE_DEVICES="$gpu"
@@ -41,5 +45,5 @@ conda run --no-capture-output -n elf python -u src/train.py \
   --config_override "kd_window_k=40.0" \
   --config_override "kd_normalize_active=false" \
   --config_override "output_dir=outputs/${run_name}" \
-  --config_override "seed=42" \
+  --config_override "seed=${seed}" \
   2>&1 | tee "logs/exp63/${run_name}.log"
