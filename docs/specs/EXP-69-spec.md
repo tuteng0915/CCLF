@@ -1,6 +1,6 @@
 # EXP-69 Spec — Native-SDE Anchor-Density Calibration
 
-**Status:** CALIBRATION IMPLEMENTED
+**Status:** QUALITY GATE FAILED / MECHANISM AUDIT NOT LAUNCHED
 **Priority:** P0
 **Script:** `models/ELF-torch/experiments/probe_elf/native_sde_anchor_calibration_exp69.py`
 
@@ -63,3 +63,60 @@ The causal comparison must report, on positions unresolved at the fork:
 
 This is a newly calibrated SDE intervention. It must not be presented as a
 post-hoc rescue of the frozen EXP-68 fidelity test.
+
+## Stage-A result
+
+The formal baseline calibration completed on 32 length-1024 trajectories.
+Confidence rises extremely quickly under the native sampler:
+
+| Completed SDE step | Mean sampled time | Fraction at `.60` | Fraction at `.95` | Fraction at `.99` |
+|---:|---:|---:|---:|---:|
+| 4 | .139 | .256 | .105 | .068 |
+| 8 | .197 | .726 | .501 | .422 |
+| 12 | .239 | .902 | .760 | .699 |
+| 16 | .303 | .966 | .900 | .869 |
+| 20 | .341 | .987 | .955 | .937 |
+| 24 | .425 | .994 | .975 | .963 |
+| 28 | .525 | .996 | .981 | .973 |
+
+This directly explains the EXP-68 saturation: around its nominal
+`t_c=0.40`, even a `.99` threshold leaves only about 4% of positions
+unresolved. The three quality-screen cells were frozen before generation as
+step 4 / `.60`, step 8 / `.95`, and step 12 / `.95`, targeting approximately
+25%, 50%, and 75% anchors.
+
+## Stage-B quality screen
+
+The three cells used the same 64 unconditional and 32 conditioned examples.
+The standard arm is bit-for-bit reproducible at the metric level across all
+three independent jobs (`PPL=29.31`, `D1=.156`, `D2=.625`), confirming the
+paired latent, grid, and SDE-noise protocol.
+
+| Cell | Actual uncond. anchors | Uncond. PPL | Delta | Cond. anchors | Cond. PPL | Delta | Cond. R-L |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| standard | -- | **29.31** | -- | -- | **45.89** | -- | .116 |
+| step 4 / `.60` | .252 | 49.10 | +19.79 | .233 | 68.24 | +22.35 | .115 |
+| step 8 / `.95` | .524 | 43.54 | +14.23 | .300 | 57.04 | +11.15 | .117 |
+| step 12 / `.95` | .785 | 36.80 | +7.49 | .524 | 60.67 | +14.78 | .117 |
+
+All calibrated early-commit cells substantially worsen unconditional and
+conditioned PPL. None produces unigram collapse or degeneration, and
+repetition and D1/D2 remain healthy, so the failure is loss of contextual
+coherence rather than a trivial repetition loop. The least harmful cell is
+the latest and densest one; damage shrinks as the intervention approaches the
+nearly saturated EXP-68 regime.
+
+## Decision
+
+No anchor-density-matched cell passes the native-SDE quality gate. The matched
+shuffled-anchor mechanism panel is therefore not launched: it would explain
+an intervention already known to harm generation and cannot establish a
+usable sampler-independent method result.
+
+Together, EXP-68 and EXP-69 show a solver-specific boundary:
+
+- late native-SDE commitment is almost inert because nearly every position is
+  already confident;
+- early native-SDE commitment leaves an unresolved set but destroys coherence;
+- the positive hard-commit method result and the EXP-67 causal mechanism
+  should remain explicitly scoped to deterministic ODE rollout.
