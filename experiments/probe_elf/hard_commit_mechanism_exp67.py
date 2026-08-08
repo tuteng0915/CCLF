@@ -394,9 +394,19 @@ def main():
             "raw": raw,
         }
 
-    margins = {
+    natural_endpoint_margins = {
         name: endpoint_margin(
             branch["first_post_x"], natural_final, model, args.batch_size, device
+        )
+        for name, branch in branches.items()
+    }
+    own_endpoint_margins = {
+        name: endpoint_margin(
+            branch["first_post_x"],
+            branch["final_ids"],
+            model,
+            args.batch_size,
+            device,
         )
         for name, branch in branches.items()
     }
@@ -451,17 +461,45 @@ def main():
             },
         },
         "first_postcommit_natural_endpoint_margin": {
-            name: masked_mean(value, unresolved) for name, value in margins.items()
+            name: masked_mean(value, unresolved)
+            for name, value in natural_endpoint_margins.items()
         },
-        "first_postcommit_margin_delta": {
+        "first_postcommit_natural_endpoint_margin_delta": {
             "true_minus_natural": masked_mean(
-                margins["true_anchor"] - margins["natural"], unresolved
+                natural_endpoint_margins["true_anchor"]
+                - natural_endpoint_margins["natural"],
+                unresolved,
             ),
             "shuffled_minus_natural": masked_mean(
-                margins["shuffled_anchor"] - margins["natural"], unresolved
+                natural_endpoint_margins["shuffled_anchor"]
+                - natural_endpoint_margins["natural"],
+                unresolved,
             ),
             "true_minus_shuffled": masked_mean(
-                margins["true_anchor"] - margins["shuffled_anchor"], unresolved
+                natural_endpoint_margins["true_anchor"]
+                - natural_endpoint_margins["shuffled_anchor"],
+                unresolved,
+            ),
+        },
+        "first_postcommit_own_endpoint_margin": {
+            name: masked_mean(value, unresolved)
+            for name, value in own_endpoint_margins.items()
+        },
+        "first_postcommit_own_endpoint_margin_delta": {
+            "true_minus_natural": masked_mean(
+                own_endpoint_margins["true_anchor"]
+                - own_endpoint_margins["natural"],
+                unresolved,
+            ),
+            "shuffled_minus_natural": masked_mean(
+                own_endpoint_margins["shuffled_anchor"]
+                - own_endpoint_margins["natural"],
+                unresolved,
+            ),
+            "true_minus_shuffled": masked_mean(
+                own_endpoint_margins["true_anchor"]
+                - own_endpoint_margins["shuffled_anchor"],
+                unresolved,
             ),
         },
         "unresolved_endpoint_agreement_with_natural": {
@@ -480,7 +518,12 @@ def main():
     print(json.dumps({
         "commit_fraction": result["commit_fraction"],
         "timing_delta": result["paired_timing_deltas"],
-        "margin_delta": result["first_postcommit_margin_delta"],
+        "natural_endpoint_margin_delta": result[
+            "first_postcommit_natural_endpoint_margin_delta"
+        ],
+        "own_endpoint_margin_delta": result[
+            "first_postcommit_own_endpoint_margin_delta"
+        ],
         "endpoint_agreement": result["unresolved_endpoint_agreement_with_natural"],
         "quality": quality,
     }, indent=2))
