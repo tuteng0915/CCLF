@@ -12,7 +12,7 @@
 | Experiment | Status | Purpose |
 |---|---|---|
 | **EXP-65** | **STAGE B DONE** | Baseline hard commit survives length 1024; KD PPL direction reverses while degeneration improves; baseline native-SDE check remains |
-| **EXP-66** | **RUNNING** | Native length-1024 Early-KD x calibrated-commit interaction panel |
+| **EXP-66** | **DONE** | Early-KD and hard commit both improve unconditional length-1024 PPL without degeneration; effects are mostly additive, conditioned Early-KD is not robust across training seeds |
 | **EXP-67** | **NEXT** | Mechanism audit: first/stable timing, revisions, endpoint entropy, and lexical-collapse controls |
 
 The older queue entries below are retained as a historical ledger. In
