@@ -42,13 +42,29 @@ CHECKPOINTS = {
     "baseline": "converted/elf_b-owt-baseline_torch.pt",
     "kd2": "converted/elf_b-owt-kd2_torch.pt",
     "kd_cr": "converted/elf_b-owt-kd-cr_torch.pt",
+    "ct_control": "outputs/exp63_ct_control/checkpoint_2000",
+    "kd_early": "outputs/exp63_kd_early/checkpoint_2000",
+    "ct_control_s7": "outputs/exp63_ct_control_seed7/checkpoint_2000",
+    "kd_early_s7": "outputs/exp63_kd_early_seed7/checkpoint_2000",
 }
 DEFAULT_ARMS = {
     "baseline": ["standard", "local_clock_ltr", "hard_commit"],
     "kd2": ["standard", "two_pass_prefix", "hard_commit", "pipeline"],
     "kd_cr": ["standard", "hard_commit", "pipeline"],
+    "ct_control": ["standard", "hard_commit"],
+    "kd_early": ["standard", "hard_commit"],
+    "ct_control_s7": ["standard", "hard_commit"],
+    "kd_early_s7": ["standard", "hard_commit"],
 }
-COMMIT_TIME = {"baseline": 0.50, "kd2": 0.30, "kd_cr": 0.40}
+COMMIT_TIME = {
+    "baseline": 0.50,
+    "kd2": 0.30,
+    "kd_cr": 0.40,
+    "ct_control": 0.50,
+    "kd_early": 0.50,
+    "ct_control_s7": 0.50,
+    "kd_early_s7": 0.50,
+}
 MODEL_CALLS = {
     "standard": 32,
     "local_clock_ltr": 32,
