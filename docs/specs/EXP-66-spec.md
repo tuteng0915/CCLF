@@ -1,6 +1,6 @@
 # EXP-66 Spec — Native Early-KD x Commitment Interaction
 
-**Status:** QUEUED AFTER EXP-65
+**Status:** STAGE A COMPLETE / STAGE B RUNNING
 **Priority:** P0
 
 ## Question
@@ -67,3 +67,17 @@ degeneration, and conditioned ROUGE-L. A PPL-only interaction is not a pass.
   short-context mechanism intervention.
 - If the combination loses diversity or increases premature locking, report
   the anti-synergy rather than choosing the best cell post hoc.
+
+## Stage-A result and frozen shared policy
+
+Both primary checkpoints favor the same quality-preserving grid point:
+
+| Checkpoint | Standard PPL | Hard commit `(0.40, 0.60)` | D1 change | D2 change | Deg. change |
+|---|---:|---:|---:|---:|---:|
+| continued-training control | 277.6 | **213.0** | .455 -> .444 | .888 -> .887 | .031 -> .023 |
+| Early-KD | 224.3 | **172.7** | .440 -> .429 | .878 -> .872 | .047 -> .047 |
+
+The shared Stage-B policy is therefore frozen at `t_c=0.40`, `gamma=0.60`.
+The selection was made before inspecting any length-1024 result. Stage B runs
+the two training seeds with this one policy and the untouched seed-42 noise
+bank.
