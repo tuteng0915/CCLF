@@ -15,6 +15,7 @@
 | **EXP-66** | **DONE** | Early-KD and hard commit both improve unconditional length-1024 PPL without degeneration; effects are mostly additive, conditioned Early-KD is not robust across training seeds |
 | **EXP-67** | **DONE (ODE mechanism only)** | Position-correct anchors accelerate and stabilize unresolved tokens; matched shuffled anchors reverse the effect and destroy coherence |
 | **EXP-68** | **DONE** | Native SDE keeps a tiny favorable unconditional sign but ODE gain nearly vanishes; conditioned PPL slightly worsens; frozen policy commits about 99% at first crossing |
+| **EXP-69** | **RUNNING CALIBRATION** | Recalibrate native-SDE anchor density by solver step before testing whether the ODE coordination mechanism survives stochastic sampling |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
