@@ -1,0 +1,603 @@
+# CCLF Major Experimental Results
+
+**Last updated:** 2026-08-09  
+**Purpose:** single source of truth for the major paper-facing experiments and
+the complete quality metrics produced by the formal evaluation runners.
+
+This document is a curated result ledger, not a replacement for the full
+historical index. Superseded and invalid protocols are included only when they
+change the interpretation of a later result. See
+[`specs/EXP-INDEX.md`](specs/EXP-INDEX.md) for all experiment IDs,
+[`specs/DEAD-ENDS.md`](specs/DEAD-ENDS.md) for invalidated claims, and the
+individual specs for implementation details.
+
+## 1. Reading rules
+
+1. **Do not compare PPL across different protocol blocks.** Sequence length,
+   ODE versus SDE, initial-noise scale, SC-CFG, and sample bank all change the
+   absolute value.
+2. Unless stated otherwise, ELF generation uses EMA weights, GPT-2-large for
+   evaluation PPL, and T5 tokenization inside the generator.
+3. `—` means the runner did not compute that metric. It does not mean zero.
+4. Smoke tests are excluded. Formal pilots are marked as pilots and should not
+   be promoted to multi-seed claims.
+5. The detailed method tables use the exact seed-42 JSON outputs so that every
+   recorded metric comes from one internally consistent run. Separate
+   multi-seed tables report only metrics actually aggregated across seeds.
+6. Raw JSON and generated texts remain on the experiment server under
+   `models/ELF-torch/results/`. This file records the compact numeric ledger;
+   it does not duplicate generated text.
+
+## 2. Metric dictionary
+
+For generated sequences `x^(m)` and evaluator tokens, the main metrics are:
+
+```text
+Gen.PPL = exp[- (1 / N_tok) sum_j log p_GPT2(x_j | x_<j)]
+
+D1 = number of distinct unigrams / number of unigram tokens
+D2 = number of distinct bigrams  / number of bigram tokens
+
+Rep-4 = mean_m [1 - unique_4grams(x^(m)) / total_4grams(x^(m))]
+
+MaxShare = mean_m max_w count_m(w) / number_of_words_m
+UniqueRatio = mean_m unique_words_m / number_of_words_m
+```
+
+- **Deg.**: fraction caught by the shared empty/non-ASCII/repetition
+  degeneration detector.
+- **U-collapse**: fraction whose most frequent word exceeds the stricter 20%
+  unigram-share threshold.
+- **Words**: mean decoded word count per sequence.
+- **R-L**: token-level ROUGE-L F1 against the held-out suffix in conditioned
+  generation.
+- **Commit**: selected anchors divided by eligible, non-prefix positions.
+- **Calls**: denoiser calls; a lexical confidence readout is counted where the
+  runner makes an extra model call.
+- **`tau_first`**: first normalized time at which a position equals its branch
+  endpoint.
+- **`tau_stable`**: first time with endpoint agreement for three consecutive
+  checkpoints.
+- **`N_rev`**: number of top-1 lexical changes along the recorded trajectory.
+- **Own-endpoint margin**: at the first post-intervention step, logit evidence
+  for the endpoint eventually reached by that same branch relative to its
+  strongest competitor.
+
+## 3. Current result map
+
+| Question | Best current evidence | Decision |
+|---|---|---|
+| Is the early global signal model-created? | GS11/12 | Mostly no: mean pooling/raw-state statistics create the early retrieval signal. |
+| Is exact lexical identity already fixed early? | GS14/16/17 | No: lexical alternatives contract late, with a narrow endpoint-affinity collapse. |
+| Do other positions causally affect a target token? | GS13/18-B/EXP-67 | Yes on deterministic ELF rollout; correct position-content anchors stabilize unresolved positions. |
+| Is rollout simply a smooth approach to a fixed endpoint? | GS15/16/17/EXP-67 | No. The evidence is more consistent with context-dependent endpoint selection and late collapse. |
+| Does post-hoc asynchronous denoising work? | GS19, ELF + Plaid | No; all schedules damage timing and quality. |
+| Does native per-position-time fine-tuning rescue it? | EXP-60 | Not yet. A small baseline LTR interaction exists, but the local-time gate stays near zero and no sampler beats its own standard arm. |
+| Does Pipeline work? | EXP-61/64 | No under the native-noise protocol; the old gain is noise-scale specific. |
+| Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
+| Does hard commitment work? | EXP-64--69 | Clean positive result for deterministic ODE baseline/corrected checkpoints; ineffective or harmful under native SDE. |
+
+## 4. Main mechanism evidence
+
+### 4.1 Measurement correction and representation
+
+| Experiment | Protocol/statistic | Main numeric result | Status |
+|---|---|---|---|
+| GS11 | Raw-state mean-pool self-retrieval, `n=48` | At `t=.28`, retrieval is 1.000 for `L={32,128,512,1000}`; at `t=.05`, it rises `.396 -> .583 -> .792 -> .938` with length. | Early-global headline is a pooling confound. |
+| GS12 | Centered mean/SVD decomposition, `n=128`, `k=8` | `MEAN_only` is best or tied in all 18 `(t, repr)` structural-R2 cells. At `t=.65`, model `MEAN+R_c` token accuracy `.814` versus `MEAN+G_c` `.091`. | Mean explains coarse structure; exact token recovery needs the larger residual subspace. |
+| GS18-A | Rank/energy-matched subspace controls | Top-k beats middle/bottom/random-k at fixed dimensionality; e.g. ELF `k=128` raw token accuracy `.067` versus `.007/.000/.020`. | Narrows “special high-rank code” to “sufficient dimension/energy is required.” |
+| GS7 | Oracle versus free-rollout token recovery | Global geometry largely follows oracle while exact lexical commitment lags. | Oracle-rollout gap is primarily lexical, not an early semantic-state failure. |
+
+### 4.2 Context, branching, and the transition window
+
+| Experiment | Metric | Result | Interpretation |
+|---|---|---|---|
+| GS13 | Context-only target-margin change | ELF correct-direction effects span roughly `.18` to `.82`, versus orthogonal/random approximately `-.13` to `+.13`; response is non-monotone. | Other positions causally change target lexical evidence, but not through a simple linear topic direction. |
+| GS14 | True-trajectory branch consensus | ELF `C_lex=.858 -> .966 -> .992`; `C_topic=.974 -> .982 -> 1.000` at `t={.20,.38,.65}`. | Topic/coarse basin is already stable; lexical alternatives contract later. |
+| GS15 | Residual endpoint alignment deficit | `A_rollout-A_linear` is about `-.22` to `-.23` around `t=.38-.50`. | Describes curved/slow residual transport, but the endpoint-aware chord is not a causal null. |
+| GS16 | Endpoint specificity and affinity entropy, formal 3-seed | `H_end` peaks `.848 +/- .020` at `t=.301`, then falls to `.524 +/- .001`; `N_eff` plateau `2.48 +/- .05`. | Strong exploration-collapse evidence in a narrow window. |
+| GS17 | Unified event timing, formal 3-seed | `tau_50stable=.206 +/- .022`, `tau_aff=.322 +/- .010`, median `tau_v=.170`; `P(tau_v<=tau_50s)=.896`, `P(tau_aff<=tau_50s)=.049`. | Velocity reorientation usually precedes stable tokens; endpoint-affinity collapse is later. |
+| GS18-B | Residualized collective-coupling nulls | ELF exceeds all five null 95th percentiles at 13/16 checkpoints. | Collective coupling survives position, sequence, margin, entropy, and variance controls on deterministic rollout. |
+
+### 4.3 Position-correct anchor intervention (EXP-67)
+
+Protocol: ELF ODE-32, length 128, 48 paired trajectories, fork at `t=.40`,
+confidence `.60`. Approximately 95% of positions are anchored. Shuffled
+anchors preserve positions and match confidence/frequency quartiles but move
+the continuous anchor vectors.
+
+| Checkpoint | Commit fraction | Anchors | Shuffled same-token | Mean confidence mismatch | Mean log-frequency mismatch |
+|---|---:|---:|---:|---:|---:|
+| ELF base | .9526 | 5,853 | .0400 | .0289 | .5009 |
+| Control | .9505 | 5,840 | .0348 | .0285 | .4650 |
+| Early-KD | .9520 | 5,849 | .0468 | .0291 | .4948 |
+
+#### Unresolved-position causal metrics
+
+| Checkpoint | Arm minus natural | `Delta tau_first` | `Delta tau_stable` | `Delta N_rev` | Own-endpoint margin delta | Natural-endpoint agreement |
+|---|---|---:|---:|---:|---:|---:|
+| ELF base | true anchors | -.032 | -.014 | -.619 | +4.562 | .265 |
+| ELF base | shuffled | +.069 | +.068 | +1.357 | -2.165 | .010 |
+| Control | true anchors | -.038 | -.025 | -.572 | +3.886 | .296 |
+| Control | shuffled | +.050 | +.047 | +1.214 | -2.589 | .007 |
+| Early-KD | true anchors | -.028 | -.031 | -.420 | +3.436 | .353 |
+| Early-KD | shuffled | +.080 | +.066 | +1.444 | -3.917 | .020 |
+
+The complete first-post-fork margin contrasts are:
+
+| Checkpoint | Margin target | True-natural | Shuffled-natural | True-shuffled |
+|---|---|---:|---:|---:|
+| ELF base | natural endpoint | -3.226 | -20.769 | +17.543 |
+| ELF base | each branch's own endpoint | +4.562 | -2.165 | +6.727 |
+| Control | natural endpoint | -2.911 | -21.544 | +18.633 |
+| Control | each branch's own endpoint | +3.886 | -2.589 | +6.475 |
+| Early-KD | natural endpoint | -1.894 | -19.398 | +17.504 |
+| Early-KD | each branch's own endpoint | +3.436 | -3.917 | +7.353 |
+
+The low natural-endpoint agreement means the intervention often changes the
+future token, so “faster movement toward a predetermined endpoint” is too
+strong. The supported claim is that position-correct context induces and
+stabilizes a coherent lexical future.
+
+<details>
+<summary>Complete absolute timing metrics for all, selected, and unresolved positions</summary>
+
+| Checkpoint | Scope | Arm | `tau_first` | `tau_stable` | `N_rev` |
+|---|---|---|---:|---:|---:|
+| ELF base | all | natural | .3424 | .3571 | 5.8467 |
+| ELF base | all | true anchors | .2936 | .3056 | 5.3815 |
+| ELF base | all | shuffled | .4322 | .4521 | 6.9712 |
+| ELF base | selected | natural | .3306 | .3448 | 5.6169 |
+| ELF base | selected | true anchors | .2810 | .2914 | 5.1594 |
+| ELF base | selected | shuffled | .4215 | .4411 | 6.7299 |
+| ELF base | unresolved | natural | .5784 | .6047 | 10.4674 |
+| ELF base | unresolved | true anchors | .5464 | .5907 | 9.8488 |
+| ELF base | unresolved | shuffled | .6474 | .6731 | 11.8247 |
+| Control | all | natural | .3369 | .3514 | 5.7936 |
+| Control | all | true anchors | .2926 | .3038 | 5.3690 |
+| Control | all | shuffled | .4298 | .4474 | 6.9227 |
+| Control | selected | natural | .3252 | .3391 | 5.5846 |
+| Control | selected | true anchors | .2805 | .2904 | 5.1676 |
+| Control | selected | shuffled | .4203 | .4377 | 6.7092 |
+| Control | unresolved | natural | .5622 | .5874 | 9.8092 |
+| Control | unresolved | true anchors | .5245 | .5622 | 9.2368 |
+| Control | unresolved | shuffled | .6122 | .6340 | 11.0230 |
+| Early-KD | all | natural | .3235 | .3389 | 5.6509 |
+| Early-KD | all | true anchors | .2832 | .2962 | 5.2879 |
+| Early-KD | all | shuffled | .4231 | .4419 | 6.7876 |
+| Early-KD | selected | natural | .3125 | .3265 | 5.4440 |
+| Early-KD | selected | true anchors | .2716 | .2832 | 5.0839 |
+| Early-KD | selected | shuffled | .4131 | .4314 | 6.5652 |
+| Early-KD | unresolved | natural | .5419 | .5845 | 9.7525 |
+| Early-KD | unresolved | true anchors | .5136 | .5533 | 9.3322 |
+| Early-KD | unresolved | shuffled | .6217 | .6501 | 11.1966 |
+
+</details>
+
+#### Complete generation diagnostics
+
+| Checkpoint | Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | natural | 281.2 | .5170 | .9011 | .0115 | .0000 | 78.3 | .0762 | .6896 | .0000 |
+| ELF base | true anchors | 208.7 | .5114 | .8979 | .0119 | .0000 | 77.5 | .0757 | .6899 | .0000 |
+| ELF base | shuffled | 4175.9 | .6447 | .9915 | .0000 | .0000 | 86.8 | .0419 | .9090 | .0000 |
+| Control | natural | 262.1 | .5154 | .8999 | .0154 | .0208 | 80.7 | .0702 | .6972 | .0000 |
+| Control | true anchors | 206.4 | .5101 | .9037 | .0109 | .0208 | 80.2 | .0719 | .7041 | .0000 |
+| Control | shuffled | 4139.4 | .6374 | .9940 | .0000 | .0000 | 91.5 | .0346 | .9123 | .0000 |
+| Early-KD | natural | 205.8 | .4980 | .9013 | .0152 | .0000 | 78.6 | .0738 | .6718 | .0000 |
+| Early-KD | true anchors | 166.2 | .4857 | .8986 | .0148 | .0000 | 77.8 | .0763 | .6682 | .0000 |
+| Early-KD | shuffled | 3761.4 | .6160 | .9920 | .0000 | .0000 | 89.5 | .0381 | .9000 | .0000 |
+
+High D1/D2 for shuffled anchors is not quality: PPL reveals incoherent word
+salad. Diversity metrics must always be read with coherence metrics.
+
+## 5. Training interventions
+
+### 5.1 Superseded noisy-head KD panel (EXP-62)
+
+This valid negative experiment used the wrong teacher/objective for the
+historical KD question. It is retained because it demonstrates metric gaming.
+
+| Training | PPL | D1 | D2 | Rep-4 | Deg. |
+|---|---:|---:|---:|---:|---:|
+| Continued-training control | 261.8 | .394 | .860 | .008 | .008 |
+| Noisy-head KD, full | 220.0 | .441 | .873 | .007 | .004 |
+| Noisy-head KD, early | **159.5** | .451 | .866 | .014 | .016 |
+| Noisy-head KD, transition | 311.3 | .379 | .855 | .004 | .000 |
+| Noisy-head KD, late | 273.0 | .396 | .861 | .007 | .004 |
+
+At ODE-64 the early arm reaches PPL `53.5` but degeneration `.098`, and sample
+inspection shows repetitive fragmented pseudo-text. It must not be mixed with
+the corrected EXP-63 objective.
+
+### 5.2 Corrected clean-teacher temporal KD (EXP-63)
+
+All rows use length 128, ODE-32. Timing is measured on true rollout.
+
+| Training checkpoint | PPL | D1 | D2 | Rep-4 | Deg. | `tau_first` | `tau_stable` | `N_rev` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Continued-training control | 261.8 | .3937 | .8602 | .0076 | .0078 | .318 | .347 | 5.74 |
+| Broad corrected KD | 261.6 | .4225 | .8766 | .0051 | .0039 | .310 | .338 | 5.90 |
+| Early window `[.05,.30]` | **211.0** | .3953 | .8551 | .0083 | .0039 | **.301** | **.329** | **5.55** |
+| Transition `[.30,.55]` | 278.6 | .3899 | .8651 | .0043 | .0000 | .319 | .345 | 5.76 |
+| Late `[.55,.80]` | 254.9 | .3902 | .8596 | .0064 | .0039 | .316 | .344 | 5.78 |
+| Seed-7 control | 257.4 | .3951 | .8608 | .0076 | .0039 | .319 | .348 | 5.79 |
+| Seed-7 early | **224.2** | .3983 | .8556 | .0065 | .0000 | **.302** | **.330** | **5.47** |
+
+Early-control paired bootstrap 95% intervals are `[-.0219,-.0126]` for
+`tau_first`, `[-.0227,-.0127]` for `tau_stable`, and `[-.265,-.113]` for
+revisions. Seed-7 intervals are `[-.0225,-.0128]`, `[-.0232,-.0127]`, and
+`[-.394,-.253]`. Early KD also improves ODE-16/64 PPL (`634.8/82.6` versus
+`775.4/109.0`).
+
+### 5.3 Native Wavefront Flow Fine-Tuning (EXP-60)
+
+Protocol: 500 matched fine-tuning steps, length 128, ODE-32, 256 generations,
+noise scale 2, SC-CFG 3. WFF training uses heterogeneous local clocks on 50%
+of examples. The historical spec reports the `kd_cr` pair; the baseline
+follow-up below is read directly from the formal JSON and remains single-seed.
+
+| Start family | Training | Sampler | PPL | Delta vs own standard | D1 | D2 | Rep-4 |
+|---|---|---|---:|---:|---:|---:|---:|
+| ELF base | sync control | standard | 279.5 | 0.0 | .4142 | .8659 | .0091 |
+| ELF base | sync control | LTR d=.10 | 294.1 | +14.6 | .4153 | .8683 | .0074 |
+| ELF base | sync control | LTR d=.20 | 348.5 | +69.0 | .4269 | .8754 | .0062 |
+| ELF base | sync control | RTL d=.20 | 286.3 | +6.8 | .4257 | .8684 | .0064 |
+| ELF base | WFF-trained | standard | 283.1 | 0.0 | .4149 | .8661 | .0085 |
+| ELF base | WFF-trained | LTR d=.10 | 286.4 | +3.2 | .4128 | .8647 | .0080 |
+| ELF base | WFF-trained | LTR d=.20 | 341.8 | +58.6 | .4266 | .8730 | .0065 |
+| ELF base | WFF-trained | RTL d=.20 | 290.7 | +7.6 | .4251 | .8688 | .0062 |
+| `kd_cr` | sync control | standard | 1086.7 | 0.0 | .4084 | .9440 | .0001 |
+| `kd_cr` | sync control | LTR d=.10 | 1053.8 | -32.9 | .4040 | .9374 | .0014 |
+| `kd_cr` | sync control | LTR d=.20 | 979.8 | -106.9 | .3828 | .9150 | .0051 |
+| `kd_cr` | sync control | RTL d=.20 | 1002.3 | -84.4 | .3938 | .9264 | .0014 |
+| `kd_cr` | WFF-trained | standard | 1114.0 | 0.0 | .4253 | .9488 | .0001 |
+| `kd_cr` | WFF-trained | LTR d=.10 | 1126.6 | +12.6 | .4215 | .9415 | .0007 |
+| `kd_cr` | WFF-trained | LTR d=.20 | 1031.7 | -82.3 | .3984 | .9208 | .0054 |
+| `kd_cr` | WFF-trained | RTL d=.20 | 1019.2 | -94.8 | .4036 | .9309 | .0015 |
+
+| Start family | LTR `.10` interaction | LTR `.20` interaction | RTL `.20` interaction | EMA local-time gate |
+|---|---:|---:|---:|---:|
+| ELF base | -11.4 | -10.4 | +0.7 | `-4.85e-5` |
+| `kd_cr` | +45.5 | +24.6 | -10.4 | `-1.41e-5` |
+
+The baseline pair contains a small LTR-specific adaptation signal, but no WFF
+sampler beats its own standard sampler and the gate remains effectively zero.
+Degeneration, word-count, unigram-collapse, and conditioned metrics were not
+computed by this runner.
+
+## 6. Inference methods and full quality panels
+
+### 6.1 Pipeline protocol factorization (EXP-61)
+
+Pipeline's historical gain is controlled by initial-noise scale, not SC-CFG.
+
+| Noise scale | SC-CFG | `n` | Standard PPL | Pipeline PPL | Delta |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1 | 64 | 309.59 | 188.78 | -120.82 |
+| 2 | 1 | 64 | 1170.92 | 1185.99 | +15.08 |
+| 1 | 3 | 64 | 306.32 | 192.64 | -113.68 |
+| 2 | 3 | 64 | 1148.68 | 1197.70 | +49.02 |
+| 1 | 1 | 256 | 338.05 | 196.27 | -141.78 |
+| 2 | 1 | 256 | 1070.67 | 1244.42 | +173.75 |
+| 1 | 3 | 256 | 340.33 | 195.47 | -144.86 |
+| 2 | 3 | 256 | 1054.08 | 1251.46 | +197.38 |
+
+The complete `n=64`, noise-1/SC-CFG-1 legacy audit was: standard
+`PPL=309.59, D1=.317, D2=.851, Rep-4=.014, Deg=.250`; Pipeline
+`PPL=188.78, D1=.435, D2=.896, Rep-4=.000, Deg=.547`. Thus even the favorable
+legacy PPL direction has a worse degeneration rate.
+
+### 6.2 Unified length-128 ODE panel (EXP-64)
+
+Protocol: ODE-32, length 128, 256 unconditional + 128 conditioned, noise scale
+2, SC-CFG 3. The paper-facing headline is the three-generation-seed mean:
+
+| Checkpoint/method | PPL (delta) | D1 | D2 | Deg. | Cond. R-L | Calls |
+|---|---:|---:|---:|---:|---:|---:|
+| ELF base / standard | 273 (0) | .419 | .864 | .020 | .087 | 32 |
+| ELF base / local-clock LTR | 2253 (+1979) | .537 | .882 | .038 | .076 | 32 |
+| ELF base / hard commit | 238 (-35) | .416 | .861 | .020 | .087 | 33 |
+| Broad-KD / standard | 1371 (0) | .459 | .950 | .211 | .060 | 32 |
+| Broad-KD / two-pass prefix | 1343 (-27) | .430 | .949 | .212 | .055 | 64 |
+| Broad-KD / hard commit | 677 (-694) | .363 | .847 | .085 | .096 | 33 |
+| Broad-KD / Pipeline | 1557 (+186) | .467 | .959 | .086 | .026 | 31 |
+| Commit-KD / standard | 989 (0) | .443 | .963 | .296 | .064 | 32 |
+| Commit-KD / hard commit | 727 (-262) | .423 | .911 | .112 | .088 | 33 |
+| Commit-KD / Pipeline | 1234 (+246) | .454 | .961 | .112 | .027 | 31 |
+
+PPL deltas across seeds 42/123/456: ELF hard commit `-35.4 +/- 1.8`, Broad-KD
+hard commit `-693.9 +/- 20.0`, Commit-KD hard commit `-261.5 +/- 13.2`,
+Broad-KD Pipeline `+186.3 +/- 28.4`, and Commit-KD Pipeline
+`+245.9 +/- 42.1`.
+
+The following tables contain every quality field in the seed-42 JSON.
+
+#### Unconditional, seed 42
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | Commit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 289.7 | .4154 | .8647 | .0089 | .0039 | 73.5 | .0782 | .6991 | .0078 | — |
+| ELF base | local-clock LTR | 2347.4 | .5422 | .8910 | .0166 | .0156 | 69.9 | .0820 | .8470 | .0703 | — |
+| ELF base | hard commit | 252.7 | .4129 | .8617 | .0079 | .0039 | 73.1 | .0795 | .6946 | .0039 | .9618 |
+| Broad-KD | standard | 1360.2 | .4614 | .9440 | .0066 | .2188 | 82.3 | .0554 | .8738 | .0156 | — |
+| Broad-KD | two-pass prefix | 1346.0 | .4327 | .9507 | .0065 | .2148 | 86.1 | .0588 | .8747 | .0195 | .5000 |
+| Broad-KD | hard commit | 676.1 | .3654 | .8481 | .0028 | .0938 | 77.3 | .0932 | .7350 | .0625 | .5658 |
+| Broad-KD | Pipeline | 1514.8 | .4671 | .9567 | .0014 | .0977 | 85.5 | .0412 | .9066 | .0039 | — |
+| Commit-KD | standard | 1054.1 | .4452 | .9650 | .0001 | .2891 | 88.0 | .0417 | .8890 | .0000 | — |
+| Commit-KD | hard commit | 779.5 | .4268 | .9128 | .0012 | .0938 | 84.3 | .0585 | .8052 | .0000 | .6861 |
+| Commit-KD | Pipeline | 1251.5 | .4523 | .9600 | .0001 | .0859 | 90.9 | .0394 | .9053 | .0000 | — |
+
+#### Conditioned suffix, seed 42
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | R-L | Commit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 481.4 | .4422 | .8946 | .0108 | .0234 | 44.0 | .0746 | .7882 | .0000 | .0857 | — |
+| ELF base | local-clock LTR | 2675.6 | .5739 | .8784 | .0073 | .0000 | 44.7 | .0701 | .8711 | .0000 | .0775 | — |
+| ELF base | hard commit | 426.5 | .4378 | .8902 | .0109 | .0234 | 44.0 | .0765 | .7809 | .0000 | .0864 | .9622 |
+| Broad-KD | standard | 2075.9 | .5141 | .9717 | .0000 | .0781 | 47.3 | .0510 | .9275 | .0000 | .0576 | — |
+| Broad-KD | two-pass prefix | 2090.1 | .5157 | .9747 | .0000 | .0938 | 47.9 | .0510 | .9256 | .0000 | .0522 | .5000 |
+| Broad-KD | hard commit | 841.6 | .3788 | .8922 | .0004 | .0234 | 45.7 | .0815 | .8137 | .0078 | .0972 | .6252 |
+| Broad-KD | Pipeline | 2187.0 | .5982 | .9937 | .0000 | .1875 | 47.2 | .0429 | .9606 | .0000 | .0284 | — |
+| Commit-KD | standard | 1964.8 | .5108 | .9777 | .0000 | .0781 | 48.3 | .0514 | .9250 | .0000 | .0616 | — |
+| Commit-KD | hard commit | 888.6 | .4446 | .9294 | .0002 | .0312 | 46.4 | .0716 | .8474 | .0000 | .0870 | .7577 |
+| Commit-KD | Pipeline | 1904.2 | .5910 | .9963 | .0000 | .1328 | 51.3 | .0376 | .9657 | .0000 | .0260 | — |
+
+### 6.3 Native-length deterministic ODE panel (EXP-65/66)
+
+Protocol: ODE-32, length 1024, 256 unconditional + 128 conditioned, noise
+scale 2, SC-CFG 3. All available JSON metrics are shown. Standard decoding
+uses 32 denoiser calls and hard commitment uses 33 in both splits.
+
+#### Unconditional
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | Commit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 127.8 | .1743 | .7034 | .0013 | .0000 | 731.1 | .0564 | .5092 | .0000 | — |
+| ELF base | hard commit | 118.1 | .1772 | .6994 | .0013 | .0000 | 731.1 | .0563 | .5092 | .0000 | .9682 |
+| Broad-KD | standard | 105.9 | .2270 | .7475 | .1117 | .2891 | 560.1 | .2557 | .4657 | .3203 | — |
+| Broad-KD | hard commit | 439.7 | .2226 | .7818 | .0053 | .0195 | 718.6 | .0516 | .5946 | .0156 | .7576 |
+| Commit-KD | standard | 271.1 | .2322 | .7866 | .0712 | .0977 | 716.2 | .1123 | .6041 | .0820 | — |
+| Commit-KD | hard commit | 433.2 | .2364 | .7950 | .0076 | .0273 | 720.1 | .0585 | .5987 | .0234 | .8123 |
+| Control | standard | 130.1 | .1697 | .6993 | .0012 | .0000 | 741.3 | .0566 | .5112 | .0000 | — |
+| Control | hard commit | 120.8 | .1734 | .6947 | .0011 | .0000 | 741.1 | .0567 | .5104 | .0000 | .9607 |
+| Early-KD | standard | 120.8 | .1682 | .6986 | .0016 | .0000 | 742.7 | .0539 | .4932 | .0000 | — |
+| Early-KD | hard commit | 111.3 | .1717 | .6928 | .0016 | .0000 | 742.4 | .0540 | .4937 | .0000 | .9621 |
+| Control seed 7 | standard | 130.2 | .1699 | .7007 | .0013 | .0000 | 741.3 | .0564 | .5106 | .0000 | — |
+| Control seed 7 | hard commit | 120.9 | .1730 | .6962 | .0012 | .0000 | 741.1 | .0564 | .5109 | .0000 | .9612 |
+| Early-KD seed 7 | standard | 127.9 | .1682 | .6920 | .0018 | .0000 | 745.2 | .0534 | .4945 | .0000 | — |
+| Early-KD seed 7 | hard commit | 117.4 | .1711 | .6869 | .0017 | .0000 | 745.0 | .0533 | .4948 | .0000 | .9636 |
+
+#### Conditioned suffix
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | R-L | Commit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 247.1 | .2668 | .8011 | .0048 | .0000 | 366.0 | .0541 | .5752 | .0000 | .1052 | — |
+| ELF base | hard commit | 218.4 | .2671 | .7946 | .0045 | .0000 | 366.0 | .0547 | .5775 | .0000 | .1061 | .9447 |
+| Broad-KD | standard | 456.8 | .2517 | .8028 | .0239 | .0859 | 385.1 | .0606 | .5924 | .0469 | .0975 | — |
+| Broad-KD | hard commit | 540.9 | .2561 | .8268 | .0012 | .0312 | 385.4 | .0446 | .6061 | .0000 | .1042 | .7455 |
+| Commit-KD | standard | 15.9 | .0822 | .2304 | .5154 | .7969 | 323.5 | .3921 | .1399 | .8203 | .0531 | — |
+| Commit-KD | hard commit | 132.5 | .1660 | .5606 | .1344 | .3125 | 341.4 | .2079 | .3595 | .3438 | .0973 | .5293 |
+| Control | standard | 257.4 | .2635 | .8047 | .0031 | .0000 | 369.9 | .0536 | .5855 | .0000 | .1045 | — |
+| Control | hard commit | 229.9 | .2647 | .7998 | .0030 | .0000 | 369.7 | .0546 | .5861 | .0000 | .1056 | .9348 |
+| Early-KD | standard | 253.4 | .2504 | .7914 | .0064 | .0000 | 372.8 | .0518 | .5599 | .0000 | .1031 | — |
+| Early-KD | hard commit | 229.3 | .2524 | .7843 | .0058 | .0000 | 372.5 | .0522 | .5626 | .0000 | .1048 | .9395 |
+| Control seed 7 | standard | 257.7 | .2613 | .8069 | .0030 | .0000 | 371.0 | .0532 | .5838 | .0000 | .1039 | — |
+| Control seed 7 | hard commit | 229.4 | .2624 | .7993 | .0030 | .0000 | 370.5 | .0541 | .5834 | .0000 | .1059 | .9351 |
+| Early-KD seed 7 | standard | 266.7 | .2498 | .7879 | .0063 | .0000 | 373.1 | .0523 | .5618 | .0000 | .1036 | — |
+| Early-KD seed 7 | hard commit | 238.1 | .2489 | .7810 | .0059 | .0000 | 373.1 | .0528 | .5623 | .0000 | .1052 | .9400 |
+
+The old Broad-KD/Commit-KD low standard PPL values are metric gaming through
+repetition. On the corrected Control/Early-KD checkpoints, hard commitment
+gives a clean `9.3--10.5` unconditional PPL improvement without degeneration.
+Early-KD is positive for both training seeds but is not robust on conditioned
+PPL. The KD-by-commit interaction is weak (`-0.2` and `-1.2` PPL).
+
+### 6.4 Native stochastic SDE fidelity (EXP-68)
+
+Protocol: native SDE-32 with logit-normal grid, length 1024, 256 unconditional
++ 128 conditioned, paired per-step noise, SDE gamma 1.5. The table includes all
+JSON fields.
+
+#### Unconditional
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | Commit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 30.7 | .0927 | .5065 | .0165 | .0000 | 800.5 | .0611 | .3771 | .0000 | — |
+| ELF base | hard commit | 30.4 | .0936 | .5072 | .0163 | .0000 | 800.5 | .0611 | .3792 | .0000 | .9919 |
+| Control | standard | 30.0 | .0840 | .4884 | .0147 | .0000 | 815.5 | .0595 | .3689 | .0000 | — |
+| Control | hard commit | 29.8 | .0852 | .4887 | .0143 | .0000 | 815.6 | .0595 | .3716 | .0000 | .9903 |
+| Early-KD | standard | 27.6 | .0801 | .4758 | .0180 | .0000 | 818.8 | .0563 | .3498 | .0000 | — |
+| Early-KD | hard commit | 27.5 | .0813 | .4764 | .0176 | .0000 | 818.9 | .0563 | .3529 | .0000 | .9908 |
+| Control seed 7 | standard | 30.1 | .0841 | .4893 | .0145 | .0000 | 814.3 | .0590 | .3698 | .0000 | — |
+| Control seed 7 | hard commit | 29.8 | .0857 | .4901 | .0141 | .0000 | 814.4 | .0590 | .3722 | .0000 | .9901 |
+| Early-KD seed 7 | standard | 27.6 | .0810 | .4760 | .0182 | .0000 | 818.9 | .0532 | .3530 | .0000 | — |
+| Early-KD seed 7 | hard commit | 27.3 | .0819 | .4766 | .0178 | .0000 | 818.8 | .0532 | .3554 | .0000 | .9913 |
+
+#### Conditioned suffix
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | R-L | Commit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 48.2 | .1800 | .6328 | .0302 | .0078 | 390.1 | .0814 | .4549 | .0078 | .1123 | — |
+| ELF base | hard commit | 48.3 | .1837 | .6374 | .0284 | .0078 | 390.2 | .0809 | .4604 | .0078 | .1124 | .9740 |
+| Control | standard | 50.9 | .1813 | .6430 | .0229 | .0078 | 394.7 | .0811 | .4700 | .0078 | .1121 | — |
+| Control | hard commit | 51.7 | .1851 | .6459 | .0221 | .0078 | 394.5 | .0807 | .4750 | .0078 | .1124 | .9652 |
+| Early-KD | standard | 45.5 | .1667 | .6208 | .0391 | .0078 | 399.5 | .0748 | .4389 | .0078 | .1107 | — |
+| Early-KD | hard commit | 46.1 | .1693 | .6224 | .0378 | .0078 | 399.5 | .0749 | .4444 | .0078 | .1108 | .9746 |
+| Control seed 7 | standard | 50.9 | .1808 | .6422 | .0235 | .0078 | 395.5 | .0803 | .4676 | .0078 | .1116 | — |
+| Control seed 7 | hard commit | 51.7 | .1857 | .6440 | .0226 | .0078 | 395.3 | .0800 | .4727 | .0078 | .1113 | .9658 |
+| Early-KD seed 7 | standard | 47.0 | .1646 | .6130 | .0399 | .0078 | 397.6 | .0763 | .4387 | .0078 | .1112 | — |
+| Early-KD seed 7 | hard commit | 47.5 | .1676 | .6146 | .0389 | .0078 | 397.6 | .0763 | .4428 | .0078 | .1117 | .9748 |
+
+Hard commitment keeps a tiny favorable unconditional sign (`-.10` to `-.29`
+PPL) but slightly worsens conditioned PPL (`+.17` to `+.77`). The frozen
+policy selects about 99% of unconditional positions at the first crossing, so
+the ODE effect magnitude does not survive native SDE.
+
+### 6.5 Native-SDE anchor-density calibration (EXP-69)
+
+The intervention-free calibration shows how quickly confidence saturates.
+All recorded calibration statistics are included below.
+
+| SDE step | Mean time | Time SD | Conf. q10 | q25 | q50 | q75 | q90 | q95 | q99 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4 | .139 | .033 | .065 | .118 | .261 | .613 | .958 | .997 | 1.000 |
+| 8 | .197 | .024 | .284 | .557 | .951 | 1.000 | 1.000 | 1.000 | 1.000 |
+| 12 | .239 | .024 | .605 | .960 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| 16 | .303 | .037 | .950 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| 20 | .341 | .023 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| 24 | .425 | .039 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| 28 | .525 | .051 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+
+| SDE step | Anchor >=.60 | >=.70 | >=.80 | >=.90 | >=.95 | >=.99 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 4 | .256 | .214 | .174 | .131 | .105 | .068 |
+| 8 | .726 | .670 | .614 | .549 | .501 | .422 |
+| 12 | .902 | .869 | .836 | .792 | .760 | .699 |
+| 16 | .966 | .953 | .938 | .917 | .900 | .869 |
+| 20 | .987 | .980 | .973 | .964 | .955 | .937 |
+| 24 | .994 | .990 | .985 | .980 | .975 | .963 |
+| 28 | .996 | .993 | .990 | .986 | .981 | .973 |
+
+Implementation note: the calibration script formed percentile labels with
+integer truncation, so the raw JSON keys `q89` and `q94` are the requested
+90th and 95th percentiles. The values above use their intended percentile
+names; the numeric estimates are unchanged.
+
+Quality screen: 64 unconditional + 32 conditioned, length 1024. Standard
+outputs are identical across the three independent paired jobs.
+
+#### Unconditional
+
+| Cell | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | Commit |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 29.3 | .1558 | .6247 | .0162 | .0000 | 800.8 | .0601 | .3793 | .0000 | — |
+| Step 4 / `.60` | 49.1 | .1850 | .6741 | .0108 | .0000 | 774.3 | .0618 | .3971 | .0000 | .2522 |
+| Step 8 / `.95` | 43.5 | .1720 | .6524 | .0066 | .0000 | 787.2 | .0626 | .3932 | .0000 | .5241 |
+| Step 12 / `.95` | 36.8 | .1659 | .6377 | .0110 | .0000 | 796.5 | .0611 | .3891 | .0000 | .7850 |
+
+#### Conditioned suffix
+
+| Cell | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | UniqueRatio | U-collapse | R-L | Commit |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 45.9 | .2725 | .7244 | .0338 | .0000 | 387.0 | .0775 | .4533 | .0000 | .1158 | — |
+| Step 4 / `.60` | 68.2 | .2620 | .6885 | .0401 | .0000 | 389.9 | .1007 | .4294 | .0000 | .1151 | .2333 |
+| Step 8 / `.95` | 57.0 | .2722 | .7072 | .0341 | .0000 | 380.9 | .0933 | .4449 | .0312 | .1174 | .2996 |
+| Step 12 / `.95` | 60.7 | .2782 | .7325 | .0222 | .0000 | 382.8 | .0854 | .4560 | .0000 | .1171 | .5238 |
+
+Every early native-SDE cell worsens unconditional and conditioned PPL. Late
+commitment is saturated and inert; early commitment leaves an unresolved set
+but damages coherence. The matched shuffled-anchor SDE audit was therefore
+stopped at the pre-registered quality gate.
+
+## 7. Post-hoc asynchronous sampling and cross-architecture evidence
+
+### 7.1 GS19 asynchronous schedule ablation
+
+On ELF, synchronous versus LTR/RTL/fixed-random/confidence-adaptive local
+clocks gives:
+
+- `tau_stable`: `16.79 -> 19.8--21.7` for the four asynchronous arms;
+- revisions: `5.57 -> 8.2--9.7`;
+- generation PPL: `76.8 -> 144--442`;
+- RTL degeneration: `.75`.
+
+All four schedules fail all three pre-registered signals. On Plaid, all four
+also fail, with PPL increasing by `3.0x--14.4x`. Confidence-adaptive is the
+only Plaid arm with earlier nominal stable time (`21.73 -> 19.70`) and is also
+the worst-quality arm, demonstrating that faster token stabilization alone is
+not a quality metric.
+
+### 7.2 Corrected LangFlow comparison
+
+Nominal diffusion time is not comparable across ELF and LangFlow. The safe
+cross-architecture record uses each model's own trajectory or explicitly
+matched statistics.
+
+| Experiment | Metric | Corrected LangFlow result | Interpretation |
+|---|---|---|---|
+| EXP-21v2 | Native/backbone/skip/probe top-1 | At `t=.85`: native `.561`, backbone `.000`, skip `.0765`, probe-h `.505`; at `t=1`: native `.988`, backbone `.000`, skip `.924`, probe-h `.944`. | Native decoding is skip-dominated; the backbone residual is a corrector, so the original final-hidden probe-gap comparison was asymmetric. |
+| EXP-25v2 | Occurrence-level hazard model | After frequency control, function-token odds ratio is `.26--.73` before the cliff; frequency odds ratio is `2--7.5`. | Frequency, not POS class, is the main early-token driver. |
+| EXP-26v2 | Spatial dependence | Moran's `I=.26` at `t=.745` (`z=22.54`, `p<.001`); committed-neighbor hazard OR `2.44 [2.19,2.76]`. | Spatial clustering exists, but this observational statistic alone does not prove propagation. |
+| EXP-27v2 | OWT token frequency | Pearson `r=-.651` (`p=4.7e-24`); partial correlation controlling POS `-.638`. | High-frequency tokens stabilize earlier across architectures. |
+| EXP-30v2 | Layer-wise probe | Best intermediate layer B10 is about `+2.6 pp` over final at `t=.85`; MLP does not beat linear. | Late representation is linearly readable, but skip asymmetry remains essential. |
+| EXP-53 | Stable commitment | Never-stable `.0479`, mean `T_stable=.840`; cumulative stable fraction `.171/.537/.737/.873/.952` at `t=.806/.884/.922/.961/1.0`. | LangFlow stabilizes much later in its own clock than ELF KD, but direct nominal-time ratios are not a mechanism claim. |
+| GS14 replication | True-trajectory consensus | `C_topic=.958 -> .985 -> .992`; lexical consensus contracts later. | Coarse-basin-before-exact-lexical ordering survives. |
+
+### 7.3 Plaid cross-architecture scorecard (GS20)
+
+| Test | ELF | Plaid | Decision |
+|---|---|---|---|
+| Endpoint-specificity collapse | Early ambiguity, then narrow collapse | Same pattern, within one checkpoint | Confirmed across architectures |
+| Local velocity dynamics | Endpoint alignment early; collapse after token stability | Early alignment low/non-monotone; event order reverses | Boundary: stochastic finite differences are confounded |
+| Rank/energy control | Top-k beats matched alternatives | Same | Confirmed |
+| Residualized collective coupling | 13/16 checkpoints beat all nulls | 1/16 | Boundary: ancestral step noise likely dilutes increments |
+| Async denoising | All fail, PPL `2--6x` worse | All fail, PPL `3--14.4x` worse | Confirmed negative result |
+
+Endpoint-based/static conclusions replicate more reliably than adjacent-state
+finite-difference conclusions. Plaid injects Gaussian noise at every ancestral
+step, unlike deterministic ELF/LangFlow Euler paths.
+
+## 8. Historical result audit
+
+These experiments remain important because they explain why earlier stories
+or methods were withdrawn.
+
+| Family | Main result | Current use |
+|---|---|---|
+| EXP-01/04/05 | Oracle-state cliff is not a free-rollout cliff; head-only null is negligible; batch-shuffled prior was invalid. | Measurement motivation only; do not present oracle construction as a scientific reversal. |
+| EXP-07v2 | Baseline linear-probe gap remains about +41 pp under document-level split; KD checkpoints have a negative gap. | Representation is recoverable before the native decoder exposes it. |
+| EXP-08v2/25v2/27v2 | Function tokens appear earlier, but real frequency dominates after control; LangFlow frequency partial correlation is about `-.638`. | Say frequency/coarse lexical prior, not POS-driven coarse-to-fine semantics. |
+| EXP-09/26 | Spatial clustering exists, but early near/far analyses had risk-set collapse and common-cause confounds. | Use GS13/18-B causal/residualized tests instead. |
+| EXP-11v2/14v2 | KD checkpoints are more stable under corrected perturbation and have fewer flips than baseline. | Supporting stability evidence, not the central transition test. |
+| EXP-31--37 | Diffusion-forcing/self-conditioning effects reverse across checkpoints and several settings degenerate. | Dead-end lineage; no universal DF method claim. |
+| EXP-49--51 | Synthetic auxiliary-loss fine-tuning reduces its training loss but collapses generation. | Do not revive without real OWT training and a new design. |
+| EXP-58/59 | Pipeline looked strong on a legacy custom path. | Superseded by EXP-61/64 native-protocol failure. |
+| EXP-62 | Noisy-head KD early window reaches low PPL but fragmented pseudo-text; ODE-64 early PPL `53.5` with degeneration `.098`. | Objective mismatch/metric gaming; replaced by EXP-63. |
+| EXP-63 | Corrected clean-teacher Early-KD passes two training seeds. | Retained training-time result with conditioned-quality boundary. |
+| EXP-64/65 | Old KD checkpoints expose PPL/repetition conflict. | Justification for the complete metric panel. |
+| EXP-68/69 | ODE hard-commit gain vanishes or reverses under native SDE calibration. | Explicit solver-specific boundary. |
+
+## 9. Claims currently safe for paper/slides
+
+1. Early pooled “global signal” is not evidence that the model has already
+   formed a meaningful global sentence state.
+2. Free rollout maintains multiple lexical futures and undergoes a relatively
+   narrow endpoint-affinity collapse; exact lexical commitment is later and
+   more fragile than coarse basin structure.
+3. Other positions causally affect a target token. On deterministic ELF
+   rollout, position-correct anchors accelerate and stabilize unresolved
+   decisions, while matched shuffled anchors reverse the effect.
+4. Corrected Early-KD improves unconditional ODE generation and commitment
+   timing in two training seeds, but conditioned improvement is not robust.
+5. Hard commitment is an ODE-specific intervention, not a sampler-independent
+   method. Native SDE either commits almost everything too late to matter or
+   loses coherence when forced earlier.
+6. Pipeline, post-hoc local clocks, and the current gated WFF pilot are not
+   positive methods.
+
+## 10. Provenance
+
+Primary specs:
+
+- mechanism: `EXP-GS11`--`EXP-GS20`, `EXP-67`;
+- WFF/local clocks: `EXP-60`, `EXP-GS19`;
+- Pipeline: `EXP-61`, `EXP-64`;
+- KD: `EXP-62`, `EXP-63`, `EXP-66`;
+- hard commitment and sampler boundary: `EXP-64`--`EXP-69`.
+
+Primary server result directories:
+
+```text
+results/exp60_wff_pilot/
+results/exp64_unified_method_eval/
+results/exp65_hard_commit_calibration/
+results/exp67_hard_commit_mechanism/
+results/exp68_native_sde_commit/
+results/exp69_native_sde_anchor_calibration/
+```
+
+When adding a new formal evaluation, append its protocol and complete metric
+row here at the same time as updating its spec. Never overwrite a historical
+row after changing tokenizer, degeneration rule, sampling schedule, or sample
+bank; add a new protocol block instead.

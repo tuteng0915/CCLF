@@ -3,6 +3,10 @@
 This directory is an experiment ledger, not a flat to-do list. Most files are
 completed historical records. The active paper plan is deliberately small.
 
+For the paper-facing numeric summary and complete formal evaluation tables,
+start with [`../result.md`](../result.md). This directory retains the detailed
+per-experiment protocols and the full historical audit trail.
+
 ## Status vocabulary
 
 | status | meaning |

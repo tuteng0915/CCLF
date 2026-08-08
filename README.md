@@ -6,6 +6,7 @@ Research project: annealed lexical commitment schedule for continuous diffusion 
 
 ```
 docs/
+  result.md                      # canonical ledger of major experiments and complete evaluation metrics
   proposal.md                    # unified research proposal (merged from 4 reports)
   deep-research-report.md        # report 1: 渐进锚定
   deep-research-report (1).md    # report 2: Coupled Semantic-Lexical Flow
