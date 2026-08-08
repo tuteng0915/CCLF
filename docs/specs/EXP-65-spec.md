@@ -1,6 +1,6 @@
 # EXP-65 Spec — Held-Out Native Hard-Commit Calibration
 
-**Status:** STAGE A COMPLETE / STAGE B RUNNING
+**Status:** STAGE B COMPLETE / BASELINE NATIVE-SDE CHECK PENDING
 **Priority:** P0  
 **Script:** `models/ELF-torch/experiments/probe_elf/hard_commit_calibration_exp65.py`
 
@@ -66,3 +66,37 @@ For comparison, Broad-KD at `(0.30, 0.60)` reaches PPL 682.8 but lowers D1
 from .538 to .427 and D2 from .948 to .883. It is therefore rejected as a
 calibration winner despite the larger PPL decrease. The frozen Stage-B choices
 were made before inspecting the length-1024 test bank.
+
+## Stage-B length-1024 result
+
+The frozen configurations were evaluated on the untouched seed-42 bank with
+256 unconditional samples and 128 fixed conditioned continuations:
+
+| Checkpoint | Method | PPL | D1 | D2 | Rep-4 | Deg. | Cond. PPL | Cond. R-L |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | standard | 127.8 | .174 | .703 | .001 | .000 | 247.1 | .105 |
+| ELF base | hard commit | **118.1** | .177 | .699 | .001 | .000 | **218.4** | .106 |
+| Broad-KD | standard | **105.9** | .227 | .748 | .112 | .289 | **456.8** | .098 |
+| Broad-KD | hard commit | 439.7 | .223 | .782 | .005 | .020 | 540.9 | .104 |
+| Commit-KD | standard | **271.1** | .232 | .787 | .071 | .098 | **15.9** | .053 |
+| Commit-KD | hard commit | 433.2 | .236 | .795 | .008 | .027 | 132.5 | .097 |
+
+The baseline result is a clean length-robust ODE signal and proceeds to the
+native SDE fidelity check. The KD results do not preserve the short-context
+PPL direction. Instead, hard commitment sharply reduces repetition and
+degeneration: Broad-KD unigram collapse falls from 32.0% to 1.6%, and
+Commit-KD conditioned collapse falls from 82.0% to 34.4%. Sample inspection
+confirms that the unusually low standard KD PPL values reward repeated
+high-frequency strings (for example long `The`, punctuation, or `with`
+loops). Hard commitment therefore behaves as an anti-degeneration
+intervention at length 1024, not as a clean KD quality win under the
+preregistered rule.
+
+## Stage-B decision
+
+- retain a positive method claim only for ELF baseline, conditional on the
+  native SDE-32 check;
+- withdraw the claim that KD plus hard commitment robustly lowers PPL across
+  sequence lengths;
+- keep the KD rows as evidence that PPL and degeneration can move in opposite
+  directions, and prioritize the complete metric panel over PPL alone.
