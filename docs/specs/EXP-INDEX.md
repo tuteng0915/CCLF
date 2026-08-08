@@ -13,8 +13,8 @@
 |---|---|---|
 | **EXP-65** | **STAGE B DONE** | Baseline hard commit survives length 1024; KD PPL direction reverses while degeneration improves; baseline native-SDE check remains |
 | **EXP-66** | **DONE** | Early-KD and hard commit both improve unconditional length-1024 PPL without degeneration; effects are mostly additive, conditioned Early-KD is not robust across training seeds |
-| **EXP-67** | **NEXT** | Mechanism audit: first/stable timing, revisions, endpoint entropy, and lexical-collapse controls |
-| **EXP-68** | **READY / BEFORE EXP-67** | Native SDE-32 fidelity gate for baseline and corrected Early-KD/control checkpoints |
+| **EXP-67** | **RUNNING (ODE mechanism only)** | Mechanism audit: first/stable timing, revisions, endpoint margin, and matched shuffled-anchor controls |
+| **EXP-68** | **DONE** | Native SDE keeps a tiny favorable unconditional sign but ODE gain nearly vanishes; conditioned PPL slightly worsens; frozen policy commits about 99% at first crossing |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
