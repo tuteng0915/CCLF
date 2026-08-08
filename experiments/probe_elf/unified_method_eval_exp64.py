@@ -82,6 +82,11 @@ def parse_args():
     parser.add_argument("--noise_scale", type=float, default=2.0)
     parser.add_argument("--sccfg", type=float, default=3.0)
     parser.add_argument("--confidence", type=float, default=0.70)
+    parser.add_argument(
+        "--commit_time",
+        type=float,
+        help="override the checkpoint's historical hard-commit time",
+    )
     parser.add_argument("--async_delta", type=float, default=0.20)
     parser.add_argument("--label", default="native_panel")
     return parser.parse_args()
@@ -219,10 +224,12 @@ def compute_ppl(texts, evaluator, tokenizer, device, max_length=200):
     return math.exp(total_nll / total_tokens) if total_tokens else float("nan")
 
 
-def text_metrics(texts, evaluator, ppl_tokenizer, device):
+def text_metrics(texts, evaluator, ppl_tokenizer, device, max_length=200):
     lengths = [len(text.split()) for text in texts]
     metrics = {
-        "ppl": compute_ppl(texts, evaluator, ppl_tokenizer, device),
+        "ppl": compute_ppl(
+            texts, evaluator, ppl_tokenizer, device, max_length=max_length
+        ),
         "d1": distinct_n(texts, 1),
         "d2": distinct_n(texts, 2),
         "rep4": repetition_rate(texts),
@@ -549,12 +556,17 @@ def run_method(
         z, _ = standard_ode(z0, model, t_steps, args.sccfg, cond_seq, cond_mask)
         return z, None
     if arm == "hard_commit":
+        commit_time = (
+            args.commit_time
+            if args.commit_time is not None
+            else COMMIT_TIME[checkpoint_name]
+        )
         z, _, fraction = hard_commit_ode(
             z0,
             model,
             t_steps,
             args.sccfg,
-            COMMIT_TIME[checkpoint_name],
+            commit_time,
             args.confidence,
             cond_seq,
             cond_mask,
@@ -604,7 +616,13 @@ def evaluate_arm(
         texts.extend(decode_texts(ids.cpu(), elf_tokenizer, suffix_start))
         if fraction is not None:
             fractions.append(fraction)
-    metrics = text_metrics(texts, ppl_model, ppl_tokenizer, z0.device)
+    metrics = text_metrics(
+        texts,
+        ppl_model,
+        ppl_tokenizer,
+        z0.device,
+        max_length=max(args.max_length - suffix_start, 2),
+    )
     if references is not None:
         metrics["rouge_l"] = sum(
             rouge_l_f1(hyp, ref) for hyp, ref in zip(texts, references)
@@ -750,7 +768,11 @@ def main():
         "n_steps": args.n_steps,
         "pipeline_groups": args.pipeline_groups,
         "confidence": args.confidence,
-        "commit_time": COMMIT_TIME[args.checkpoint],
+        "commit_time": (
+            args.commit_time
+            if args.commit_time is not None
+            else COMMIT_TIME[args.checkpoint]
+        ),
         "results": results,
     }
     with open(output_path, "w", encoding="utf-8") as handle:
