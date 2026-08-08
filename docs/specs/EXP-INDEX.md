@@ -7,6 +7,20 @@
 
 ---
 
+## Active P0 queue (2026-08-08)
+
+| Experiment | Status | Purpose |
+|---|---|---|
+| **EXP-65** | **RUNNING** | Held-out native calibration of hard-commit time and confidence threshold, followed by length-1024 confirmation |
+| **EXP-66** | **NEXT** | Native length-1024 Early-KD x calibrated-commit interaction panel |
+| **EXP-67** | **NEXT** | Mechanism audit: first/stable timing, revisions, endpoint entropy, and lexical-collapse controls |
+
+The older queue entries below are retained as a historical ledger. In
+particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
+stale status line.
+
+---
+
 ## Mechanism Paper Follow-up — 精简后的当前队列
 
 当前真正决定论文的只有 GS16 和 GS17。GS18 是按需控制，GS19 是方法验证，GS20 是延后到核心机制明确后的 CDCD 复现。
