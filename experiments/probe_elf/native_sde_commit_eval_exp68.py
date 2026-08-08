@@ -36,7 +36,9 @@ FIDELITY_CHECKPOINTS = (
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", choices=FIDELITY_CHECKPOINTS, required=True)
-    parser.add_argument("--commit_time", type=float, required=True)
+    commit = parser.add_mutually_exclusive_group(required=True)
+    commit.add_argument("--commit_time", type=float)
+    commit.add_argument("--commit_step", type=int)
     parser.add_argument("--confidence", type=float, default=0.60)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=42)
@@ -101,7 +103,12 @@ def sde_rollout(
                     generator=None,
                     **step_kwargs,
                 )
-                if hard_commit and not committed and t_next >= args.commit_time:
+                reached_commit = (
+                    args.commit_step is not None and index + 1 == args.commit_step
+                ) or (
+                    args.commit_time is not None and t_next >= args.commit_time
+                )
+                if hard_commit and not committed and reached_commit:
                     selected = confidence_mask(x_pred, model, args.confidence)
                     selected &= active_mask < 0.5
                     eligible = (cond_mask < 0.5).sum().item()
@@ -209,6 +216,8 @@ def main():
     args = parse_args()
     if args.n_steps != 32:
         raise ValueError("EXP-68 fixes the native fidelity budget at SDE-32")
+    if args.commit_step is not None and not 1 <= args.commit_step < args.n_steps:
+        raise ValueError("commit_step must lie in [1, n_steps - 1]")
     if args.max_length <= args.prefix_length:
         raise ValueError("prefix_length must be smaller than max_length")
 
@@ -325,6 +334,7 @@ def main():
                 "p_mean": args.p_mean,
                 "p_std": args.p_std,
                 "commit_time": args.commit_time,
+                "commit_step": args.commit_step,
                 "confidence": args.confidence,
                 "results": {
                     "standard": {
