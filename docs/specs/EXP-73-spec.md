@@ -23,8 +23,8 @@ synchronous teacher as a coherent trajectory reference.
 
 ## Teacher trajectory bank
 
-For every training sequence and initial noise, run a frozen healthy teacher on
-a 64-step synchronous ODE grid and retain
+For every initial noise sample, run a frozen healthy teacher on a synchronous
+ODE grid and retain
 
 ```text
 {z_teacher(s), x_hat_teacher(s), v_teacher(s)}.
@@ -61,9 +61,13 @@ L_lex   = T^2 KL(p_teacher(tau_i) || p_student[i])
 L       = L_state + lambda_x L_x + lambda_lex L_lex + lambda_sync L_sync.
 ```
 
-`L_sync` is the ordinary synchronous flow-matching loss on at least 50% of
-examples. Freeze loss weights before inspecting generation. Log every
-component and gradient cosine with `L_sync`.
+In Stage 0, use a 16-step teacher grid and set `lambda_lex=0`: the first gate
+tests continuous transition learning without introducing a decoder-dependent
+objective. `L_sync` distills the matching synchronous teacher transition for
+every batch. Stage 1 increases the teacher grid to 64 steps and adds lexical
+KL only if the continuous transition gate succeeds. Freeze loss weights before
+inspecting generation. Log every active component; add gradient cosine with
+`L_sync` in Stage 1.
 
 ## Reversibility and refinement
 
