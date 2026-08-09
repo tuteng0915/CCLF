@@ -45,7 +45,53 @@ def _small_model():
     ).eval()
 
 
+def _small_model_v2():
+    torch.manual_seed(7)
+    return ELF(
+        text_encoder_dim=8,
+        max_length=6,
+        hidden_size=32,
+        depth=2,
+        num_heads=4,
+        bottleneck_dim=4,
+        num_time_tokens=1,
+        num_self_cond_cfg_tokens=0,
+        num_model_mode_tokens=0,
+        vocab_size=16,
+        per_token_time_conditioning=True,
+        per_layer_time_conditioning=True,
+    ).eval()
+
+
 class WFFTest(unittest.TestCase):
+    def test_v2_homogeneous_time_exactly_matches_scalar_path(self):
+        model = _small_model_v2()
+        x = torch.randn(2, 6, 8)
+        scalar_t = torch.tensor([0.2, 0.7])
+        vector_t = scalar_t[:, None].expand(-1, 6)
+        torch.testing.assert_close(
+            model(x, scalar_t)[0], model(x, vector_t)[0], rtol=0.0, atol=0.0
+        )
+
+    def test_v2_layerwise_path_receives_gradient(self):
+        model = _small_model_v2().train()
+        with torch.no_grad():
+            model.final_layer.linear.weight.normal_(std=0.02)
+        x = torch.randn(2, 6, 8)
+        tau = torch.tensor([
+            [0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        ])
+        model(x, tau)[0].square().mean().backward()
+        self.assertIsNotNone(model.local_time_scales.grad)
+        self.assertGreater(float(model.local_time_scales.grad.norm()), 0.0)
+        projection_grad = sum(
+            float(parameter.grad.norm())
+            for parameter in model.local_time_projections.parameters()
+            if parameter.grad is not None
+        )
+        self.assertGreater(projection_grad, 0.0)
+
     def test_homogeneous_vector_time_matches_scalar_checkpoint_path(self):
         model = _small_model()
         x = torch.randn(2, 6, 8)
@@ -113,6 +159,28 @@ class WFFTest(unittest.TestCase):
         torch.testing.assert_close(clocks[-1], torch.ones(32), atol=1e-6, rtol=0.0)
         self.assertTrue(bool(((clocks[1:] - clocks[:-1]) >= -1e-7).all()))
         self.assertLessEqual(0.2, 1.0 / math.pi)
+
+    def test_refinement_clock_becomes_synchronous_before_endpoint(self):
+        refine_start = 0.875
+        before = make_wff_time_vector(
+            0.75, 32, 0.1, "ltr", device=torch.device("cpu"),
+            dtype=torch.float32, refine_start=refine_start,
+        )
+        at_refine = make_wff_time_vector(
+            refine_start, 32, 0.1, "ltr", device=torch.device("cpu"),
+            dtype=torch.float32, refine_start=refine_start,
+        )
+        after = make_wff_time_vector(
+            0.95, 32, 0.1, "ltr", device=torch.device("cpu"),
+            dtype=torch.float32, refine_start=refine_start,
+        )
+        self.assertGreater(float(before.max() - before.min()), 0.0)
+        torch.testing.assert_close(
+            at_refine, torch.full_like(at_refine, refine_start), atol=1e-6, rtol=0.0
+        )
+        torch.testing.assert_close(
+            after, torch.full_like(after, 0.95), atol=1e-6, rtol=0.0
+        )
 
     def test_training_clock_also_has_synchronous_endpoints(self):
         base = torch.tensor([0.0, 1.0])

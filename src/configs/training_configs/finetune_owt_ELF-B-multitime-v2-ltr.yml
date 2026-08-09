@@ -1,0 +1,61 @@
+# EXP-72 native multi-time v2 LTR curriculum, 500-step learning gate.
+data_path: "embedded-language-flows/openwebtext-t5"
+max_length: 128
+
+encoder_model_name: t5-small
+latent_mean: 0.0
+latent_std: 0.2
+
+model: ELF-B
+bottleneck_dim: 128
+num_time_tokens: 4
+num_self_cond_cfg_tokens: 4
+num_model_mode_tokens: 4
+per_token_time_conditioning: true
+per_layer_time_conditioning: true
+
+denoiser_p_mean: -1.5
+denoiser_p_std: 0.8
+denoiser_noise_scale: 2.0
+t_eps: 0.05
+time_schedule: "logit_normal"
+wff_train_prob: 0.50
+wff_train_prob_start: 0.10
+wff_delta_start: 0.0
+wff_delta_min: 0.10
+wff_delta_max: 0.10
+wff_curriculum_steps: 1000
+wff_refine_start: 0.875
+wff_ltr_prob: 1.0
+wff_rtl_prob: 0.0
+
+decoder_prob: 0.2
+decoder_noise_scale: 5.0
+decoder_p_mean: 0.8
+decoder_p_std: 0.8
+self_cond_prob: 0.5
+lambda_kd: 0.0
+
+epochs: 100
+max_train_steps: 500
+global_batch_size: 32
+lr: 0.00001
+weight_decay: 0.0
+warmup_steps: 20
+optimizer: adamw
+grad_accum_steps: 1
+gradient_checkpointing: false
+ema_decay1: 0.9999
+
+sampling_configs_path: "src/configs/sampling_configs/uncond_sampling_configs.yml"
+num_samples: 64
+online_eval: false
+log_freq: 20
+save_freq: 99999
+eval_freq: 99999
+
+output_dir: "outputs/exp72_multitime_v2_ltr_500"
+resume: "converted/elf_b-owt-baseline_torch.pt"
+resume_model_only: true
+use_wandb: false
+seed: 42

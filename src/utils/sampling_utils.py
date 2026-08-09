@@ -103,6 +103,7 @@ def sample_wff_timesteps(
     delta_max: float,
     ltr_probability: float = 0.5,
     rtl_probability: float = 0.25,
+    refine_start: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Sample native heterogeneous local times for WFF training.
 
@@ -117,8 +118,12 @@ def sample_wff_timesteps(
         raise ValueError("WFF probability must lie in [0,1]")
     if not 0.0 <= delta_min <= delta_max:
         raise ValueError("Require 0 <= delta_min <= delta_max")
-    if delta_max > 1.0 / math.pi:
-        raise ValueError("WFF delta must be <= 1/pi so local clocks remain monotone")
+    if not 0.0 < refine_start <= 1.0:
+        raise ValueError("refine_start must lie in (0,1]")
+    if delta_max > refine_start / math.pi:
+        raise ValueError(
+            "WFF delta must be <= refine_start/pi so local clocks remain monotone"
+        )
     if ltr_probability < 0.0 or rtl_probability < 0.0 or ltr_probability + rtl_probability > 1.0:
         raise ValueError("Invalid WFF ordering probabilities")
 
@@ -159,7 +164,8 @@ def sample_wff_timesteps(
     # Match the inference clock exactly: the heterogeneous offset vanishes at
     # both endpoints, so every token begins at pure noise and finishes at the
     # same clean endpoint. Delta <= 1/pi keeps d tau_i / d t non-negative.
-    envelope = torch.sin(math.pi * base_t)[:, None]
+    normalized = (base_t / refine_start).clamp(0.0, 1.0)
+    envelope = torch.sin(math.pi * normalized)[:, None]
     wave_tau = (
         base_t[:, None] + delta[:, None] * envelope * offsets
     ).clamp(0.0, 1.0)
@@ -176,6 +182,7 @@ def make_wff_time_vector(
     *,
     device: torch.device,
     dtype: torch.dtype,
+    refine_start: float = 1.0,
 ) -> torch.Tensor:
     """Construct a monotone wavefront clock with synchronous endpoints.
 
@@ -183,8 +190,12 @@ def make_wff_time_vector(
     starts at pure noise and reaches clean time exactly.  Delta must be at
     most 1/pi to keep all local clocks monotone in global solver time.
     """
-    if delta < 0.0 or delta > 1.0 / math.pi:
-        raise ValueError(f"wff_delta must be in [0, 1/pi], got {delta}")
+    if not 0.0 < refine_start <= 1.0:
+        raise ValueError(f"refine_start must be in (0,1], got {refine_start}")
+    if delta < 0.0 or delta > refine_start / math.pi:
+        raise ValueError(
+            f"wff_delta must be in [0, refine_start/pi], got {delta}"
+        )
     if order not in {"ltr", "rtl"}:
         raise ValueError(f"Unsupported WFF order: {order}")
     if seq_length <= 1:
@@ -194,7 +205,8 @@ def make_wff_time_vector(
         offset = 1.0 - 2.0 * rank
     if order == "rtl":
         offset = -offset
-    envelope = math.sin(math.pi * float(global_t))
+    normalized = min(max(float(global_t) / refine_start, 0.0), 1.0)
+    envelope = math.sin(math.pi * normalized)
     return (float(global_t) + float(delta) * envelope * offset).clamp(0.0, 1.0)
 
 

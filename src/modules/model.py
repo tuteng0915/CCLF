@@ -69,6 +69,7 @@ class ELF(nn.Module):
         vocab_size: int = 0,
         gradient_checkpointing: bool = False,
         per_token_time_conditioning: bool = False,
+        per_layer_time_conditioning: bool = False,
     ):
         super().__init__()
         self.text_encoder_dim = text_encoder_dim
@@ -86,6 +87,11 @@ class ELF(nn.Module):
         self.vocab_size = vocab_size
         self.gradient_checkpointing = gradient_checkpointing
         self.per_token_time_conditioning = per_token_time_conditioning
+        self.per_layer_time_conditioning = per_layer_time_conditioning
+        if per_layer_time_conditioning and not per_token_time_conditioning:
+            raise ValueError(
+                "per_layer_time_conditioning requires per_token_time_conditioning"
+            )
 
         # Self-conditioning input projection (only used when input is [z, x_pred]).
         self.self_cond_proj = _make_linear(2 * text_encoder_dim, text_encoder_dim, bias=True)
@@ -104,6 +110,25 @@ class ELF(nn.Module):
             # scalar-time checkpoint before fine-tuning.  Heterogeneous local
             # time enters as a residual relative to the sequence-mean time.
             self.local_time_gate = nn.Parameter(torch.zeros(()))
+            if per_layer_time_conditioning:
+                # EXP-72: a nonzero, layerwise path prevents all heterogeneous
+                # examples from competing through one zero-initialized scalar.
+                # Homogeneous clocks still have exactly zero residual and thus
+                # reproduce the scalar-time checkpoint path.
+                self.local_time_projections = nn.ModuleList([
+                    _make_linear(
+                        hidden_size,
+                        hidden_size,
+                        bias=False,
+                        kernel_init=lambda weight: nn.init.normal_(
+                            weight, mean=0.0, std=0.002
+                        ),
+                    )
+                    for _ in range(depth)
+                ])
+                self.local_time_scales = nn.Parameter(
+                    torch.full((depth,), 0.01)
+                )
 
         if num_self_cond_cfg_tokens > 0:
             self.self_cond_cfg_embedder = TimestepEmbedder(hidden_size)
@@ -212,13 +237,15 @@ class ELF(nn.Module):
             if x.shape[-1] == 2 * self.text_encoder_dim:
                 x = self.self_cond_proj(x.float())
             x = self.text_proj(x.float())
+            local_residual = None
             if local_t is not None:
                 local_time_emb = self.t_embedder(local_t.reshape(-1)).reshape(
                     B, local_t.shape[1], self.hidden_size
                 )
                 mean_time_emb = self.t_embedder(context_t).unsqueeze(1)
                 local_residual = local_time_emb - mean_time_emb
-                x = x + torch.tanh(self.local_time_gate.float()) * local_residual
+                if not self.per_layer_time_conditioning:
+                    x = x + torch.tanh(self.local_time_gate.float()) * local_residual
             context_prefix_tokens = self.build_context(context_t, self_cond_cfg_scale)
 
         # Prepend learnable model-mode tokens (gated by decoder_step_active).
@@ -252,7 +279,17 @@ class ELF(nn.Module):
                 attention_mask = torch.cat([prefix_mask, attention_mask], dim=1)
 
         use_checkpoint = self.gradient_checkpointing and self.training and torch.is_grad_enabled()
-        for block in self.blocks:
+        token_offset = prefix_len + model_mode_offset
+        for block_index, block in enumerate(self.blocks):
+            if local_residual is not None and self.per_layer_time_conditioning:
+                with torch.amp.autocast('cuda', enabled=False):
+                    local_update = self.local_time_projections[block_index](
+                        local_residual.float()
+                    ) * self.local_time_scales[block_index].float()
+                x = torch.cat(
+                    [x[:, :token_offset], x[:, token_offset:] + local_update.to(x.dtype)],
+                    dim=1,
+                )
             if use_checkpoint:
                 def _block_forward(hidden: torch.Tensor, block: ELFBlock = block) -> torch.Tensor:
                     return block(hidden, rope_fn=self.feat_rope, attention_mask=attention_mask,

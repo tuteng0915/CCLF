@@ -136,6 +136,9 @@ def main():
         per_token_time_conditioning=bool(
             getattr(config, "per_token_time_conditioning", False)
         ),
+        per_layer_time_conditioning=bool(
+            getattr(config, "per_layer_time_conditioning", False)
+        ),
     ).to(device)
 
     # Train state template (only used to plumb EMA params + step/epoch).

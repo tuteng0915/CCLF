@@ -166,6 +166,7 @@ def run_training(config, *, force_cpu: bool = False):
         bottleneck_dim=config.bottleneck_dim,
         gradient_checkpointing=bool(getattr(config, "gradient_checkpointing", True)),
         per_token_time_conditioning=bool(getattr(config, "per_token_time_conditioning", False)),
+        per_layer_time_conditioning=bool(getattr(config, "per_layer_time_conditioning", False)),
     ).to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
@@ -394,13 +395,18 @@ def run_training(config, *, force_cpu: bool = False):
                     torch.stack([m["kd_loss"] for m in train_metrics]).mean(),
                     torch.stack([m["wff_fraction"] for m in train_metrics]).mean(),
                     torch.stack([m["wff_mean_delta"] for m in train_metrics]).mean(),
+                    torch.stack([m["local_time_scale_abs"] for m in train_metrics]).mean(),
+                    torch.stack([m["local_time_grad_norm"] for m in train_metrics]).mean(),
                 ])
                 # Average each metric across DDP ranks before logging — done
                 # once per log_freq so we never sync on every train step.
                 if dist.is_available() and dist.is_initialized():
                     dist.all_reduce(stacked, op=dist.ReduceOp.SUM)
                     stacked = stacked / dist.get_world_size()
-                avg_loss, avg_l2, avg_ce, avg_kd, avg_wff_frac, avg_wff_delta = (
+                (
+                    avg_loss, avg_l2, avg_ce, avg_kd, avg_wff_frac,
+                    avg_wff_delta, avg_local_scale, avg_local_grad,
+                ) = (
                     float(x) for x in stacked.tolist()
                 )
                 now = time.time()
@@ -412,6 +418,8 @@ def run_training(config, *, force_cpu: bool = False):
                     "l2": f"{avg_l2:.4f}", "ce": f"{avg_ce:.4f}",
                     "kd": f"{avg_kd:.4f}", "sps": f"{steps_per_sec:.1f}",
                     "wff": f"{avg_wff_frac:.2f}", "wff_d": f"{avg_wff_delta:.3f}",
+                    "lt_s": f"{avg_local_scale:.3e}",
+                    "lt_g": f"{avg_local_grad:.3e}",
                     "lr": f"{current_lr:.2e}",
                 }
                 log_for_0(postfix_dict)
@@ -422,6 +430,7 @@ def run_training(config, *, force_cpu: bool = False):
                         f"INFO - engine - Step {global_step}: loss={avg_loss:.4f}, "
                         f"l2={avg_l2:.4f}, ce={avg_ce:.4f}, kd={avg_kd:.4f}, "
                         f"wff_frac={avg_wff_frac:.3f}, wff_delta={avg_wff_delta:.3f}, "
+                        f"local_scale={avg_local_scale:.3e}, local_grad={avg_local_grad:.3e}, "
                         f"lr={current_lr:.2e}, steps/sec={steps_per_sec:.2f}"
                     )
                     if config.use_wandb and wandb is not None:
@@ -432,6 +441,8 @@ def run_training(config, *, force_cpu: bool = False):
                                 "train_ce_loss": avg_ce, "train_kd_loss": avg_kd,
                                 "train_wff_fraction": avg_wff_frac,
                                 "train_wff_mean_delta": avg_wff_delta,
+                                "train_local_time_scale_abs": avg_local_scale,
+                                "train_local_time_grad_norm": avg_local_grad,
                                 "lr": current_lr,
                                 "epoch": current_epoch_progress, "step": global_step,
                             }, step=global_step)

@@ -104,14 +104,32 @@ def train_step(
     # per_token_time_conditioning=true with wff_train_prob=0 creates the
     # architecture-matched synchronous fine-tuning control.
     if bool(getattr(config, "per_token_time_conditioning", False)):
+        curriculum_steps = int(getattr(config, "wff_curriculum_steps", 0))
+        if curriculum_steps > 0:
+            curriculum = min(max(float(state.step) / curriculum_steps, 0.0), 1.0)
+            probability_start = float(getattr(config, "wff_train_prob_start", 0.0))
+            probability_end = float(getattr(config, "wff_train_prob", 0.0))
+            probability = probability_start + curriculum * (
+                probability_end - probability_start
+            )
+            delta_start = float(getattr(config, "wff_delta_start", 0.0))
+            delta_min_end = float(getattr(config, "wff_delta_min", 0.05))
+            delta_max_end = float(getattr(config, "wff_delta_max", 0.20))
+            delta_min = delta_start + curriculum * (delta_min_end - delta_start)
+            delta_max = delta_start + curriculum * (delta_max_end - delta_start)
+        else:
+            probability = float(getattr(config, "wff_train_prob", 0.0))
+            delta_min = float(getattr(config, "wff_delta_min", 0.05))
+            delta_max = float(getattr(config, "wff_delta_max", 0.20))
         denoiser_t, wff_use_wave, wff_delta, _wff_order = sample_wff_timesteps(
             t,
             seq_length,
-            probability=float(getattr(config, "wff_train_prob", 0.0)),
-            delta_min=float(getattr(config, "wff_delta_min", 0.05)),
-            delta_max=float(getattr(config, "wff_delta_max", 0.20)),
+            probability=probability,
+            delta_min=delta_min,
+            delta_max=delta_max,
             ltr_probability=float(getattr(config, "wff_ltr_prob", 0.5)),
             rtl_probability=float(getattr(config, "wff_rtl_prob", 0.25)),
+            refine_start=float(getattr(config, "wff_refine_start", 1.0)),
         )
     else:
         denoiser_t = t
@@ -509,6 +527,24 @@ def train_step(
     with sync_ctx:
         (loss / accum_steps).backward()
 
+    raw_model = getattr(model, "module", model)
+    if hasattr(raw_model, "local_time_scales"):
+        local_time_scale_abs_val = raw_model.local_time_scales.detach().abs().mean()
+        local_grads = [
+            parameter.grad.detach().float().norm()
+            for parameter in raw_model.local_time_projections.parameters()
+            if parameter.grad is not None
+        ]
+        if raw_model.local_time_scales.grad is not None:
+            local_grads.append(raw_model.local_time_scales.grad.detach().float().norm())
+        local_time_grad_norm_val = (
+            torch.stack(local_grads).norm()
+            if local_grads else torch.zeros((), device=device)
+        )
+    else:
+        local_time_scale_abs_val = torch.zeros((), device=device)
+        local_time_grad_norm_val = torch.zeros((), device=device)
+
     if is_optimizer_step:
         torch.nn.utils.clip_grad_norm_(_trainable_params(model), max_norm=1.0)
         state.optimizer.step()
@@ -528,5 +564,7 @@ def train_step(
         "align_loss": align_loss_val,
         "wff_fraction": wff_use_wave.mean().detach(),
         "wff_mean_delta": wff_delta.mean().detach(),
+        "local_time_scale_abs": local_time_scale_abs_val,
+        "local_time_grad_norm": local_time_grad_norm_val,
     }
     return state, metrics

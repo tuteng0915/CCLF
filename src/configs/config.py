@@ -110,9 +110,14 @@ class Config:
     # Wavefront Flow Forcing. The architecture flag enables native (B,S)
     # time conditioning. wff_train_prob=0 is the matched synchronous control.
     per_token_time_conditioning: bool = False
+    per_layer_time_conditioning: bool = False
     wff_train_prob: float = 0.0
+    wff_train_prob_start: float = 0.0
     wff_delta_min: float = 0.05
     wff_delta_max: float = 0.20
+    wff_delta_start: float = 0.0
+    wff_curriculum_steps: int = 0
+    wff_refine_start: float = 1.0
     wff_ltr_prob: float = 0.5
     wff_rtl_prob: float = 0.25
 
