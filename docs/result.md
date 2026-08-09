@@ -1,6 +1,6 @@
 # CCLF Major Experimental Results
 
-**Last updated:** 2026-08-09  
+**Last updated:** 2026-08-10
 **Purpose:** single source of truth for the major paper-facing experiments and
 the complete quality metrics produced by the formal evaluation runners.
 
@@ -72,8 +72,9 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Do other positions causally affect a target token? | GS13/18-B/EXP-67 | Yes on deterministic ELF rollout; correct position-content anchors stabilize unresolved positions. |
 | Is rollout simply a smooth approach to a fixed endpoint? | GS15/16/17/EXP-67 | No. The evidence is more consistent with context-dependent endpoint selection and late collapse. |
 | Does post-hoc asynchronous denoising work? | GS19, ELF + Plaid | No; all schedules damage timing and quality. |
-| Does native per-position-time fine-tuning rescue it? | EXP-60 | Not yet. A small baseline LTR interaction exists, but the local-time gate stays near zero and no sampler beats its own standard arm. |
-| Does Pipeline work? | EXP-61/64 | No under the native-noise protocol; the old gain is noise-scale specific. |
+| Does native per-position-time fine-tuning rescue it? | EXP-60/72 | No in the tested architectures. Deep injection preserves standard quality but still fails the functional clock-learning gate at step 500; the LTR interaction worsens. |
+| Does Pipeline work? | EXP-61/64/70 | No under native noise. Correct local clocks and final joint refinement do not rescue it; heterogeneous context, not average-clock aliasing, is the dominant error. |
+| Can synchronized soft leaders provide directional conditioning? | EXP-71 | Correct leader content matters, but repeated soft anchoring loses to ordinary compute-matched ODE-64 and has no LTR advantage. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69 | Clean positive result for deterministic ODE baseline/corrected checkpoints; ineffective or harmful under native SDE. |
 
@@ -265,6 +266,39 @@ The baseline pair contains a small LTR-specific adaptation signal, but no WFF
 sampler beats its own standard sampler and the gate remains effectively zero.
 Degeneration, word-count, unigram-collapse, and conditioned metrics were not
 computed by this runner.
+
+### 5.4 Deep Native Multi-Time ELF v2 (EXP-72)
+
+Protocol: matched 500-step Control and LTR-curriculum fine-tuning from ELF
+base; length 128, ODE-32, native noise 2, SC-CFG 3, `n=64`, seed 42. All wave
+samplers include a final synchronous refinement region. `MaxShare` is mean
+maximum word fraction and `Unique` is mean unique-word ratio.
+
+| Training | Sampler | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | U-collapse |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Control | Standard | 277.1 | .5000 | .8939 | .0107 | .000 | 77.0 | .0773 | .6870 | .000 |
+| Control | LTR d=.05 | 297.3 | .5020 | .8961 | .0118 | .031 | 77.4 | .0743 | .6941 | .000 |
+| Control | LTR d=.10 | 310.4 | .5005 | .8953 | .0109 | .016 | 76.8 | .0750 | .6988 | .000 |
+| Control | LTR d=.15 | 322.8 | .5119 | .8977 | .0104 | .016 | 76.4 | .0721 | .6976 | .000 |
+| Control | RTL d=.10 | 275.3 | .4999 | .8922 | .0129 | .016 | 76.8 | .0752 | .6815 | .000 |
+| Control | Random d=.10 | 297.7 | .5028 | .8936 | .0141 | .000 | 77.2 | .0761 | .6939 | .000 |
+| LTR-trained | Standard | 279.9 | .5005 | .8957 | .0141 | .000 | 77.3 | .0753 | .6898 | .000 |
+| LTR-trained | LTR d=.05 | 308.6 | .5010 | .8961 | .0109 | .016 | 77.2 | .0740 | .6930 | .000 |
+| LTR-trained | LTR d=.10 | 333.7 | .5057 | .8942 | .0105 | .016 | 76.8 | .0756 | .6958 | .000 |
+| LTR-trained | LTR d=.15 | 343.7 | .5195 | .9029 | .0093 | .016 | 76.5 | .0752 | .7036 | .000 |
+| LTR-trained | RTL d=.10 | 274.3 | .5012 | .8908 | .0169 | .016 | 76.7 | .0776 | .6790 | .000 |
+| LTR-trained | Random d=.10 | 290.1 | .4990 | .8930 | .0153 | .000 | 77.3 | .0774 | .6840 | .000 |
+
+| Training | Mean EMA local scale | `S_tau` LTR | `S_tau` RTL | LTR/RTL velocity cosine | LTR `.10` minus Standard |
+|---|---:|---:|---:|---:|---:|
+| Control | .01000 | 101.887 | 101.981 | 1.0000 | +33.3 |
+| LTR-trained | .01003 | 101.881 | 101.977 | 1.0000 | +53.8 |
+
+The causal interaction is `+20.5` PPL, opposite the intended direction. The
+clock diagnostics remain indistinguishable from Control, so this is a failed
+clock-learning gate rather than a clean learned-wave/exposure-bias result.
+Training stops at step 500. EXP-73 passed a one-step implementation smoke test
+but its formal arms are not launched because this prerequisite failed.
 
 ## 6. Inference methods and full quality panels
 
@@ -489,6 +523,87 @@ Every early native-SDE cell worsens unconditional and conditioned PPL. Late
 commitment is saturated and inert; early commitment leaves an unresolved set
 but damages coherence. The matched shuffled-anchor SDE audit was therefore
 stopped at the pre-registered quality gate.
+
+### 6.6 Pipeline clock/state factorization (EXP-70)
+
+Screen protocol: native ODE, length 128, `n=32`, seed 42. `E/C/K` denote ELF
+base, continued-training Control, and corrected Early-KD. The table includes
+every generated-quality field; `Calls` is denoiser calls per trajectory.
+
+| Model | Sampler | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | U-collapse | Calls |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| E | Standard | 296.5 | .5438 | .9026 | .0160 | .000 | 79.6 | .0748 | .6886 | .000 | 32 |
+| E | Shared clock | 1570.4 | .6650 | .9622 | .0045 | .000 | 87.9 | .0500 | .8273 | .000 | 31 |
+| E | True local clock | 1778.1 | .6647 | .9741 | .0004 | .000 | 84.3 | .0490 | .8461 | .000 | 256 |
+| E | Local + refine 4 | 1671.3 | .6704 | .9725 | .0004 | .000 | 84.1 | .0502 | .8352 | .000 | 196 |
+| E | Local + refine 8 | 1506.1 | .6702 | .9685 | .0017 | .000 | 83.5 | .0480 | .8397 | .000 | 136 |
+| E | Local RTL | 2035.1 | .6741 | .9730 | .0013 | .000 | 85.4 | .0415 | .8590 | .000 | 256 |
+| E | Local random | 3359.3 | .7103 | .9847 | .0000 | .000 | 89.1 | .0357 | .8716 | .000 | 256 |
+| C | Standard | 272.9 | .5396 | .9063 | .0187 | .031 | 82.0 | .0667 | .7037 | .000 | 32 |
+| C | Shared clock | 1279.3 | .6565 | .9612 | .0031 | .000 | 87.9 | .0512 | .8318 | .000 | 31 |
+| C | True local clock | 1641.0 | .6658 | .9697 | .0007 | .000 | 84.4 | .0492 | .8486 | .000 | 256 |
+| C | Local + refine 4 | 1591.1 | .6706 | .9717 | .0007 | .000 | 83.9 | .0480 | .8466 | .000 | 196 |
+| C | Local + refine 8 | 1469.1 | .6585 | .9714 | .0005 | .000 | 83.0 | .0500 | .8445 | .000 | 136 |
+| C | Local RTL | 1756.1 | .6709 | .9756 | .0007 | .000 | 85.7 | .0443 | .8558 | .000 | 256 |
+| C | Local random | 3272.8 | .7125 | .9843 | .0000 | .000 | 88.7 | .0341 | .8846 | .000 | 256 |
+| K | Standard | 209.7 | .5285 | .9107 | .0162 | .000 | 79.4 | .0762 | .6671 | .000 | 32 |
+| K | Shared clock | 1215.9 | .6549 | .9666 | .0023 | .000 | 87.0 | .0513 | .8221 | .000 | 31 |
+| K | True local clock | 1204.4 | .6290 | .9640 | .0013 | .000 | 85.2 | .0497 | .8230 | .000 | 256 |
+| K | Local + refine 4 | 1175.8 | .6256 | .9617 | .0032 | .000 | 84.1 | .0510 | .8198 | .000 | 196 |
+| K | Local + refine 8 | 1153.2 | .6282 | .9600 | .0026 | .000 | 84.6 | .0532 | .8223 | .000 | 136 |
+| K | Local RTL | 1464.4 | .6540 | .9740 | .0009 | .000 | 85.3 | .0467 | .8468 | .000 | 256 |
+| K | Local random | 2235.9 | .6887 | .9830 | .0000 | .000 | 85.6 | .0380 | .8653 | .000 | 256 |
+
+| Model | `E_clock` | `MSE_clock` | `E_state` | `MSE_state` | `E_x_clock` | `E_x_state` | `KL_clock` |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| E | .0497 | 1.9719 | .1998 | 2.9636 | .1584 | .4526 | 8.237 |
+| C | .0588 | 1.9840 | .1968 | 2.8173 | .1737 | .4632 | 8.568 |
+| K | .0585 | 1.7810 | .1812 | 2.7405 | .1717 | .4145 | 7.249 |
+
+True local clocks do not repair Pipeline, even with 4--8 synchronous final
+refinements and 4--8 times the standard compute. Mixed-state error is roughly
+three to four times clock error in cosine distance. This closes the discrete
+heterogeneous-state operator rather than motivating a schedule sweep.
+
+### 6.7 Synchronized soft-anchor Pipeline (EXP-71)
+
+Screen protocol matches EXP-70. Every soft arm uses 64 denoiser calls; the
+confidence arm adds 32 lexical readouts. `Leader` is mean selected fraction.
+
+| Model | Sampler | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | U-collapse | Leader |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| E | Standard-32 | 296.5 | .5438 | .9026 | .0160 | .000 | 79.6 | .0748 | .6886 | .000 | — |
+| E | Standard-64 | 107.5 | .4928 | .8439 | .0341 | .063 | 73.9 | .0896 | .6219 | .031 | — |
+| E | Two-forward none | 296.5 | .5438 | .9026 | .0160 | .000 | 79.6 | .0748 | .6886 | .000 | .000 |
+| E | Two-forward all | 127.7 | .4967 | .8498 | .0355 | .063 | 75.7 | .0878 | .6129 | .031 | 1.000 |
+| E | Soft LTR | 256.3 | .5391 | .8937 | .0177 | .000 | 80.4 | .0789 | .6773 | .000 | .546 |
+| E | Soft RTL | 253.9 | .5471 | .9042 | .0179 | .000 | 78.9 | .0796 | .6820 | .000 | .546 |
+| E | Soft random | 231.4 | .5356 | .8913 | .0213 | .000 | 79.5 | .0744 | .6813 | .000 | .546 |
+| E | Soft confidence | 233.9 | .5280 | .8920 | .0234 | .000 | 80.3 | .0798 | .6697 | .000 | .546 |
+| E | Soft shuffled | 1053.0 | .6836 | .9785 | .0003 | .031 | 89.6 | .0371 | .9099 | .000 | .546 |
+| C | Standard-32 | 272.9 | .5396 | .9063 | .0187 | .031 | 82.0 | .0667 | .7037 | .000 | — |
+| C | Standard-64 | 102.6 | .4845 | .8527 | .0414 | .063 | 80.6 | .0828 | .6158 | .000 | — |
+| C | Two-forward none | 272.9 | .5396 | .9063 | .0187 | .031 | 82.0 | .0667 | .7037 | .000 | .000 |
+| C | Two-forward all | 110.2 | .4920 | .8542 | .0382 | .063 | 79.7 | .0928 | .6129 | .000 | 1.000 |
+| C | Soft LTR | 245.4 | .5312 | .9000 | .0197 | .000 | 82.6 | .0662 | .6788 | .000 | .546 |
+| C | Soft RTL | 234.4 | .5404 | .9179 | .0148 | .031 | 82.1 | .0686 | .6912 | .000 | .546 |
+| C | Soft random | 251.3 | .5415 | .9028 | .0221 | .031 | 82.0 | .0702 | .6838 | .000 | .546 |
+| C | Soft confidence | 247.6 | .5369 | .9005 | .0219 | .000 | 81.7 | .0706 | .6808 | .000 | .546 |
+| C | Soft shuffled | 994.6 | .6624 | .9702 | .0007 | .000 | 88.1 | .0418 | .8807 | .000 | .546 |
+| K | Standard-32 | 209.7 | .5285 | .9107 | .0162 | .000 | 79.4 | .0762 | .6671 | .000 | — |
+| K | Standard-64 | 82.9 | .4699 | .8352 | .0421 | .094 | 77.4 | .0907 | .5813 | .031 | — |
+| K | Two-forward none | 209.7 | .5285 | .9107 | .0162 | .000 | 79.4 | .0762 | .6671 | .000 | .000 |
+| K | Two-forward all | 97.0 | .4834 | .8535 | .0359 | .063 | 75.4 | .0877 | .5984 | .031 | 1.000 |
+| K | Soft LTR | 206.8 | .5295 | .9077 | .0148 | .000 | 79.9 | .0793 | .6597 | .031 | .546 |
+| K | Soft RTL | 203.5 | .5187 | .9008 | .0190 | .031 | 79.4 | .0767 | .6658 | .000 | .546 |
+| K | Soft random | 187.6 | .5192 | .9022 | .0136 | .031 | 79.6 | .0795 | .6551 | .031 | .546 |
+| K | Soft confidence | 199.8 | .5202 | .9042 | .0198 | .000 | 79.0 | .0769 | .6538 | .000 | .546 |
+| K | Soft shuffled | 848.3 | .6317 | .9609 | .0003 | .000 | 87.3 | .0427 | .8826 | .000 | .546 |
+
+Shuffling fresh leader content is catastrophic across all checkpoints, which
+confirms a causal content effect. Yet no correct soft-leader arm approaches
+ordinary ODE-64 at the same denoiser-call budget, and LTR never beats both RTL
+and random. Retain this as mechanism evidence, not a decoding method.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

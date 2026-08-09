@@ -40,6 +40,9 @@ protocol should not be treated as active.
 | signed topic direction linearly adds lexical evidence | GS13 formal run was U-shaped; LangFlow was only one-sided significant | retain only axis-specific context effect |
 | GS15 negative chord excess proves late endpoint selection | curved transport can also remain below the chord | use GS15 descriptively; GS16--GS17 decide the mechanism |
 | synthetic D1/D3 fine-tuning is a viable method | EXP-51 showed D1 collapse and D3 partial degeneration | do not resume without real OWT data and a fresh training design |
+| Pipeline mainly fails because it queries a shared average clock | EXP-70 true-local-clock oracle is no better, while mixed-state error is 3--4x clock error | heterogeneous context is the dominant failure; do not sweep the discrete Pipeline schedule |
+| repeated synchronized soft prefix leadership is an efficient sampler | EXP-71 correct-content arms all lose to compute-matched ODE-64 and LTR never beats RTL/random | keep the shuffled-content contrast as mechanism evidence only |
+| current deep local-time injection learns a native wave | EXP-72 LTR/RTL velocity cosine remains 1.000 and the LTR interaction worsens by +20.5 PPL | stop at step 500; do not diagnose exposure bias or launch EXP-73 until a model first learns a functional local clock |
 
 ## 4. Low-value or appendix-only branches
 
@@ -70,4 +73,3 @@ Do not delete these from the record:
 
 The rule is: cite a negative result for the boundary it establishes, but do not
 rebrand the rejected hypothesis as an active mechanism.
-

@@ -16,10 +16,10 @@
 | **EXP-67** | **DONE (ODE mechanism only)** | Position-correct anchors accelerate and stabilize unresolved tokens; matched shuffled anchors reverse the effect and destroy coherence |
 | **EXP-68** | **DONE** | Native SDE keeps a tiny favorable unconditional sign but ODE gain nearly vanishes; conditioned PPL slightly worsens; frozen policy commits about 99% at first crossing |
 | **EXP-69** | **DONE / QUALITY GATE FAILED** | Native-SDE early commitment at 25%, 52%, and 78% anchor density worsens PPL; late commitment is nearly saturated and inert, so no shuffled-anchor mechanism run is warranted |
-| **EXP-70** | **ACTIVE / P0** | Factor current Pipeline into shared-clock error, mixed-state error, and missing joint refinement |
-| **EXP-71** | **ACTIVE / P0** | Test revisable directional soft anchors while all positions retain one synchronized global clock |
-| **EXP-72** | **CONDITIONAL / P1** | Train deep per-token time conditioning only after a recoverable clock or direction signal appears |
-| **EXP-73** | **CONDITIONAL / P2** | Final heterogeneous-clock rescue through teacher-wave and scheduled on-policy trajectory distillation |
+| **EXP-70** | **DONE / NEGATIVE** | True local clocks and final refinement fail; heterogeneous mixed context dominates Pipeline error |
+| **EXP-71** | **DONE / NEGATIVE** | Correct soft-anchor content matters, but loses to ODE-64 and shows no LTR advantage |
+| **EXP-72** | **DONE / STOPPED AT 500** | Deep injection preserves sync quality but fails the functional clock-learning gate |
+| **EXP-73** | **IMPLEMENTED / NOT LAUNCHED** | Runner smoke-tested; formal trajectory distillation gated off by EXP-72 failure |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
@@ -162,10 +162,10 @@ GS16 calibrated endpoint bank + specificity
 | **EXP-62** | **SUPERSEDED / NEGATIVE** | ELF baseline fine-tuning panel | matched noisy-head self-distillation windows | early window PPL 最低（159.5），但样本是 code-like fragmented pseudo-text；ODE-64 degeneration 9.8%；更关键的是 PyTorch teacher/gate/normalization 与原 JAX KD objective 不一致，不能回答 KD-window 因果问题；见 EXP-62-spec.md |
 | **EXP-63** | **DONE** | ELF baseline corrected fine-tuning control | clean-`x0`, `t=1` stop-gradient decoder teacher + smooth JAX gate versus matched continued training | Early-window KD 在两个训练 seed 上改善 unconditional ODE quality、`tau_first`、`tau_stable` 与 revisions；conditioned gain 不稳健；见 EXP-63-spec.md |
 | **EXP-64** | **DONE** | ELF base + Broad-KD + Commit-KD | 用统一 native recipe 补齐方法横向表：3 seeds、noise scale 2、SC-CFG 3、PPL/D1/D2/degeneration/conditioned ROUGE-L | **Hard Commit 在三 checkpoint 上均保留 PPL 与 conditioned-quality 信号**；Commit-KD 最干净，Broad-KD 有 D1/D2 与 unigram lock-in 代价；Pipeline 两 checkpoint 均失败，Two-pass 无性价比，local-clock 灾难性失败；见 EXP-64-spec.md |
-| **EXP-70** | **ACTIVE / P0** | ELF base + Control + Early-KD | Pipeline clock/state factorization：current shared clock vs per-block true-time oracle vs final synchronous refinement | 将现有失败拆成 target-clock aliasing、heterogeneous-context OOD 与 missing joint refinement；通过前不再扫 groups/schedule；见 EXP-70-spec.md |
-| **EXP-71** | **ACTIVE / P0** | ELF base + Control + Early-KD | Synchronous Soft-Anchor Pipeline：统一 global time 下，以 fresh prefix self-conditioning 引导 suffix，比较 LTR/RTL/random/confidence/shuffled-content 与 compute controls | 直接检验“前面给后面更好 condition”，避免 heterogeneous time；见 EXP-71-spec.md |
-| **EXP-72** | **CONDITIONAL / P1** | ELF base，Early-KD secondary | Native Multi-Time ELF v2：逐层 local-time conditioning、LTR curriculum、强制 clock-sensitivity gate | 只有 EXP-70/71 给出可恢复信号才启动；模型未真正使用 local time 时提前停止；见 EXP-72-spec.md |
-| **EXP-73** | **CONDITIONAL / P2** | best EXP-72 architecture | On-policy Wave Trajectory Distillation：teacher wave state、scheduled student rollout、final global refinement | 只处理“clock 已学到但 rollout OOD”这一剩余解释；负结果后关闭 heterogeneous-clock method；见 EXP-73-spec.md |
+| **EXP-70** | **DONE / NEGATIVE** | ELF base + Control + Early-KD | Pipeline clock/state factorization：current shared clock vs per-block true-time oracle vs final synchronous refinement | true-local oracle 和 refinement 均失败；mixed-state error 约为 clock error 的 3--4 倍；关闭离散 heterogeneous Pipeline；见 EXP-70-spec.md |
+| **EXP-71** | **DONE / NEGATIVE** | ELF base + Control + Early-KD | Synchronous Soft-Anchor Pipeline：统一 global time 下，以 fresh prefix self-conditioning 引导 suffix，比较 LTR/RTL/random/confidence/shuffled-content 与 compute controls | shuffled content 灾难性，证明内容因果作用；但所有正确 anchor 均输给 ODE-64 且无 LTR 优势；见 EXP-71-spec.md |
+| **EXP-72** | **DONE / STOPPED AT 500** | ELF base | Native Multi-Time ELF v2：逐层 local-time conditioning、LTR curriculum、强制 clock-sensitivity gate | 同步质量保持，但 EMA clock response 与 control 无区别，LTR interaction +20.5 PPL；按 gate 停止；见 EXP-72-spec.md |
+| **EXP-73** | **IMPLEMENTED / NOT LAUNCHED** | EXP-72 smoke checkpoint | On-policy Wave Trajectory Distillation：teacher wave state、scheduled student rollout、final global refinement | 一步 smoke 通过；因 EXP-72 未学到方向性 clock，正式训练无法隔离 exposure bias，故未启动；见 EXP-73-spec.md |
 | EXP-22 | DONE⚠️ | LangFlow | LangFlow 每位置承诺时序（EXP-16 对应） | t<0.80 几乎无位置承诺（模型内有效）；⚠️ 所有 ELF–LangFlow nominal-t 比较无效（EXP-03 已证 log-SNR 不可比）；"LangFlow 比 ELF 晚 0.63t"必须从论文删除；H<1 nat 阈值跨模型不可比；committed_wrong 低是选择效应 |
 | EXP-24 | DONE⚠️ | LangFlow | LangFlow 轨迹稳定性（EXP-14 对应） | LangFlow mean_last_flip=8.3/32（26%）vs ELF baseline 21.2/32（66%，EXP-14v2）；⚠️ 原对比表使用旧版 EXP-14 无效数字（83.4%→正确值 67.6%）；argmax stability≠commitment；LangFlow 可能有 self-conditioning；缺少 entropy/margin 分析 |
 

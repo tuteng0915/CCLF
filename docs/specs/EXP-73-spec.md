@@ -1,6 +1,6 @@
 # EXP-73 Spec — On-Policy Wave Trajectory Distillation
 
-**Status:** CONDITIONAL / P2  
+**Status:** IMPLEMENTED / NOT LAUNCHED (EXP-72 prerequisite failed)
 **Launch condition:** EXP-72 proves that the model uses per-token clocks, but
 heterogeneous sampling still has a substantial quality gap.  
 **Planned script:** `models/ELF-torch/experiments/probe_elf/train_wave_distill_exp73.py`  
@@ -109,3 +109,12 @@ shared degeneration and qualitative gates.
 EXP-73 is the final planned rescue of heterogeneous clocks. A negative result
 should redirect method work to EXP-71-style synchronized information flow,
 not to a broader schedule sweep.
+
+## Gate outcome (2026-08-10)
+
+The Stage-0 runner passed a one-step server smoke test (`loss=.01498`, finite
+gradient norm `.1979`) and is ready if a future model passes the clock-learning
+gate. The formal teacher-wave and on-policy arms were not launched: EXP-72 did
+not learn a direction-sensitive local clock, so exposure bias is not yet the
+identified remaining failure. Running trajectory distillation now would
+confound architecture learning with the stated EXP-73 question.

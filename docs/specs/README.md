@@ -34,10 +34,10 @@ conditioning idea. The current method queue is:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [EXP-70](EXP-70-spec.md) | **ACTIVE / P0** | Does target-clock aliasing, heterogeneous context, or missing joint refinement dominate current Pipeline failure? | do not sweep schedules if the true-local-time oracle cannot repair the operator |
-| [EXP-71](EXP-71-spec.md) | **ACTIVE / P0** | Can a revisable prefix help the suffix while every position stays at the same global time? | stop if position-correct soft anchors cannot beat compute and shuffled-content controls |
-| [EXP-72](EXP-72-spec.md) | **CONDITIONAL / P1** | Can a model with deep, verified per-token time conditioning learn a native wave? | stop at step 500 if the model still ignores local time; reject any arm that damages synchronous quality |
-| [EXP-73](EXP-73-spec.md) | **CONDITIONAL / P2** | If the clock is learned, can on-policy trajectory distillation close the remaining rollout gap? | final planned rescue; stop heterogeneous clocks if it fails compute-matched synchronous decoding |
+| [EXP-70](EXP-70-spec.md) | **DONE / NEGATIVE** | Does target-clock aliasing, heterogeneous context, or missing joint refinement dominate current Pipeline failure? | mixed-state error dominates; true local clocks and refinement do not rescue it |
+| [EXP-71](EXP-71-spec.md) | **DONE / NEGATIVE** | Can a revisable prefix help the suffix while every position stays at the same global time? | correct content matters, but every soft arm loses to compute-matched ODE-64; no LTR advantage |
+| [EXP-72](EXP-72-spec.md) | **DONE / STOPPED AT 500** | Can a model with deep, verified per-token time conditioning learn a native wave? | functional local-clock gate failed and LTR interaction worsened |
+| [EXP-73](EXP-73-spec.md) | **IMPLEMENTED / NOT LAUNCHED** | If the clock is learned, can on-policy trajectory distillation close the remaining rollout gap? | runner smoke-tested; EXP-72 prerequisite failed, so formal training would not isolate exposure bias |
 
 Completed decision:
 
@@ -54,10 +54,11 @@ Conditional after the active experiments:
 |---|---|---|
 | GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
-Recommended order: `EXP-70 and EXP-71 screens -> EXP-72 only if a recoverable
-clock/direction signal exists -> EXP-73 only if EXP-72 learns the clock but
-retains an on-policy gap`. Cross-architecture and length-1024 promotion follow
-only after a method passes the native length-128 quality gate.
+The queue completed at its pre-registered gates: `EXP-70/71 negative ->
+EXP-72 stopped at 500 -> EXP-73 implementation smoke only`. None of these
+Pipeline variants passes the native length-128 promotion gate. Do not launch a
+broader clock/schedule sweep without a new mechanism that first demonstrates a
+functional direction-sensitive local-time response.
 
 ## Evidence already supporting the paper
 

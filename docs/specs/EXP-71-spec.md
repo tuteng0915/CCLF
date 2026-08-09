@@ -1,6 +1,6 @@
 # EXP-71 Spec — Synchronous Soft-Anchor Pipeline
 
-**Status:** ACTIVE / P0  
+**Status:** DONE / NEGATIVE (screen, seed 42)
 **Model:** ELF base, continued-training Control, corrected Early-KD  
 **Planned script:** `models/ELF-torch/experiments/probe_elf/soft_anchor_pipeline_exp71.py`  
 **Purpose:** test the core “prefix provides better conditions for the suffix”
@@ -99,3 +99,18 @@ wall-clock latency separately from quality.
 
 If positive, the next implementation should distill the two-forward update
 into a single pass; do not claim efficiency from this diagnostic version.
+
+## Result (2026-08-10)
+
+Correct leader content matters causally, but repeated soft anchoring is not a
+competitive sampler. On ELF base, shuffled leader content raises PPL to
+`1053.0`, while position-correct LTR/RTL/random/confidence arms lie at
+`256.3/253.9/231.4/233.9`. However, ordinary compute-matched ODE-64 reaches
+`107.5`. Control and Early-KD replicate the same ordering: the best soft arm
+has PPL `234.4` and `187.6`, versus ODE-64 at `102.6` and `82.9`.
+
+LTR does not beat RTL or random in any checkpoint. The supported conclusion
+is therefore “correct contextual content is important,” not “a left-to-right
+soft leader improves decoding.” The one-shot EXP-67 intervention does not
+compose into this repeated two-forward sampler. Raw results are under
+`results/exp71_soft_anchor_pipeline/`.

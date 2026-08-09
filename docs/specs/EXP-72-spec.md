@@ -1,6 +1,6 @@
 # EXP-72 Spec — Native Multi-Time ELF v2
 
-**Status:** CONDITIONAL / P1  
+**Status:** DONE / STOPPED AT STEP 500 (clock-learning gate failed)
 **Launch condition:** EXP-70 shows that correct local clocks materially repair
 the current Pipeline, or EXP-71 supports a directional leader effect that is
 worth expressing through a learned clock.  
@@ -119,3 +119,25 @@ never inferred from ODE performance.
   blindly.
 - **Synchronous quality loss:** reject the architecture regardless of its LTR
   numbers.
+
+## Result (2026-08-10)
+
+Both matched arms completed 500 steps. The architecture preserved synchronous
+quality (`277.1` Control, `279.9` LTR-trained), and the live LTR-training scale
+received nonzero gradients. The EMA checkpoint nevertheless remained almost
+at initialization: mean local scale `0.01000` for Control and `0.01003` for
+LTR-trained. More importantly, the functional clock diagnostics were
+indistinguishable:
+
+| Training | `S_tau` LTR | `S_tau` RTL | LTR/RTL velocity cosine |
+|---|---:|---:|---:|
+| Sync Control | 101.887 | 101.981 | 1.0000 |
+| LTR curriculum | 101.881 | 101.977 | 1.0000 |
+
+The sampler interaction is unfavorable. At `Delta=.10`, LTR costs `+33.3`
+PPL over standard for Control and `+53.8` for LTR-trained, an interaction of
+`+20.5` PPL. Increasing `Delta` worsens the LTR-trained arm to `343.7`; its RTL
+control is instead `274.3`. This is an unused/local-clock architecture failure,
+not evidence that a learned wave has exposure bias. Stop at 500 steps and do
+not promote to 2,000 steps. Raw results are under
+`results/exp72_multitime_v2/`.

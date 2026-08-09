@@ -1,6 +1,6 @@
 # EXP-70 Spec — Pipeline Clock and Mixed-State Factorization
 
-**Status:** ACTIVE / P0  
+**Status:** DONE / NEGATIVE (screen, seed 42)
 **Model:** ELF base, continued-training Control, corrected Early-KD  
 **Solver:** deterministic ODE, native noise scale 2, SC-CFG 3  
 **Planned script:** `models/ELF-torch/experiments/probe_elf/pipeline_factorization_exp70.py`  
@@ -116,3 +116,25 @@ PPL alone cannot promote an arm.
 EXP-70 supersedes parameter sweeps of the existing `pipeline_avg`. Do not sweep
 `T`, length, or schedules until this factorization identifies a recoverable
 operator.
+
+## Result (2026-08-10)
+
+The screen closed the discrete heterogeneous-state Pipeline. Correcting the
+queried clock did not repair generation: for ELF base, PPL changed from
+`1570.4` (shared clock) to `1778.1` (true local clock), versus `296.5` for
+synchronous ODE-32. Eight final synchronous refinements helped only to
+`1506.1`. The same failure replicated for Control (`272.9 -> 1469.1`) and
+Early-KD (`209.7 -> 1153.2`), where each pair is synchronous versus the best
+refined local Pipeline arm.
+
+The decomposition identifies heterogeneous context as the larger error:
+
+| Checkpoint | `E_clock` | `E_state` | `E_x_clock` | `E_x_state` | `KL_clock` |
+|---|---:|---:|---:|---:|---:|
+| ELF base | .0497 | .1998 | .1584 | .4526 | 8.237 |
+| Control | .0588 | .1968 | .1737 | .4632 | 8.568 |
+| Early-KD | .0585 | .1812 | .1717 | .4145 | 7.249 |
+
+LTR is structured relative to RTL/random, but remains catastrophic; this is
+not a positive linguistic-direction result. Do not promote or sweep this
+operator. Raw results are under `results/exp70_pipeline_factorization/`.
