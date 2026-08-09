@@ -57,13 +57,15 @@ and 2,000-step budget.
 Do not begin with a direction mixture. Decoder rows remain at time one and do
 not count as heterogeneous denoiser training examples.
 
-Use the smooth endpoint-preserving clock
+Use the smooth endpoint-preserving clock with `s_r=.875` for ODE-32:
 
 ```text
-tau_i(s) = clip(s + Delta sin(pi s) (1 - 2q_i), 0, 1),
+e(s) = sin(pi * min(s/s_r, 1))
+tau_i(s) = clip(s + Delta e(s) (1 - 2q_i), 0, 1).
 ```
 
-with a final four-step synchronous refinement region.
+The offset is exactly zero from `s_r` onward, giving a genuine final four-step
+synchronous refinement region. Require `Delta <= s_r/pi` for monotonic clocks.
 
 ## Mandatory learning gates
 
