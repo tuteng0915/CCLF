@@ -27,13 +27,17 @@ from one historical script.
 
 ## Current active queue
 
-GS16--GS20 are completed at pilot or formal scale. EXP-61 closed the historical
-Pipeline claim, and EXP-60's paired pilot did not support native Wavefront
-training. The remaining active queue is:
+GS16--GS20 and the corrected temporal-KD panel are complete. EXP-61 closed the
+historical `pipeline_avg` claim, but it did not determine whether the failure
+came from the shared clock, heterogeneous context, or the broader directional-
+conditioning idea. The current method queue is:
 
 | package | status | question | stop condition |
 |---|---|---|---|
-| [EXP-63](EXP-63-spec.md) | **READY / P0** | Does the original clean-teacher JAX KD objective differ from ordinary continued-training drift? | matched corrected control/full-KD must pass qualitative generation before any temporal windows are reopened |
+| [EXP-70](EXP-70-spec.md) | **ACTIVE / P0** | Does target-clock aliasing, heterogeneous context, or missing joint refinement dominate current Pipeline failure? | do not sweep schedules if the true-local-time oracle cannot repair the operator |
+| [EXP-71](EXP-71-spec.md) | **ACTIVE / P0** | Can a revisable prefix help the suffix while every position stays at the same global time? | stop if position-correct soft anchors cannot beat compute and shuffled-content controls |
+| [EXP-72](EXP-72-spec.md) | **CONDITIONAL / P1** | Can a model with deep, verified per-token time conditioning learn a native wave? | stop at step 500 if the model still ignores local time; reject any arm that damages synchronous quality |
+| [EXP-73](EXP-73-spec.md) | **CONDITIONAL / P2** | If the clock is learned, can on-policy trajectory distillation close the remaining rollout gap? | final planned rescue; stop heterogeneous clocks if it fails compute-matched synchronous decoding |
 
 Completed decision:
 
@@ -42,6 +46,7 @@ Completed decision:
 | [EXP-61](EXP-61-spec.md) | **DONE / NEGATIVE** | Pipeline improves legacy noise-scale-1 ODE but worsens native-noise ODE by +197 PPL at n=256; do not promote the current sampler |
 | [EXP-60](EXP-60-spec.md) | **DONE / NEGATIVE** | WFF training worsens both LTR sampler interactions and standard ODE quality; the local-time gate remains near zero |
 | [EXP-62](EXP-62-spec.md) | **SUPERSEDED / NEGATIVE** | noisy-head self-distillation lowers PPL but produces fragmented pseudo-text; implementation does not match the original clean-teacher JAX KD objective |
+| [EXP-63](EXP-63-spec.md) | **DONE** | corrected clean-teacher Early-KD improves unconditional ODE quality and commitment timing in two training seeds; conditioned gains are not robust |
 
 Conditional after the active experiments:
 
@@ -49,7 +54,10 @@ Conditional after the active experiments:
 |---|---|---|
 | GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
-Recommended order: `corrected EXP-63 clean-teacher control -> temporal windows only if qualitative quality survives -> cross-architecture formalization only if required`.
+Recommended order: `EXP-70 and EXP-71 screens -> EXP-72 only if a recoverable
+clock/direction signal exists -> EXP-73 only if EXP-72 learns the clock but
+retains an on-policy gap`. Cross-architecture and length-1024 promotion follow
+only after a method passes the native length-128 quality gate.
 
 ## Evidence already supporting the paper
 
