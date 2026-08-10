@@ -40,7 +40,10 @@ ARMS = (
     "trigger_two",
     "trigger_stable",
     "trigger_shuffled",
+    "hard_t30",
     "hard_persistent",
+    "hard_highconf",
+    "hard_stable",
 )
 OUT_DIR = Path("results/exp74_triggered_anchor")
 
@@ -119,20 +122,23 @@ def triggered_ode(z0, model, grid, sccfg, arm, args):
             t_next = grid[index + 1].item()
             trigger_now = (
                 (arm == "trigger_t30" and index == index30)
-                or (arm in ("trigger_t40", "hard_persistent") and index == index40)
+                or (arm == "hard_t30" and index == index30)
+                or (arm in ("trigger_t40", "hard_persistent", "hard_highconf") and index == index40)
                 or (arm in ("trigger_two", "trigger_shuffled") and index in (index30, index40))
-                or (arm == "trigger_stable" and index in (index30, index40))
+                or (arm in ("trigger_stable", "hard_stable") and index in (index30, index40))
             )
             if trigger_now:
                 token_ids, confidence = lexical_readout(x_pred, model)
                 readout_calls += 1
                 selected = confidence >= args.confidence
-                if arm == "trigger_stable":
+                if arm in ("trigger_stable", "hard_stable"):
                     if index == index30:
                         previous_ids = token_ids
                         selected = torch.zeros_like(selected)
                     else:
                         selected = selected & (token_ids == previous_ids)
+                if arm == "hard_highconf":
+                    selected = confidence >= max(args.confidence, 0.90)
                 if selected.any():
                     fresh = x_pred
                     if arm == "trigger_shuffled":
@@ -143,7 +149,7 @@ def triggered_ode(z0, model, grid, sccfg, arm, args):
                         )
                     anchor_value = torch.where(selected.unsqueeze(-1), fresh, anchor_value)
                     anchor_mask = anchor_mask | selected
-                    if arm == "hard_persistent":
+                    if arm.startswith("hard_") or arm == "hard_persistent":
                         expiry = torch.where(
                             selected, torch.full_like(expiry, grid.shape[0] + 1), expiry
                         )
@@ -161,7 +167,7 @@ def triggered_ode(z0, model, grid, sccfg, arm, args):
                 )
 
             active = anchor_mask & (index < expiry)
-            if arm == "hard_persistent":
+            if arm.startswith("hard_") or arm == "hard_persistent":
                 active_cond = active.to(z.dtype)
                 z = restore_cond(z, anchor_value, active_cond)
                 x_pred = restore_cond(x_pred, anchor_value, active_cond)
