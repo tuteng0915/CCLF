@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-08（EXP-62 objective mismatch + metric gaming；EXP-63 corrected JAX-aligned KD READY/P0；86 个实验）
+**更新时间**: 2026-08-10（EXP-74--77 Pipeline follow-up complete；90 个实验）
 
 ---
 
@@ -20,6 +20,10 @@
 | **EXP-71** | **DONE / NEGATIVE** | Correct soft-anchor content matters, but loses to ODE-64 and shows no LTR advantage |
 | **EXP-72** | **DONE / STOPPED AT 500** | Deep injection preserves sync quality but fails the functional clock-learning gate |
 | **EXP-73** | **IMPLEMENTED / NOT LAUNCHED** | Runner smoke-tested; formal trajectory distillation gated off by EXP-72 failure |
+| **EXP-74** | **DONE / HARD-ONLY POSITIVE** | Sparse soft memory fails, but one post-transition persistent hard anchor improves all three checkpoints and survives density controls |
+| **EXP-75** | **DONE / NEGATIVE** | Predicted-clean context lowers Pipeline PPL partially but does not reduce vector error or restore coherent generation |
+| **EXP-76** | **DONE / PARTIAL PASS** | Frozen adapters learn a functional local clock without damaging Standard generation; wave quality remains poor |
+| **EXP-77** | **DONE / NEGATIVE** | Asynchronous block-transition distillation retains Standard quality but all fill/drain samplers remain catastrophic |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
@@ -166,6 +170,10 @@ GS16 calibrated endpoint bank + specificity
 | **EXP-71** | **DONE / NEGATIVE** | ELF base + Control + Early-KD | Synchronous Soft-Anchor Pipeline：统一 global time 下，以 fresh prefix self-conditioning 引导 suffix，比较 LTR/RTL/random/confidence/shuffled-content 与 compute controls | shuffled content 灾难性，证明内容因果作用；但所有正确 anchor 均输给 ODE-64 且无 LTR 优势；见 EXP-71-spec.md |
 | **EXP-72** | **DONE / STOPPED AT 500** | ELF base | Native Multi-Time ELF v2：逐层 local-time conditioning、LTR curriculum、强制 clock-sensitivity gate | 同步质量保持，但 EMA clock response 与 control 无区别，LTR interaction +20.5 PPL；按 gate 停止；见 EXP-72-spec.md |
 | **EXP-73** | **IMPLEMENTED / NOT LAUNCHED** | EXP-72 smoke checkpoint | On-policy Wave Trajectory Distillation：teacher wave state、scheduled student rollout、final global refinement | 一步 smoke 通过；因 EXP-72 未学到方向性 clock，正式训练无法隔离 exposure bias，故未启动；见 EXP-73-spec.md |
+| **EXP-74** | **DONE / HARD-ONLY POSITIVE** | ELF base + Control + Early-KD | Event-Triggered Anchoring：transition window 中一次性 soft memory 与 persistent hard condition，并做时间/置信度/稳定性密度控制 | soft memory 无效；hard `.90` 在三个 checkpoint 上将 PPL `278.7/276.4/199.8 -> 205.3/215.8/169.3`，stable 60--64% density 仍保留正号；见 EXP-74-spec.md |
+| **EXP-75** | **DONE / NEGATIVE** | ELF base + Control + Early-KD | Canonical-Context Wave：target block 保留 latent，其他位置以 predicted-clean state 作为 context | 相比 raw Pipeline 仅部分降低 PPL，但 vector error 不降反升且仍为 word salad；不实现完整 Q/K/V 架构；见 EXP-75-spec.md |
+| **EXP-76** | **DONE / PARTIAL PASS** | ELF base frozen backbone | Clock-Adapter Bootstrap：冻结 backbone，仅训练逐层 local-time adapter 拟合 teacher wave velocity | held-out MSE 降约 46%，Standard PPL 保持 265.2，clock sensitivity 增强；wave PPL 仍恶化；仅允许 EXP-77 bounded Stage 0；见 EXP-76-spec.md |
+| **EXP-77** | **DONE / NEGATIVE** | EXP-76 bootstrap | Asynchronous Block Transition Distillation：在 staggered sequence 内监督一个 active block 的下一 local transition，比较 sync/off-policy/on-policy/RTL | Standard PPL 健康，但所有 31-call fill/drain sampler PPL `3400--3900`，无 LTR advantage；局部 transition 不可组合；见 EXP-77-spec.md |
 | EXP-22 | DONE⚠️ | LangFlow | LangFlow 每位置承诺时序（EXP-16 对应） | t<0.80 几乎无位置承诺（模型内有效）；⚠️ 所有 ELF–LangFlow nominal-t 比较无效（EXP-03 已证 log-SNR 不可比）；"LangFlow 比 ELF 晚 0.63t"必须从论文删除；H<1 nat 阈值跨模型不可比；committed_wrong 低是选择效应 |
 | EXP-24 | DONE⚠️ | LangFlow | LangFlow 轨迹稳定性（EXP-14 对应） | LangFlow mean_last_flip=8.3/32（26%）vs ELF baseline 21.2/32（66%，EXP-14v2）；⚠️ 原对比表使用旧版 EXP-14 无效数字（83.4%→正确值 67.6%）；argmax stability≠commitment；LangFlow 可能有 self-conditioning；缺少 entropy/margin 分析 |
 

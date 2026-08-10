@@ -1,6 +1,6 @@
 # EXP-75 Spec — Canonical-Context Wave
 
-**Status:** ACTIVE / P0
+**Status:** DONE / NEGATIVE DIAGNOSTIC (screen, seed 42)
 **Model:** ELF base, continued-training Control, corrected Early-KD
 **Purpose:** test whether heterogeneous Pipeline fails because attention mixes
 raw states expressed at incompatible noise levels.
@@ -68,3 +68,19 @@ attention blocks; do not claim efficiency from the per-block oracle.
 - **Negative:** canonical context does not reduce state error or quality gap.
   Mixed-state failure is not fixed by coordinate normalization alone.
 
+## Result (2026-08-10)
+
+Canonical replacement lowers PPL relative to the raw local Pipeline but does
+not approach synchronous quality and does not repair the vector field.
+
+| Checkpoint | Standard | Raw local | Canonical LTR | Canonical + refine 8 | Canonical RTL | Shuffled |
+|---|---:|---:|---:|---:|---:|---:|
+| ELF base | 296.5 | 1778.1 | 1418.8 | 1350.9 | 1098.9 | 2348.8 |
+| Control | 272.9 | 1641.0 | 1230.5 | 1316.9 | 1127.0 | 2341.1 |
+| Early-KD | 209.7 | 1204.4 | 950.9 | 912.9 | 627.9 | 1441.5 |
+
+`E_canonical` is `.2051/.1988/.1906` versus raw `.1993/.1922/.1794`; MSE is
+also unchanged or worse. Canonical LTR degeneration is `.062/.031/.125`.
+Correct predicted-clean context contains useful information because shuffling
+it is worse, but simple input replacement is not a shared dynamical coordinate
+system. Do not build the full Q/K/V architecture from this diagnostic.

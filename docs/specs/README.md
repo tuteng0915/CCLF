@@ -27,10 +27,9 @@ from one historical script.
 
 ## Current active queue
 
-GS16--GS20 and the corrected temporal-KD panel are complete. EXP-61 closed the
-historical `pipeline_avg` claim, but it did not determine whether the failure
-came from the shared clock, heterogeneous context, or the broader directional-
-conditioning idea. The current method queue is:
+GS16--GS20 and the corrected temporal-KD panel are complete. The Pipeline
+factorization and its four targeted follow-ups are also complete. The current
+method ledger is:
 
 | package | status | question | stop condition |
 |---|---|---|---|
@@ -38,6 +37,10 @@ conditioning idea. The current method queue is:
 | [EXP-71](EXP-71-spec.md) | **DONE / NEGATIVE** | Can a revisable prefix help the suffix while every position stays at the same global time? | correct content matters, but every soft arm loses to compute-matched ODE-64; no LTR advantage |
 | [EXP-72](EXP-72-spec.md) | **DONE / STOPPED AT 500** | Can a model with deep, verified per-token time conditioning learn a native wave? | functional local-clock gate failed and LTR interaction worsened |
 | [EXP-73](EXP-73-spec.md) | **IMPLEMENTED / NOT LAUNCHED** | If the clock is learned, can on-policy trajectory distillation close the remaining rollout gap? | runner smoke-tested; EXP-72 prerequisite failed, so formal training would not isolate exposure bias |
+| [EXP-74](EXP-74-spec.md) | **DONE / HARD-ONLY POSITIVE** | Can sparse event-triggered anchoring retain the EXP-67 causal benefit? | soft expiry fails; one persistent hard anchor improves all three checkpoints and density controls |
+| [EXP-75](EXP-75-spec.md) | **DONE / NEGATIVE** | Can predicted-clean context canonicalize heterogeneous attention? | PPL partly improves, but vector error and incoherence remain |
+| [EXP-76](EXP-76-spec.md) | **DONE / PARTIAL PASS** | Can freezing the backbone force a functional local clock? | yes partially without Standard-quality loss; wave quality remains negative |
+| [EXP-77](EXP-77-spec.md) | **DONE / NEGATIVE** | Does block-local asynchronous transition distillation work once the clock is functional? | all block samplers remain at PPL `3400--3900`; stop at Stage 0 |
 
 Completed decision:
 
@@ -54,11 +57,12 @@ Conditional after the active experiments:
 |---|---|---|
 | GS16/17 cross-architecture formalization | **DEFERRED / P2** | recalibrated endpoint-bank timing on a second architecture if the mechanism paper needs a general claim |
 
-The queue completed at its pre-registered gates: `EXP-70/71 negative ->
-EXP-72 stopped at 500 -> EXP-73 implementation smoke only`. None of these
-Pipeline variants passes the native length-128 promotion gate. Do not launch a
-broader clock/schedule sweep without a new mechanism that first demonstrates a
-functional direction-sensitive local-time response.
+The asynchronous queue completed at its gates: mixed-state factorization and
+canonical context are negative; adapter bootstrapping learns a clock, but
+block-local transition distillation still does not compose. Do not launch a
+broader clock/schedule sweep in the current architecture. The only new positive
+method signal is EXP-74 persistent post-transition anchoring, which should next
+receive multi-seed, conditioned, and native-SDE fidelity tests.
 
 ## Evidence already supporting the paper
 

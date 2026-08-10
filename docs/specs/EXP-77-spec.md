@@ -1,6 +1,6 @@
 # EXP-77 Spec — Asynchronous Block Transition Distillation
 
-**Status:** CONDITIONAL / P2
+**Status:** DONE / NEGATIVE (Stage 0, seed 42)
 **Launch condition:** EXP-76 produces a held-out, direction-sensitive clock
 adapter; canonical context from EXP-75 is used if it passes its vector gate.
 **Purpose:** train the actual staggered block transition, rather than applying
@@ -76,3 +76,26 @@ complete quality/timing panel. Add:
 - **Negative:** a verified clock and block-local supervision still cannot beat
   compute-matched synchronous decoding. Close the asynchronous method line.
 
+## Result (2026-08-10)
+
+All four 200-step arms retain healthy synchronous generation but fail under the
+31-call fill/drain block sampler.
+
+| Training arm | Standard-32 | Standard-64 | Block LTR | Block RTL | Block random | Clock cosine |
+|---|---:|---:|---:|---:|---:|---:|
+| Sync transition control | 288.0 | 109.2 | 3849.9 | 3431.9 | 3515.0 | .9907 |
+| Off-policy LTR | 282.9 | 107.4 | 3911.8 | 3528.0 | 3398.5 | .9906 |
+| Scheduled on-policy LTR | 287.2 | 99.8 | **3658.0** | 3477.3 | 3435.6 | .9906 |
+| Off-policy RTL | 272.9 | 106.7 | 3886.6 | 3566.9 | 3420.3 | .9905 |
+
+Entries are PPL on paired `n=64` generations. Block outputs have D2 near
+`.991--.996` and zero Rep-4 because they are incoherent high-diversity word
+salad, not because diversity improves. Scheduled on-policy training gives only
+a small relative LTR repair and no LTR ordering advantage; RTL/random remain
+better in most comparisons.
+
+The clock response survives training and Standard quality is healthy, so the
+failure is not an unused-clock or catastrophic-forgetting explanation. A
+learnable isolated block transition does not compose into a coherent parallel
+fill/drain rollout. Stop at Stage 0 and close the current asynchronous block
+method line.

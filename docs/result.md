@@ -75,6 +75,10 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Does native per-position-time fine-tuning rescue it? | EXP-60/72 | No in the tested architectures. Deep injection preserves standard quality but still fails the functional clock-learning gate at step 500; the LTR interaction worsens. |
 | Does Pipeline work? | EXP-61/64/70 | No under native noise. Correct local clocks and final joint refinement do not rescue it; heterogeneous context, not average-clock aliasing, is the dominant error. |
 | Can synchronized soft leaders provide directional conditioning? | EXP-71 | Correct leader content matters, but repeated soft anchoring loses to ordinary compute-matched ODE-64 and has no LTR advantage. |
+| Can sparse triggered anchoring turn the causal anchor effect into a method? | EXP-74 | Soft expiry does not work, but one persistent post-transition hard anchor improves all three checkpoints; high-confidence and stable-density controls retain the sign. |
+| Can predicted-clean context repair heterogeneous attention? | EXP-75 | Only partially in PPL; vector error is unchanged/worse and generation remains catastrophic. Simple canonical input replacement is rejected. |
+| Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
+| Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69 | Clean positive result for deterministic ODE baseline/corrected checkpoints; ineffective or harmful under native SDE. |
 
@@ -299,6 +303,42 @@ clock diagnostics remain indistinguishable from Control, so this is a failed
 clock-learning gate rather than a clean learned-wave/exposure-bias result.
 Training stops at step 500. EXP-73 passed a one-step implementation smoke test
 but its formal arms are not launched because this prerequisite failed.
+
+### 5.5 Frozen Clock-Adapter Bootstrapping (EXP-76)
+
+The backbone is frozen and only twelve layerwise local-time projections/scales
+are trained against held-out teacher-wave velocity fields.
+
+| Stage | Mean held-out velocity MSE | Fixed-state LTR/RTL cosine | Clock delta | Mean scale | Standard PPL | LTR `.10` | RTL `.10` |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Frozen initialization | .05037 | .97365 | .5276 | .0100 | — | — | — |
+| 200 steps | .02849 | .96485 | .6025 | .0637 | 265.2 | 319.0 | 330.5 |
+| 500 cumulative steps | .02733 | .96349 | .6133 | .0824 | 265.2 | 329.0 | 385.0 |
+
+The separate generation evaluator measures `S_tau=115.0/118.8` and velocity
+cosine `.9922/.9911` at 200/500 steps, versus about `101.9` and `1.000` in
+EXP-72. Optimization was therefore a real part of the unused-clock problem.
+However, stronger clock response does not yield better wave generation.
+
+### 5.6 Asynchronous Block Transition Distillation (EXP-77)
+
+All arms start from the 500-step bootstrapped adapter and train for 200 steps.
+Unlike synchronous consistency distillation, one active block is supervised at
+its own local time inside a staggered sequence. The inference sampler uses 31
+fill/drain calls plus eight of those calls as a final synchronized region.
+
+| Training | Standard-32 | Standard-64 | Block LTR | Block RTL | Block random | LTR/RTL cosine |
+|---|---:|---:|---:|---:|---:|---:|
+| Sync transition | 288.0 | 109.2 | 3849.9 | 3431.9 | 3515.0 | .9907 |
+| Off-policy LTR | 282.9 | 107.4 | 3911.8 | 3528.0 | 3398.5 | .9906 |
+| On-policy LTR | 287.2 | 99.8 | 3658.0 | 3477.3 | 3435.6 | .9906 |
+| Off-policy RTL | 272.9 | 106.7 | 3886.6 | 3566.9 | 3420.3 | .9905 |
+
+PPL is paired at `n=64`, seed 42. Block outputs have D2 `.991--.996`, Rep-4
+near zero, and PPL in the thousands: these are diverse incoherent outputs.
+On-policy exposure repair is far too small and there is no LTR advantage.
+Because the clock is functional and Standard quality is retained, the result
+specifically rejects composition of the tested block-local transition method.
 
 ## 6. Inference methods and full quality panels
 
@@ -604,6 +644,57 @@ Shuffling fresh leader content is catastrophic across all checkpoints, which
 confirms a causal content effect. Yet no correct soft-leader arm approaches
 ordinary ODE-64 at the same denoiser-call budget, and LTR never beats both RTL
 and random. Retain this as mechanism evidence, not a decoding method.
+
+### 6.8 Event-triggered persistent anchoring (EXP-74)
+
+Protocol: ODE-32, native noise, length 128, paired `n=64`, seed 42. Every
+anchor arm makes 32 denoiser calls and one or two lexical readouts. `Hard .60`
+and `Hard .90` trigger once at `t=.40`; `Hard stable` requires agreement at
+the `.30` and `.40` readouts. All selected states become persistent conditions.
+
+| Checkpoint | Arm | Anchor fraction | PPL | D1 | D2 | Rep-4 | Deg. |
+|---|---|---:|---:|---:|---:|---:|---:|
+| ELF base | Standard-32 | — | 278.7 | .497 | .888 | .014 | .000 |
+| ELF base | Soft stable | .604 | 281.7 | .499 | .888 | .012 | .000 |
+| ELF base | Hard at `.30` | .886 | 227.2 | .487 | .886 | .010 | .000 |
+| ELF base | Hard `.60` | .952 | 206.8 | .493 | .889 | .009 | .000 |
+| ELF base | Hard `.90` | .880 | **205.3** | .492 | .887 | .012 | .000 |
+| ELF base | Hard stable | .604 | 232.8 | .493 | .885 | .011 | .016 |
+| Control | Standard-32 | — | 276.4 | .502 | .894 | .013 | .016 |
+| Control | Soft stable | .602 | 279.9 | .501 | .894 | .013 | .016 |
+| Control | Hard at `.30` | .872 | 243.8 | .483 | .898 | .009 | .016 |
+| Control | Hard `.60` | .947 | 221.3 | .494 | .895 | .010 | .016 |
+| Control | Hard `.90` | .870 | **215.8** | .495 | .892 | .010 | .016 |
+| Control | Hard stable | .602 | 243.4 | .493 | .889 | .014 | .016 |
+| Early-KD | Standard-32 | — | 199.8 | .484 | .892 | .012 | .000 |
+| Early-KD | Soft stable | .640 | 203.7 | .483 | .891 | .012 | .000 |
+| Early-KD | Hard at `.30` | .892 | 191.1 | .470 | .894 | .007 | .016 |
+| Early-KD | Hard `.60` | .952 | **168.0** | .475 | .892 | .011 | .000 |
+| Early-KD | Hard `.90` | .877 | 169.3 | .476 | .890 | .012 | .000 |
+| Early-KD | Hard stable | .640 | 181.3 | .482 | .891 | .013 | .000 |
+
+Short-lived self-conditioning memory is ineffective, while persistent anchors
+improve all checkpoints and density controls. The effect strengthens from
+`.30` to `.40`, consistent with waiting until after the transition rather than
+forcing early confidence. The method remains below Standard-64 and requires
+multi-seed, conditioned, and native-SDE validation.
+
+### 6.9 Canonical predicted-clean context (EXP-75)
+
+Protocol matches the EXP-70 screen. Only PPL is repeated here because the full
+quality fields do not change the decision: canonical LTR has degeneration
+`.062/.031/.125` for base/Control/Early-KD, while the raw local arms have zero.
+
+| Checkpoint | Standard | Raw local Pipeline | Canonical LTR | Canonical + refine 8 | Canonical RTL | Shuffled context |
+|---|---:|---:|---:|---:|---:|---:|
+| ELF base | 296.5 | 1778.1 | 1418.8 | 1350.9 | 1098.9 | 2348.8 |
+| Control | 272.9 | 1641.0 | 1230.5 | 1316.9 | 1127.0 | 2341.1 |
+| Early-KD | 209.7 | 1204.4 | 950.9 | 912.9 | 627.9 | 1441.5 |
+
+`E_canonical=.2051/.1988/.1906` versus
+`E_raw=.1993/.1922/.1794`; canonical MSE is also unchanged or worse. Replacing
+non-target latents with predicted-clean states provides useful content but
+does not map heterogeneous positions into a shared vector-field coordinate.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

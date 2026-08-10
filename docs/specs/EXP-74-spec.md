@@ -1,6 +1,6 @@
 # EXP-74 Spec — Event-Triggered Reversible Anchoring
 
-**Status:** ACTIVE / P0
+**Status:** DONE / HARD-ONLY POSITIVE (screen, seed 42)
 **Model:** ELF base, continued-training Control, corrected Early-KD
 **Solver:** deterministic ODE-32, native noise 2, SC-CFG 3
 **Purpose:** test whether the positive one-shot causal anchor effect can improve
@@ -64,3 +64,25 @@ calls, readout calls, and latency.
   revisable discrete/continuous hybrid rather than another soft schedule.
 - **Negative:** no sparse arm improves Standard-32. The EXP-67 intervention is
   explanatory but not a sampler component.
+
+## Result (2026-08-10)
+
+The short-lived soft-memory arms fail to improve Standard-32, while every
+persistent hard-anchor arm has a favorable sign across all three checkpoints.
+
+| Checkpoint | Standard | Soft stable | Hard `.60` at `.40` | Hard `.90` at `.40` | Hard stable |
+|---|---:|---:|---:|---:|---:|
+| ELF base | 278.7 | 281.7 | 206.8 | **205.3** | 232.8 |
+| Control | 276.4 | 279.9 | 221.3 | **215.8** | 243.4 |
+| Early-KD | 199.8 | 203.7 | **168.0** | 169.3 | 181.3 |
+
+Entries are PPL for paired `n=64` generations. The `.90` arm anchors
+`87--88%` of positions; the two-readout stable arm anchors `60--64%` and still
+improves every checkpoint. Shuffled soft content is harmful (`435.4/374.5/
+275.8`), retaining the correct-content mechanism control. Degeneration does
+not systematically increase in the best hard arms.
+
+Decision: this is a hard-only positive. The promising method is a single
+post-transition conversion of reliable positions into persistent conditions,
+not repeated soft self-conditioning. It remains below ODE-64 quality and needs
+multi-seed/conditioned/native-SDE fidelity before promotion.

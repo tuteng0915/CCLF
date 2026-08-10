@@ -43,6 +43,8 @@ protocol should not be treated as active.
 | Pipeline mainly fails because it queries a shared average clock | EXP-70 true-local-clock oracle is no better, while mixed-state error is 3--4x clock error | heterogeneous context is the dominant failure; do not sweep the discrete Pipeline schedule |
 | repeated synchronized soft prefix leadership is an efficient sampler | EXP-71 correct-content arms all lose to compute-matched ODE-64 and LTR never beats RTL/random | keep the shuffled-content contrast as mechanism evidence only |
 | current deep local-time injection learns a native wave | EXP-72 LTR/RTL velocity cosine remains 1.000 and the LTR interaction worsens by +20.5 PPL | stop at step 500; do not diagnose exposure bias or launch EXP-73 until a model first learns a functional local clock |
+| predicted-clean input replacement canonicalizes heterogeneous Pipeline context | EXP-75 lowers PPL partially but leaves vector error unchanged/worse and remains far from coherent generation | correct content is useful, but simple replacement is not a shared dynamical coordinate system |
+| isolated asynchronous block transitions compose after clock bootstrapping | EXP-76 learns a functional clock, yet all EXP-77 fill/drain arms have PPL `3400--3900` | close block-wave distillation in the current architecture; do not sweep schedules or unroll length |
 
 ## 4. Low-value or appendix-only branches
 
