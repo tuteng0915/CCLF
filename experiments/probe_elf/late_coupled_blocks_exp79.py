@@ -296,7 +296,7 @@ def main():
     if args.block_length * 2 > 1024:
         raise ValueError("this bounded evaluator supports total length at most 1024")
 
-    from transformers import AutoModelForCausalLM, AutoTokenizer, T5Tokenizer
+    from transformers import T5Tokenizer
 
     device = torch.device(args.device)
     total_length = 2 * args.block_length
@@ -314,14 +314,6 @@ def main():
     elf_tokenizer = T5Tokenizer.from_pretrained("t5-small")
     _, encoder = get_encoder("t5-small", dtype=torch.float32)
     encoder.to(device).eval()
-    ppl_tokenizer = AutoTokenizer.from_pretrained("gpt2-large")
-    if ppl_tokenizer.pad_token is None:
-        ppl_tokenizer.pad_token = ppl_tokenizer.eos_token
-        ppl_tokenizer.pad_token_id = ppl_tokenizer.eos_token_id
-    ppl_model = AutoModelForCausalLM.from_pretrained(
-        "gpt2-large", torch_dtype=torch.bfloat16
-    ).to(device).eval()
-
     generator = torch.Generator(device=device).manual_seed(args.seed)
     z0_a = args.noise_scale * torch.randn(
         args.n_samples,
@@ -354,6 +346,25 @@ def main():
             records,
             elf_tokenizer,
         )
+
+    # The two ELF instances are both needed during generation but not during
+    # GPT-2 evaluation. Release them before loading the evaluator so the
+    # experiment remains safe on a GPU shared with other bounded pilots.
+    block_model.cpu()
+    joint_model.cpu()
+    encoder.cpu()
+    del block_model, joint_model, encoder, checkpoint, weights
+    torch.cuda.empty_cache()
+
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    ppl_tokenizer = AutoTokenizer.from_pretrained("gpt2-large")
+    if ppl_tokenizer.pad_token is None:
+        ppl_tokenizer.pad_token = ppl_tokenizer.eos_token
+        ppl_tokenizer.pad_token_id = ppl_tokenizer.eos_token_id
+    ppl_model = AutoModelForCausalLM.from_pretrained(
+        "gpt2-large", torch_dtype=torch.bfloat16
+    ).to(device).eval()
 
     results = {}
     for name, record in records.items():
