@@ -42,6 +42,7 @@ method ledger is:
 | [EXP-76](EXP-76-spec.md) | **DONE / PARTIAL PASS** | Can freezing the backbone force a functional local clock? | yes partially without Standard-quality loss; wave quality remains negative |
 | [EXP-77](EXP-77-spec.md) | **DONE / NEGATIVE** | Does block-local asynchronous transition distillation work once the clock is functional? | all block samplers remain at PPL `3400--3900`; stop at Stage 0 |
 | [EXP-78](EXP-78-spec.md) | **DONE / ODE-ONLY REVISABLE POSITIVE** | Does post-transition hard anchoring survive multi-seed, conditioned, stochastic, and reversibility tests? | robust ODE gain and real revision after release; native-SDE effect is inert |
+| [EXP-79](EXP-79-spec.md) | **ACTIVE / P0 PILOT** | Can late synchronization make block decoding revisable without raw mixed-time interaction? | first compare native `x0`/continuous/hybrid conditions on ELF, then run raw/neutral/hard portability controls on LangFlow and Plaid |
 
 Completed decision:
 
