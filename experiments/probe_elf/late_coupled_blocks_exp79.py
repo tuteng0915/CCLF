@@ -170,27 +170,40 @@ def append_ids(record, ids, tokenizer, maturity_ids=None, selected=None):
 
 
 @torch.no_grad()
-def run_batch(z0_a, z0_b, model, encoder, grid, args, records, tokenizer):
+def run_batch(
+    z0_a,
+    z0_b,
+    block_model,
+    joint_model,
+    encoder,
+    grid,
+    args,
+    records,
+    tokenizer,
+):
     batch = z0_a.shape[0]
     block = args.block_length
-    zeros_a = torch.zeros_like(z0_a)
-    snapshots = prefix_snapshots(z0_a, model, grid, args.maturities, args)
+    snapshots = prefix_snapshots(z0_a, block_model, grid, args.maturities, args)
 
     # Fully parallel ODE-32.
     z_parallel, _ = ode_range(
         torch.cat([z0_a, z0_b], dim=1),
         torch.zeros(batch, 2 * block, z0_a.shape[-1], device=z0_a.device),
-        model,
+        joint_model,
         grid,
         0,
         args.n_steps,
         args,
     )
-    append_ids(records["parallel32"], common.decode(z_parallel, model, z0_a.device), tokenizer)
+    append_ids(
+        records["parallel32"],
+        common.decode(z_parallel, joint_model, z0_a.device),
+        tokenizer,
+    )
 
     # Native reencoded block Semi-AR baseline.
     z_a_final, _ = snapshots[args.n_steps]
-    ids_a_final = common.decode(z_a_final, model, z0_a.device)
+    ids_a_final = common.decode(z_a_final, block_model, z0_a.device)
     cond_a_final = t5_reencode(ids_a_final, encoder, z0_a.dtype)
     cond_seq = torch.cat([cond_a_final, torch.zeros_like(z0_b)], dim=1)
     cond_mask = torch.cat(
@@ -203,7 +216,7 @@ def run_batch(z0_a, z0_b, model, encoder, grid, args, records, tokenizer):
     z_b_full, _ = ode_range(
         torch.cat([cond_a_final, z0_b], dim=1),
         torch.zeros(batch, 2 * block, z0_a.shape[-1], device=z0_a.device),
-        model,
+        joint_model,
         grid,
         0,
         args.n_steps,
@@ -211,7 +224,7 @@ def run_batch(z0_a, z0_b, model, encoder, grid, args, records, tokenizer):
         cond_seq,
         cond_mask,
     )
-    ids_b_full = common.decode(z_b_full, model, z0_a.device)[:, block:]
+    ids_b_full = common.decode(z_b_full, joint_model, z0_a.device)[:, block:]
     append_ids(
         records["semi_ar64"],
         torch.cat([ids_a_final, ids_b_full], dim=1),
@@ -224,7 +237,7 @@ def run_batch(z0_a, z0_b, model, encoder, grid, args, records, tokenizer):
             name = f"late_{representation}_m{maturity}"
             condition, maturity_ids, _, selected, cosine = make_condition(
                 x_a_m,
-                model,
+                block_model,
                 encoder,
                 representation,
                 args.hybrid_confidence,
@@ -240,7 +253,7 @@ def run_batch(z0_a, z0_b, model, encoder, grid, args, records, tokenizer):
             z_b_m_full, x_b_m_full = ode_range(
                 torch.cat([condition, z0_b], dim=1),
                 torch.zeros(batch, 2 * block, z0_a.shape[-1], device=z0_a.device),
-                model,
+                joint_model,
                 grid,
                 0,
                 maturity,
@@ -253,13 +266,13 @@ def run_batch(z0_a, z0_b, model, encoder, grid, args, records, tokenizer):
             z_joint, _ = ode_range(
                 z_joint,
                 x_joint,
-                model,
+                joint_model,
                 grid,
                 maturity,
                 args.n_steps,
                 args,
             )
-            final_ids = common.decode(z_joint, model, z0_a.device)
+            final_ids = common.decode(z_joint, joint_model, z0_a.device)
             append_ids(
                 records[name],
                 final_ids,
@@ -290,9 +303,13 @@ def main():
     common.SamplingConfig.denoiser_noise_scale = args.noise_scale
     checkpoint_path = REPO_ROOT / CHECKPOINTS[args.checkpoint]
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    model = ELF_B(**common.model_config(total_length))
-    model.load_state_dict(common.load_weights(checkpoint), strict=False)
-    model.to(device).eval()
+    weights = common.load_weights(checkpoint)
+    block_model = ELF_B(**common.model_config(args.block_length))
+    block_model.load_state_dict(weights, strict=False)
+    block_model.to(device).eval()
+    joint_model = ELF_B(**common.model_config(total_length))
+    joint_model.load_state_dict(weights, strict=False)
+    joint_model.to(device).eval()
 
     elf_tokenizer = T5Tokenizer.from_pretrained("t5-small")
     _, encoder = get_encoder("t5-small", dtype=torch.float32)
@@ -329,7 +346,8 @@ def main():
         run_batch(
             z0_a[start:end],
             z0_b[start:end],
-            model,
+            block_model,
+            joint_model,
             encoder,
             grid,
             args,
