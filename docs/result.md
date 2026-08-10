@@ -80,7 +80,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
-| Does hard commitment work? | EXP-64--69 | Clean positive result for deterministic ODE baseline/corrected checkpoints; ineffective or harmful under native SDE. |
+| Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
 ## 4. Main mechanism evidence
 
@@ -696,6 +696,115 @@ quality fields do not change the decision: canonical LTR has degeneration
 non-target latents with predicted-clean states provides useful content but
 does not map heterogeneous positions into a shared vector-field coordinate.
 
+### 6.10 Robust revisable commitment (EXP-78)
+
+ODE protocol: length 128, uniform ODE-32, native noise 2, SC-CFG 3,
+`n_uncond=128`, `n_cond=64`, seeds `{42,123,456}`. Values below are means over
+the three seeds. `Calls+R` is denoiser calls plus extra lexical readouts.
+
+#### Unconditional ODE generation — complete metric panel
+
+| Checkpoint | Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | U-collapse | Commit | Calls+R |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | Standard | 285.4 | .4719 | .8842 | .0100 | .0208 | 73.0 | .0797 | .6898 | .0052 | .000 | 32+0 |
+| ELF base | Hard-highconf | 212.2 | .4620 | .8788 | .0104 | .0234 | 72.5 | .0814 | .6830 | .0052 | .880 | 32+1 |
+| ELF base | Hard-stable | 232.2 | .4635 | .8782 | .0107 | .0260 | 72.7 | .0811 | .6823 | .0052 | .613 | 32+2 |
+| ELF base | Unlock-4 | **208.5** | .4558 | .8724 | .0124 | .0260 | 72.6 | .0825 | .6710 | .0052 | .880 | 32+1 |
+| ELF base | Unlock-8 | 217.5 | .4603 | .8751 | .0120 | .0234 | 72.6 | .0824 | .6768 | .0052 | .880 | 32+1 |
+| Control | Standard | 264.6 | .4511 | .8818 | .0108 | .0156 | 77.3 | .0744 | .6988 | .0052 | .000 | 32+0 |
+| Control | Hard-highconf | 212.4 | .4471 | .8773 | .0105 | .0260 | 76.9 | .0762 | .6975 | .0104 | .873 | 32+1 |
+| Control | Hard-stable | 231.6 | .4487 | .8774 | .0110 | .0234 | 77.1 | .0762 | .6951 | .0130 | .612 | 32+2 |
+| Control | Unlock-4 | **203.5** | .4415 | .8713 | .0124 | .0260 | 77.0 | .0773 | .6851 | .0130 | .873 | 32+1 |
+| Control | Unlock-8 | 213.0 | .4460 | .8740 | .0116 | .0260 | 77.0 | .0771 | .6899 | .0156 | .873 | 32+1 |
+| Early-KD | Standard | 204.2 | .4448 | .8754 | .0115 | .0365 | 73.2 | .0835 | .6651 | .0130 | .000 | 32+0 |
+| Early-KD | Hard-highconf | 170.1 | .4383 | .8717 | .0118 | .0312 | 72.7 | .0849 | .6648 | .0156 | .881 | 32+1 |
+| Early-KD | Hard-stable | 180.2 | .4404 | .8717 | .0123 | .0365 | 72.9 | .0851 | .6635 | .0156 | .641 | 32+2 |
+| Early-KD | Unlock-4 | **165.9** | .4317 | .8651 | .0146 | .0365 | 72.9 | .0863 | .6518 | .0182 | .881 | 32+1 |
+| Early-KD | Unlock-8 | 172.3 | .4362 | .8679 | .0134 | .0391 | 72.8 | .0860 | .6555 | .0182 | .881 | 32+1 |
+
+The favorable PPL sign holds for every arm in every seed. Unlock-4 is the best
+mean PPL arm at all three checkpoints. Its small D1/D2/Unique reductions and
+Rep-4 increases make the complete quality panel essential; degeneration does
+not systematically worsen, but PPL is the clearest benefit.
+
+#### Conditioned ODE continuation — complete metric panel
+
+| Checkpoint | Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | U-collapse | R-L | Prefix | Commit | Calls+R |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | Standard | 509.6 | .4965 | .9135 | .0091 | .0104 | 44.8 | .0779 | .7859 | .0052 | .0927 | .9844 | .000 | 32+0 |
+| ELF base | Hard-highconf | 380.0 | .4814 | .9056 | .0095 | .0104 | 44.7 | .0802 | .7773 | .0052 | .0933 | .9948 | .877 | 32+1 |
+| ELF base | Hard-stable | 411.4 | .4850 | .9057 | .0111 | .0104 | 44.7 | .0796 | .7804 | .0052 | .0928 | .9896 | .621 | 32+2 |
+| ELF base | Unlock-4 | **379.7** | .4778 | .9018 | .0122 | .0104 | 44.7 | .0800 | .7717 | .0052 | .0933 | .9688 | .877 | 32+1 |
+| ELF base | Unlock-8 | 403.1 | .4836 | .9030 | .0117 | .0104 | 44.7 | .0797 | .7759 | .0052 | .0930 | .9740 | .877 | 32+1 |
+| Control | Standard | 477.4 | .5049 | .9130 | .0074 | .0000 | 45.3 | .0772 | .7969 | .0052 | .0919 | .9948 | .000 | 32+0 |
+| Control | Hard-highconf | 375.0 | .4878 | .9092 | .0059 | .0000 | 45.3 | .0785 | .7922 | .0052 | .0928 | .9896 | .867 | 32+1 |
+| Control | Hard-stable | 403.6 | .4937 | .9085 | .0077 | .0000 | 45.3 | .0787 | .7911 | .0052 | .0926 | .9896 | .605 | 32+2 |
+| Control | Unlock-4 | **362.0** | .4864 | .9038 | .0098 | .0000 | 45.3 | .0799 | .7827 | .0052 | .0926 | .9948 | .867 | 32+1 |
+| Control | Unlock-8 | 377.3 | .4909 | .9057 | .0083 | .0000 | 45.3 | .0790 | .7867 | .0052 | .0929 | .9948 | .867 | 32+1 |
+| Early-KD | Standard | 384.4 | .4813 | .9081 | .0088 | .0052 | 45.2 | .0784 | .7779 | .0000 | .0927 | 1.0000 | .000 | 32+0 |
+| Early-KD | Hard-highconf | 309.3 | .4694 | .9035 | .0095 | .0000 | 45.1 | .0807 | .7718 | .0000 | .0936 | .9896 | .885 | 32+1 |
+| Early-KD | Hard-stable | 329.7 | .4737 | .9042 | .0090 | .0000 | 45.2 | .0805 | .7746 | .0000 | .0934 | .9948 | .639 | 32+2 |
+| Early-KD | Unlock-4 | **305.3** | .4679 | .8987 | .0109 | .0000 | 45.2 | .0810 | .7663 | .0000 | .0946 | 1.0000 | .885 | 32+1 |
+| Early-KD | Unlock-8 | 312.5 | .4696 | .9004 | .0111 | .0000 | 45.2 | .0808 | .7697 | .0000 | .0942 | 1.0000 | .885 | 32+1 |
+
+Conditioned PPL improves in all nine paired seed cells for Hard-highconf and
+Unlock-4. ROUGE-L is unchanged or slightly higher; mean Unlock-4 deltas are
+`+.0006/+.0007/+.0018`. Exact-prefix values are reported rather than assumed:
+they are near one but not universally one in the ODE runner.
+
+#### Native SDE fidelity boundary
+
+Protocol: length 1024, native logit-normal SDE-32, gamma 1.5,
+`n_uncond=128`, `n_cond=64`, seed 42. The complete text-quality metrics are
+essentially unchanged; the compact table records the decision metrics.
+
+| Checkpoint | Scope | Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | U-collapse | R-L | Prefix | Commit | Calls+R |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ELF base | U | Standard | 31.253 | .1205 | .5713 | .0155 | .000 | 800.9 | .0602 | .3825 | .000 | — | — | .000 | 32+0 |
+| ELF base | U | Hard-highconf | 30.889 | .1214 | .5717 | .0153 | .000 | 801.0 | .0602 | .3845 | .000 | — | — | .976 | 32+1 |
+| ELF base | U | Unlock-4 | 31.049 | .1214 | .5715 | .0154 | .000 | 801.2 | .0603 | .3832 | .000 | — | — | .976 | 32+1 |
+| ELF base | C | Standard | 47.467 | .2167 | .6753 | .0295 | .000 | 393.9 | .0808 | .4541 | .000 | .1176 | 1.0 | .000 | 32+0 |
+| ELF base | C | Hard-highconf | 48.557 | .2202 | .6768 | .0283 | .000 | 393.5 | .0799 | .4577 | .000 | .1178 | 1.0 | .938 | 32+1 |
+| ELF base | C | Unlock-4 | 48.017 | .2190 | .6757 | .0294 | .000 | 393.5 | .0810 | .4572 | .000 | .1179 | 1.0 | .938 | 32+1 |
+| Control | U | Standard | 30.674 | .1129 | .5543 | .0141 | .000 | 814.3 | .0596 | .3754 | .000 | — | — | .000 | 32+0 |
+| Control | U | Hard-highconf | 30.487 | .1143 | .5550 | .0139 | .000 | 814.3 | .0595 | .3779 | .000 | — | — | .971 | 32+1 |
+| Control | U | Unlock-4 | 30.465 | .1138 | .5542 | .0141 | .000 | 814.6 | .0596 | .3764 | .000 | — | — | .971 | 32+1 |
+| Control | C | Standard | 51.287 | .2194 | .6869 | .0222 | .000 | 398.5 | .0790 | .4662 | .000 | .1162 | 1.0 | .000 | 32+0 |
+| Control | C | Hard-highconf | 51.387 | .2211 | .6892 | .0207 | .000 | 398.0 | .0788 | .4688 | .000 | .1171 | 1.0 | .925 | 32+1 |
+| Control | C | Unlock-4 | 51.273 | .2198 | .6864 | .0223 | .000 | 397.9 | .0796 | .4674 | .000 | .1173 | 1.0 | .925 | 32+1 |
+| Early-KD | U | Standard | 28.018 | .1059 | .5443 | .0187 | .000 | 818.1 | .0568 | .3529 | .000 | — | — | .000 | 32+0 |
+| Early-KD | U | Hard-highconf | 27.819 | .1067 | .5450 | .0184 | .000 | 818.3 | .0567 | .3550 | .000 | — | — | .972 | 32+1 |
+| Early-KD | U | Unlock-4 | 27.741 | .1062 | .5438 | .0187 | .000 | 818.4 | .0568 | .3535 | .000 | — | — | .972 | 32+1 |
+| Early-KD | C | Standard | 46.041 | .2044 | .6573 | .0478 | .0156 | 402.0 | .0788 | .4313 | .0156 | .1148 | 1.0 | .000 | 32+0 |
+| Early-KD | C | Hard-highconf | 46.035 | .2044 | .6560 | .0474 | .0000 | 403.1 | .0789 | .4335 | .0000 | .1149 | 1.0 | .933 | 32+1 |
+| Early-KD | C | Unlock-4 | 45.337 | .2040 | .6549 | .0478 | .0156 | 402.1 | .0793 | .4321 | .0156 | .1151 | 1.0 | .933 | 32+1 |
+
+Despite `93--98%` anchor coverage, all SDE PPL changes are only `0--1.1`.
+Thus the ODE gain is not sampler-independent; SDE anchoring is saturated and
+nearly inert.
+
+#### Unlock-4 timing and actual revision
+
+Protocol: ODE-32, length 128, paired `n=64`, seed 42. Timing uses each branch's
+own endpoint. The selection mask comes from Unlock-4 and is reused to define
+the paired scopes in Standard.
+
+| Checkpoint | Scope | `Delta tau_first` | `Delta tau_stable` | `Delta N_rev` | Endpoint agreement | Anchor changed after release |
+|---|---|---:|---:|---:|---:|---:|
+| ELF base | selected | -.0140 | -.0141 | -.1820 | .844 | .100 |
+| ELF base | unselected | -.0102 | -.0121 | -.1963 | .351 | — |
+| Control | selected | -.0140 | -.0150 | -.1682 | .848 | .090 |
+| Control | unselected | -.0077 | -.0098 | -.1124 | .374 | — |
+| Early-KD | selected | -.0107 | -.0100 | -.1366 | .871 | .081 |
+| Early-KD | unselected | +.0039 | +.0061 | -.0885 | .415 | — |
+
+Unlock-4 is genuinely revisable: `8.1--10.0%` of selected positions finish at
+a different token from the anchor read at `t=.40`, after release at
+`t=.5625`. But unselected timing changes are small and not directionally
+universal. The supported method claim is therefore temporary reliable
+conditioning in deterministic ODE, not a demonstrated global coordination
+transition.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -777,8 +886,9 @@ or methods were withdrawn.
 4. Corrected Early-KD improves unconditional ODE generation and commitment
    timing in two training seeds, but conditioned improvement is not robust.
 5. Hard commitment is an ODE-specific intervention, not a sampler-independent
-   method. Native SDE either commits almost everything too late to matter or
-   loses coherence when forced earlier.
+   method. A four-step lock preserves the replicated ODE gain and permits later
+   revision, while native SDE either makes the intervention inert or loses
+   coherence when commitment is forced earlier.
 6. Pipeline, post-hoc local clocks, and the current gated WFF pilot are not
    positive methods.
 
@@ -790,7 +900,7 @@ Primary specs:
 - WFF/local clocks: `EXP-60`, `EXP-GS19`;
 - Pipeline: `EXP-61`, `EXP-64`;
 - KD: `EXP-62`, `EXP-63`, `EXP-66`;
-- hard commitment and sampler boundary: `EXP-64`--`EXP-69`.
+- hard commitment and sampler boundary: `EXP-64`--`EXP-69`, `EXP-74`, `EXP-78`.
 
 Primary server result directories:
 
@@ -801,6 +911,7 @@ results/exp65_hard_commit_calibration/
 results/exp67_hard_commit_mechanism/
 results/exp68_native_sde_commit/
 results/exp69_native_sde_anchor_calibration/
+results/exp78_robust_revisable_commit/
 ```
 
 When adding a new formal evaluation, append its protocol and complete metric

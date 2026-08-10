@@ -1,6 +1,6 @@
 # EXP-78 Spec — Robust and Revisable Post-Transition Commitment
 
-**Status:** ACTIVE / P0
+**Status:** DONE / ODE-ONLY REVISABLE POSITIVE
 **Motivation:** EXP-74 is the only positive method signal after the controlled
 Pipeline follow-ups. Promote it through multi-seed, conditioned, stochastic,
 and reversibility tests before modifying training.
@@ -75,3 +75,34 @@ tau_first(unselected) does not move substantially earlier.
 - **Metric artifact:** PPL improves while degeneration, continuation, or
   repetition worsens. Reject.
 
+## Result (2026-08-10)
+
+Stage A passes strongly on deterministic ODE. Across all three checkpoints and
+all three seeds, every anchor arm lowers both unconditional and conditioned
+PPL. Unlock-4 is the best mean arm:
+
+| Checkpoint | Standard U-PPL | Unlock-4 U-PPL | Standard C-PPL | Unlock-4 C-PPL |
+|---|---:|---:|---:|---:|
+| ELF base | 285.4 | **208.5** | 509.6 | **379.7** |
+| Control | 264.6 | **203.5** | 477.4 | **362.0** |
+| Early-KD | 204.2 | **165.9** | 384.4 | **305.3** |
+
+The favorable paired PPL sign holds in every seed. Mean conditioned ROUGE-L
+changes by `+.0006/+.0007/+.0018`; degeneration does not systematically
+worsen. Unlock-4 selects `87--88%` of eligible positions.
+
+Stage B does **not** reproduce the effect under native SDE-32 at length 1024.
+Unlock-4 changes unconditional PPL by only `-.20/-.21/-.28` and conditioned
+PPL by `+.55/-.01/-.70` for Base/Control/Early-KD. Selection is saturated at
+`93--98%`, so this is an inert intervention rather than a failure to trigger.
+
+The timing audit confirms genuine, but limited, reversibility. After release,
+`8.1--10.0%` of selected anchors finish at a different token. Revisions at
+unselected positions fall by only `.09--.20` per token; their stable time moves
+by `-.012/-.010/+.006`. Therefore the experiment supports temporary reliable
+states as useful ODE conditions, but does not show a checkpoint-independent
+advance of global coordination.
+
+**Decision:** retain Unlock-4 as an ODE-specific inference intervention and a
+method clue. Do not present it as a sampler-independent solution or as evidence
+that the global coordination bottleneck has already been solved.

@@ -41,6 +41,7 @@ method ledger is:
 | [EXP-75](EXP-75-spec.md) | **DONE / NEGATIVE** | Can predicted-clean context canonicalize heterogeneous attention? | PPL partly improves, but vector error and incoherence remain |
 | [EXP-76](EXP-76-spec.md) | **DONE / PARTIAL PASS** | Can freezing the backbone force a functional local clock? | yes partially without Standard-quality loss; wave quality remains negative |
 | [EXP-77](EXP-77-spec.md) | **DONE / NEGATIVE** | Does block-local asynchronous transition distillation work once the clock is functional? | all block samplers remain at PPL `3400--3900`; stop at Stage 0 |
+| [EXP-78](EXP-78-spec.md) | **DONE / ODE-ONLY REVISABLE POSITIVE** | Does post-transition hard anchoring survive multi-seed, conditioned, stochastic, and reversibility tests? | robust ODE gain and real revision after release; native-SDE effect is inert |
 
 Completed decision:
 
@@ -60,9 +61,11 @@ Conditional after the active experiments:
 The asynchronous queue completed at its gates: mixed-state factorization and
 canonical context are negative; adapter bootstrapping learns a clock, but
 block-local transition distillation still does not compose. Do not launch a
-broader clock/schedule sweep in the current architecture. The only new positive
-method signal is EXP-74 persistent post-transition anchoring, which should next
-receive multi-seed, conditioned, and native-SDE fidelity tests.
+broader clock/schedule sweep in the current architecture. The only positive
+inference-time signal is now bounded precisely: EXP-78 confirms anchoring
+across ODE seeds and conditioned generation, and shows that a four-step lock
+can be released, but the effect is essentially absent under native SDE. Treat
+this as an ODE method clue, not a universal sampler result.
 
 ## Evidence already supporting the paper
 

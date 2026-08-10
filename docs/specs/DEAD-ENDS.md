@@ -45,6 +45,7 @@ protocol should not be treated as active.
 | current deep local-time injection learns a native wave | EXP-72 LTR/RTL velocity cosine remains 1.000 and the LTR interaction worsens by +20.5 PPL | stop at step 500; do not diagnose exposure bias or launch EXP-73 until a model first learns a functional local clock |
 | predicted-clean input replacement canonicalizes heterogeneous Pipeline context | EXP-75 lowers PPL partially but leaves vector error unchanged/worse and remains far from coherent generation | correct content is useful, but simple replacement is not a shared dynamical coordinate system |
 | isolated asynchronous block transitions compose after clock bootstrapping | EXP-76 learns a functional clock, yet all EXP-77 fill/drain arms have PPL `3400--3900` | close block-wave distillation in the current architecture; do not sweep schedules or unroll length |
+| post-transition hard anchoring is sampler-independent | EXP-78 gives large, replicated ODE gains but only `0--1` PPL changes under native SDE despite `93--98%` anchor coverage | retain Unlock-4 as an ODE-specific intervention; do not extrapolate it to stochastic samplers |
 
 ## 4. Low-value or appendix-only branches
 
