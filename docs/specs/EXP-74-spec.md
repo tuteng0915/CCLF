@@ -37,7 +37,9 @@ Use paired initial noise, length 128, `n=64`, seed 42:
 6. Stability trigger: token identity must agree at two adjacent readouts and
    confidence exceed `.60`.
 7. Matched shuffled-content control for the best trigger arm.
-8. Persistent hard-anchor reference using the same selected positions.
+8. Persistent hard-anchor references at `t=.30` and `t=.40`.
+9. Persistent high-confidence (`>.90`) and two-readout stable-token anchors,
+   separating anchor reliability/density from trigger time.
 
 Primary soft arms keep the intervention for `H=4` solver intervals with
 `alpha=.5`; include `H=1` and `alpha=1` only as narrow ablations after the
@@ -62,4 +64,3 @@ calls, readout calls, and latency.
   revisable discrete/continuous hybrid rather than another soft schedule.
 - **Negative:** no sparse arm improves Standard-32. The EXP-67 intervention is
   explanatory but not a sampler component.
-
