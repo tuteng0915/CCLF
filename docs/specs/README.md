@@ -43,7 +43,7 @@ method ledger is:
 | [EXP-77](EXP-77-spec.md) | **DONE / NEGATIVE** | Does block-local asynchronous transition distillation work once the clock is functional? | all block samplers remain at PPL `3400--3900`; stop at Stage 0 |
 | [EXP-78](EXP-78-spec.md) | **DONE / ODE-ONLY REVISABLE POSITIVE** | Does post-transition hard anchoring survive multi-seed, conditioned, stochastic, and reversibility tests? | robust ODE gain and real revision after release; native-SDE effect is inert |
 | [EXP-79](EXP-79-spec.md) | **DONE / CONDITIONAL NEGATIVE** | Can late synchronization make block decoding revisable without raw mixed-time interaction? | fixed-prefix P1 confirms that late coupling only matches Semi-AR and loses to parallel on prompt-conditioned PPL, ROUGE-L, and boundary quality |
-| [EXP-80](EXP-80-spec.md) | **DONE / ASYNC NEGATIVE; UNLOCK POSITIVE** | Do key ELF methods change rank under real prefix conditioning? | no: conditioning does not rescue soft/local/canonical arms; Unlock-4 improves both scopes and has the strongest prompt gain |
+| [EXP-80](EXP-80-spec.md) | **DONE / ASYNC NEGATIVE; UNLOCK PPL GAIN REPLICATED** | Do key ELF methods change rank under real prefix conditioning? | conditioning does not rescue soft/local/canonical arms; Unlock-4's same-call U/C PPL gain replicates on two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain |
 
 Completed decision:
 

@@ -240,3 +240,52 @@ freeze-A, but leaves ROUGE-L unchanged and worsens boundary PPL by `1.5`.
 unconditional PPL: it fails the intended prompted-continuation test as well.
 Do not expand representations, checkpoints, lengths, or architectures unless
 the algorithm changes materially.
+
+## Post-stop portability sweep (2026-08-11)
+
+At the user's request, the already implemented unconditional representation
+grid was allowed to finish as a portability boundary. This is not a promotion
+of EXP-79: it has no observed prompt, held-out continuation, ROUGE-L, or
+boundary-conditioned PPL, and therefore cannot override the conditional P1
+decision above.
+
+The ELF grid used `n=128`, seed 42. Its best late-coupled cell was reencoded
+context at `m=20`: PPL `293.49` versus `310.65` for Semi-AR, with `52+1`
+denoiser/readout calls instead of `64+1`; D1/D2/Rep-4/Degeneration were
+`.4093/.8619/.0123/.0000` versus `.4090/.8624/.0132/.0000`. Hybrid `m=20`
+was similar (PPL `295.57`). Both remain far worse than Parallel-32 (PPL
+`168.13`). This is evidence for a cheaper Semi-AR approximation, not for an
+overall quality win or useful bidirectional refinement.
+
+LangFlow and Plaid used paired `n=64` samples at seeds `42/123/456`; native
+reference agreement was `1.0` for every run, and Plaid reused paired ancestral
+step noise. Three-seed means for the most diagnostic cells are:
+
+| Model | Arm | PPL | D1 | D2 | Rep-4 | Deg. | Prefix rev. | Suffix rev. | Calls |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| LangFlow | Parallel | 12.15 | .2556 | .4887 | .2953 | .1979 | — | — | 32 |
+| LangFlow | Semi-AR | 23.69 | .2762 | .5447 | .2145 | .3385 | — | — | 64 |
+| LangFlow | Neutral `m=24` | 23.71 | .3547 | .5545 | .2609 | .2448 | .0550 | .2728 | 56 |
+| LangFlow | Raw `m=30` | 11.95 | .2411 | .4240 | .3451 | .3021 | .0246 | .0219 | 62 |
+| Plaid | Parallel | 142.02 | .5082 | .9253 | .0012 | .0365 | — | — | 32 |
+| Plaid | Semi-AR | 131.95 | .4834 | .9164 | .0010 | .0260 | — | — | 64 |
+| Plaid | Hard `m=24` | 130.01 | .4790 | .9169 | .0012 | .0156 | .4857 | .4921 | 56 |
+| Plaid | Hard `m=28` | 130.25 | .4820 | .9154 | .0009 | .0156 | .3149 | .3171 | 60 |
+
+LangFlow raw context obtains low PPL by worsening D1/D2, Rep-4, degeneration,
+and unigram collapse; it is metric gaming rather than a pass. Neutral context
+roughly matches Semi-AR PPL with fewer calls and improves some collapse
+statistics, but worsens Rep-4. Plaid hard `m=24` is the only clean weak signal:
+mean PPL is `1.94` below Semi-AR with eight fewer calls and no diversity or
+degeneration regression. Its paired PPL difference is not consistent enough
+to claim a robust improvement (`-6.85`, `+1.38`, `-0.35` across the three
+seeds). Treat it as an architecture-specific compute lead requiring a
+conditional replication, not as support for the general method.
+
+Complete rows are recorded in `docs/result.md`. Server artifacts are:
+
+```text
+models/ELF-torch/results/exp79_late_coupled_blocks/formal128_baseline_seed42.json
+results/exp79_late_coupled_blocks/formal64_langflow_seed{42,123,456}.json
+results/exp79_late_coupled_blocks/formal64_plaid_seed{42,123,456}.json
+```

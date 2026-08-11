@@ -1,6 +1,6 @@
 # EXP-80 Spec — Paired Conditional Revalidation
 
-**Status:** P0 DONE / P1 ROBUSTNESS REPLICATION RUNNING
+**Status:** DONE / ASYNC NEGATIVE; UNLOCK-4 PPL GAIN REPLICATED WITH TRADE-OFFS
 
 ## Question
 
@@ -129,21 +129,36 @@ context inference implementations. Retain Unlock-4 as an ODE-specific,
 revisable conditional intervention. Do not launch asynchronous retraining from
 this P0; first establish a positive conditional mechanism intervention.
 
-## P1 robustness replication (running, 2026-08-11)
+## P1 robustness replication (complete, 2026-08-11)
 
 P1 tests only the retained positive signal rather than reopening the failed
 pipeline variants. Every cell evaluates paired unconditional and native-prefix
 conditional generation with `n_uncond=n_cond=128` and reports the complete P0
 metric panel.
 
-| Run | Conditional corpus | Seed / data block | Arms | Server session |
-|---|---|---|---|---|
-| OWT replication A | in-domain OWT | seed 43 / offset 11000 | Standard-32/64/136, Unlock-4 | `exp80_owt43` |
-| OWT replication B | in-domain OWT | seed 44 / offset 12000 | Standard-32/64/136, Unlock-4 | `exp80_owt44` |
-| Domain-shift replication | Gutenberg | seed 42 | Standard-32/64/136, Unlock-4 | `exp80_gut42` |
+| Run | Conditional corpus | Seed / data block | Arms |
+|---|---|---|---|
+| OWT replication A | in-domain OWT | seed 43 / offset 11000 | Standard-32/64/136, Unlock-4 |
+| OWT replication B | in-domain OWT | seed 44 / offset 12000 | Standard-32/64/136, Unlock-4 |
+| Domain-shift replication | Gutenberg | seed 42 | Standard-32/64/136, Unlock-4 |
 
 The Gutenberg smoke passed before launch: prompt latent clamp error was zero,
 the decoded prefix was exact for all four smoke samples, and paired scopes used
-identical denoiser-call counts. P1 supports the Unlock-4 claim only if its sign
-against Standard-32 persists in prompt-conditioned PPL and prompt gain without
-a material diversity, repetition, degeneration, or ROUGE-L regression.
+identical denoiser-call counts.
+
+Against Standard-32, Unlock-4 produced the following paired deltas:
+
+| Panel | delta U-PPL | delta C-PPL | delta prompt gain | delta ROUGE-L | delta C-D1 | delta C-Rep4 | delta C-deg |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Gutenberg | -82.0 | -144.4 | +.0092 | +.0009 | -.0223 | +.0049 | .0000 |
+| OWT seed 43 | -73.8 | -155.7 | -.0050 | +.0018 | -.0181 | +.0043 | +.0078 |
+| OWT seed 44 | -68.2 | -134.0 | +.0076 | +.0040 | -.0135 | +.0035 | +.0234 |
+| Mean | -74.7 | -144.7 | +.0039 | +.0023 | -.0180 | +.0042 | +.0104 |
+
+Thus the same-call PPL improvement and small ROUGE-L improvement replicate in
+all three panels, including the domain shift. Stronger prompt use does not:
+prompt-gain improvement is small and reverses sign in one OWT panel. Unlock-4
+also consistently lowers distinct-1 and raises conditioned Rep-4, with a small
+average degeneration increase. The supported claim is therefore a robust
+32-step sample-quality/PPL trade-off, not robust prompt-utilization improvement.
+Standard-64 remains better in PPL at the price of twice the denoiser calls.

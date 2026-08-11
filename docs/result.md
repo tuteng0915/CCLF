@@ -84,7 +84,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
 | Does late clock-aligned coupling help prompted continuation? | EXP-79 | No. On fixed-prefix conditional generation it only matches Semi-AR and loses to parallel decoding on prompt-conditioned PPL, ROUGE-L, and A-to-B boundary PPL. |
-| Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes; Unlock-4 remains positive and has the strongest prompt gain. |
+| Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes. Unlock-4's same-call PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
@@ -864,6 +864,80 @@ relative to freeze-A, leaves ROUGE-L unchanged, and makes boundary PPL `1.5`
 worse. EXP-79 is therefore stopped on conditional evidence, not on the earlier
 unconditional screen.
 
+#### Post-stop unconditional portability/representation sweep
+
+These runs audit the already implemented grid after the conditional stop. They
+do not contain prompt-conditioned metrics and therefore do not reopen the P1
+decision. ELF reports one `n=128`, seed-42 run. LangFlow and Plaid entries are
+means over paired `n=64` runs at seeds 42/123/456. Native-reference agreement
+was `1.0` throughout; Plaid step noise was paired across arms.
+
+ELF full representation grid:
+
+| Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | Collapse | A rev. | High/low-conf. rev. | Hybrid frac. | Calls+R |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel-32 | 168.13 | .3564 | .8314 | .0071 | .0156 | 164.4 | .0666 | .6165 | .0000 | — | — | — | 32+0 |
+| Semi-AR-64 | 310.65 | .4090 | .8624 | .0132 | .0000 | 152.2 | .0588 | .6416 | .0000 | — | — | — | 64+1 |
+| Continuous m20 | 311.36 | .4064 | .8690 | .0082 | .0000 | 154.6 | .0589 | .6553 | .0000 | .0809 | .0495/.6730 | .951 | 52+1 |
+| Continuous m24 | 313.14 | .4041 | .8657 | .0086 | .0000 | 154.8 | .0580 | .6590 | .0000 | .0599 | .0356/.5742 | .956 | 56+1 |
+| Continuous m28 | 325.02 | .4059 | .8675 | .0083 | .0000 | 154.8 | .0584 | .6625 | .0000 | .0391 | .0180/.5265 | .960 | 60+1 |
+| Continuous m30 | 328.69 | .4058 | .8697 | .0083 | .0000 | 154.8 | .0588 | .6619 | .0000 | .0272 | .0091/.4608 | .961 | 62+1 |
+| Reencoded m20 | **293.49** | .4093 | .8619 | .0123 | .0000 | 151.6 | .0583 | .6398 | .0000 | .0797 | .0486/.6655 | .951 | 52+1 |
+| Reencoded m24 | 299.11 | .4016 | .8615 | .0127 | .0078 | 152.9 | .0588 | .6381 | .0000 | .0573 | .0328/.6069 | .956 | 56+1 |
+| Reencoded m28 | 307.59 | .4096 | .8644 | .0113 | .0000 | 151.9 | .0581 | .6379 | .0000 | .0370 | .0165/.5139 | .960 | 60+1 |
+| Reencoded m30 | 302.96 | .4108 | .8644 | .0129 | .0000 | 151.6 | .0587 | .6416 | .0000 | .0274 | .0089/.4721 | .961 | 62+1 |
+| Hybrid m20 | 295.57 | .4078 | .8624 | .0124 | .0000 | 151.6 | .0585 | .6422 | .0000 | .0804 | .0502/.6576 | .951 | 52+1 |
+| Hybrid m24 | 301.11 | .4081 | .8642 | .0106 | .0078 | 152.4 | .0582 | .6423 | .0000 | .0591 | .0342/.5994 | .956 | 56+1 |
+| Hybrid m28 | 303.43 | .4086 | .8652 | .0118 | .0000 | 152.3 | .0589 | .6406 | .0000 | .0379 | .0173/.5008 | .960 | 60+1 |
+| Hybrid m30 | 307.73 | .4072 | .8612 | .0127 | .0000 | 152.3 | .0592 | .6424 | .0000 | .0279 | .0089/.4888 | .961 | 62+1 |
+
+LangFlow full grid (three-seed means):
+
+| Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | Collapse | A rev. | B rev. | Calls |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel | 12.15 | .2556 | .4887 | .2953 | .1979 | 154.6 | .1245 | .2816 | .0990 | — | — | 32 |
+| Semi-AR | 23.69 | .2762 | .5447 | .2145 | .3385 | 142.2 | .1575 | .2730 | .2031 | — | — | 64 |
+| Neutral m24 | 23.71 | .3547 | .5545 | .2609 | .2448 | 113.2 | .1153 | .3417 | .0781 | .0550 | .2728 | 56 |
+| Raw m24 | 13.10 | .2532 | .4468 | .3291 | .2656 | 143.1 | .1271 | .2683 | .1146 | .0677 | .0803 | 56 |
+| Continuous m24 | 26.07 | .2901 | .5481 | .2130 | .3073 | 141.0 | .1504 | .2959 | .1667 | .0651 | .3319 | 56 |
+| Hard m24 | 25.20 | .2868 | .5441 | .2144 | .3021 | 140.6 | .1469 | .2949 | .1510 | .0616 | .3400 | 56 |
+| Neutral m28 | 24.31 | .3585 | .5547 | .2657 | .2552 | 113.3 | .1154 | .3448 | .0938 | .0293 | .1769 | 60 |
+| Raw m28 | 12.57 | .2448 | .4333 | .3378 | .3125 | 143.3 | .1332 | .2578 | .1406 | .0402 | .0411 | 60 |
+| Continuous m28 | 26.29 | .2876 | .5529 | .2103 | .3125 | 141.7 | .1522 | .2943 | .1771 | .0371 | .2156 | 60 |
+| Hard m28 | 25.98 | .2871 | .5508 | .2129 | .3281 | 141.7 | .1518 | .2912 | .1823 | .0349 | .2150 | 60 |
+| Neutral m30 | 24.83 | .3614 | .5549 | .2675 | .2604 | 113.2 | .1152 | .3483 | .0990 | .0181 | .1194 | 62 |
+| Raw m30 | **11.95** | .2411 | .4240 | .3451 | .3021 | 141.6 | .1388 | .2517 | .1458 | .0246 | .0219 | 62 |
+| Continuous m30 | 25.20 | .2862 | .5512 | .2145 | .3229 | 141.6 | .1553 | .2866 | .1927 | .0224 | .1436 | 62 |
+| Hard m30 | 24.69 | .2815 | .5439 | .2182 | .3229 | 141.8 | .1536 | .2829 | .1875 | .0205 | .1439 | 62 |
+
+Plaid full grid (three-seed means):
+
+| Arm | PPL | D1 | D2 | Rep-4 | Deg. | Words | MaxShare | Unique | Collapse | A rev. | B rev. | Calls |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel | 142.02 | .5082 | .9253 | .0012 | .0365 | 167.3 | .0542 | .7396 | .0000 | — | — | 32 |
+| Semi-AR | 131.95 | .4834 | .9164 | .0010 | .0260 | 178.5 | .0549 | .7343 | .0000 | — | — | 64 |
+| Neutral m24 | 183.56 | .4878 | .9217 | .0008 | .0312 | 172.4 | .0506 | .7556 | .0000 | .5007 | .5492 | 56 |
+| Raw m24 | 131.78 | .4798 | .9169 | .0010 | .0156 | 178.8 | .0555 | .7332 | .0000 | .4923 | .4895 | 56 |
+| Continuous m24 | 132.14 | .4795 | .9162 | .0008 | **.0104** | 178.7 | .0552 | .7322 | .0000 | .4897 | .4925 | 56 |
+| Hard m24 | **130.01** | .4790 | .9169 | .0012 | .0156 | 178.6 | .0554 | .7305 | .0000 | .4857 | .4921 | 56 |
+| Neutral m28 | 186.69 | .4901 | .9242 | .0007 | .0208 | 172.3 | .0505 | .7565 | .0000 | .3258 | .3847 | 60 |
+| Raw m28 | 132.39 | .4819 | .9167 | .0008 | .0208 | 178.6 | .0554 | .7344 | .0000 | .3214 | .3188 | 60 |
+| Continuous m28 | 131.40 | .4816 | .9158 | .0009 | .0260 | 178.6 | .0553 | .7328 | .0000 | .3197 | .3165 | 60 |
+| Hard m28 | 130.25 | .4820 | .9154 | .0009 | .0156 | 178.6 | .0556 | .7328 | .0000 | .3149 | .3171 | 60 |
+| Neutral m30 | 185.83 | .4879 | .9226 | .0008 | .0260 | 172.3 | .0503 | .7560 | .0000 | .2207 | .2711 | 62 |
+| Raw m30 | 132.26 | .4826 | .9158 | .0010 | .0208 | 178.6 | .0550 | .7320 | .0000 | .2192 | .2096 | 62 |
+| Continuous m30 | 131.74 | .4828 | .9166 | .0011 | .0208 | 178.5 | .0554 | .7332 | .0000 | .2189 | .2101 | 62 |
+| Hard m30 | 132.43 | .4825 | .9165 | .0012 | .0208 | 178.5 | .0554 | .7343 | .0000 | .2171 | .2141 | 62 |
+
+ELF's reencoded/hybrid `m=20` cells beat Semi-AR by `15--17` PPL with
+12 fewer denoiser calls and otherwise similar quality, but still lose badly to
+Parallel-32. LangFlow raw context reaches parallel-like PPL only by worsening
+diversity, repetition, degeneration, and collapse. Plaid hard `m=24` is a weak
+compute-quality lead over Semi-AR (PPL `130.01` versus `131.95`, 56 versus 64
+calls), but paired PPL deltas are `-6.85/+1.38/-.35`; it is not yet a robust
+method result. The cross-architecture sweep therefore supports, at most, an
+architecture-specific cheaper Semi-AR approximation.
+
 ### 6.12 Paired unconditional/conditional main table (EXP-80)
 
 Protocol: ELF base, ODE, length 128, paired `n_uncond=n_cond=64`, seed 42,
@@ -918,12 +992,53 @@ Standard-32 it improves unconditional PPL by `77.1`, prompt-conditioned PPL by
 readout. The supported method claim remains temporary, revisable anchoring in
 deterministic ELF ODE—not a general asynchronous wave.
 
-**Replication status (2026-08-11):** a paired `n=128+128` robustness panel is
-running for two independent OWT noise/data blocks (seeds 43/44, offsets
-11000/12000) and one Gutenberg out-of-domain panel (seed 42). Each panel
-compares Standard-32/64/136 with Unlock-4 and will populate this table only
-after all required conditional and unconditional metrics finish. Server tmux
-sessions: `exp80_owt43`, `exp80_owt44`, and `exp80_gut42`.
+#### P1 robustness panels
+
+Three paired `n_uncond=n_cond=128` replications are complete: two independent
+OWT noise/data blocks (seeds 43/44, offsets 11000/12000) and one Gutenberg
+out-of-domain panel (seed 42). All prompt latent clamp errors remain zero.
+
+| Panel | Arm | U-PPL | U-D1 | U-D2 | U-Rep4 | U-Deg | C-PPL | Shuffle | Gain | C-RL | C-D1 | C-D2 | C-Rep4 | C-Deg |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Gutenberg | Standard-32 | 296.7 | .4670 | .8839 | .0085 | .0000 | 572.2 | 665.9 | .1517 | .0870 | .4514 | .9034 | .0075 | .0234 |
+| Gutenberg | Standard-64 | 109.3 | .4246 | .8307 | .0274 | .0781 | 292.4 | 351.9 | .1853 | .0859 | .4159 | .8587 | .0231 | .0078 |
+| Gutenberg | Standard-136 | 58.6 | .3860 | .7585 | .0720 | .1406 | 193.7 | 237.9 | .2054 | .0877 | .4060 | .8226 | .0449 | .0234 |
+| Gutenberg | Unlock-4 | 214.7 | .4515 | .8759 | .0084 | .0000 | 427.8 | 502.5 | .1609 | .0879 | .4291 | .8886 | .0124 | .0234 |
+| OWT-43 | Standard-32 | 287.0 | .4698 | .8887 | .0078 | .0312 | 584.9 | 748.8 | .2470 | .0839 | .5093 | .9048 | .0157 | .0469 |
+| OWT-43 | Standard-64 | 112.8 | .4389 | .8373 | .0239 | .0781 | 313.2 | 427.1 | .3103 | .0820 | .4720 | .8636 | .0335 | .0469 |
+| OWT-43 | Standard-136 | 52.7 | .4011 | .7694 | .0648 | .1250 | 177.1 | 243.9 | .3200 | .0850 | .4425 | .8277 | .0521 | .0625 |
+| OWT-43 | Unlock-4 | 213.1 | .4536 | .8747 | .0102 | .0547 | 429.3 | 546.8 | .2420 | .0857 | .4913 | .8921 | .0200 | .0547 |
+| OWT-44 | Standard-32 | 265.2 | .4587 | .8754 | .0131 | .0078 | 512.9 | 667.5 | .2635 | .0898 | .5009 | .9109 | .0138 | .0156 |
+| OWT-44 | Standard-64 | 106.2 | .4239 | .8253 | .0374 | .1016 | 266.3 | 367.7 | .3229 | .0949 | .4609 | .8681 | .0303 | .0547 |
+| OWT-44 | Standard-136 | 48.1 | .3827 | .7466 | .0840 | .1562 | 138.9 | 197.0 | .3493 | .0958 | .4411 | .8242 | .0602 | .0938 |
+| OWT-44 | Unlock-4 | 197.0 | .4415 | .8635 | .0152 | .0078 | 378.8 | 496.8 | .2711 | .0938 | .4874 | .9005 | .0173 | .0391 |
+
+The remaining quality, preservation, and compute fields are:
+
+| Panel | Arm | U-Words | U-MaxShare | U-Unique | U-collapse | C-suffix PPL | C-Words | C-MaxShare | C-Unique | C-collapse | Decoded prefix | Clamp | Calls+R | Token-calls | U/C sec. |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Gutenberg | Standard-32 | 74.0 | .0779 | .7002 | .0000 | 510.2 | 44.1 | .0747 | .7943 | .0000 | .9844 | 0 | 32+0 | 4096 | 12.6/12.6 |
+| Gutenberg | Standard-64 | 69.3 | .0989 | .6185 | .0625 | 263.4 | 43.6 | .0821 | .7508 | .0000 | .9844 | 0 | 64+0 | 8192 | 24.8/25.6 |
+| Gutenberg | Standard-136 | 67.9 | .1158 | .5313 | .0938 | 173.3 | 43.0 | .0877 | .7128 | .0000 | .9844 | 0 | 136+0 | 17408 | 53.8/56.5 |
+| Gutenberg | Unlock-4 | 73.8 | .0799 | .6807 | .0000 | 378.9 | 44.0 | .0771 | .7776 | .0000 | .9844 | 0 | 32+1 | 4096 | 14.1/14.1 |
+| OWT-43 | Standard-32 | 70.7 | .0800 | .6912 | .0078 | 532.3 | 43.1 | .0792 | .7728 | .0078 | .9453 | 0 | 32+0 | 4096 | 12.5/13.2 |
+| OWT-43 | Standard-64 | 65.4 | .0967 | .6169 | .0312 | 299.3 | 42.7 | .0887 | .7299 | .0234 | .9453 | 0 | 64+0 | 8192 | 24.1/24.0 |
+| OWT-43 | Standard-136 | 61.7 | .1147 | .5230 | .0781 | 171.4 | 42.8 | .0897 | .6968 | .0156 | .9531 | 0 | 136+0 | 17408 | 50.3/50.4 |
+| OWT-43 | Unlock-4 | 70.4 | .0815 | .6742 | .0078 | 389.6 | 42.9 | .0797 | .7614 | .0078 | .9453 | 0 | 32+1 | 4096 | 12.7/12.8 |
+| OWT-44 | Standard-32 | 72.8 | .0838 | .6855 | .0234 | 504.2 | 43.5 | .0792 | .7882 | .0000 | .9766 | 0 | 32+0 | 4096 | 12.4/12.5 |
+| OWT-44 | Standard-64 | 66.3 | .1026 | .5987 | .0547 | 274.1 | 43.7 | .0813 | .7470 | .0078 | .9922 | 0 | 64+0 | 8192 | 24.2/24.5 |
+| OWT-44 | Standard-136 | 62.8 | .1175 | .5175 | .1094 | 145.8 | 42.9 | .0870 | .7000 | .0000 | .9922 | 0 | 136+0 | 17408 | 50.6/50.7 |
+| OWT-44 | Unlock-4 | 72.4 | .0869 | .6648 | .0234 | 378.4 | 43.2 | .0820 | .7764 | .0000 | .9922 | 0 | 32+1 | 4096 | 12.8/12.9 |
+
+Relative to Standard-32, Unlock-4 improves U-PPL by `68.2--82.0` and C-PPL by
+`134.0--155.7` in all three panels; ROUGE-L also rises by `.0009--.0040`.
+Prompt-gain deltas are `+.0092/-.0050/+.0076`, so stronger prompt utilization
+does not robustly replicate. C-D1 falls in every panel (mean `-.0180`) and
+C-Rep4 rises (mean `+.0042`); mean C-degeneration rises by `.0104`. The robust
+claim is therefore a same-denoiser-call PPL improvement with modest lexical
+diversity/repetition trade-offs, not a general improvement on every metric.
+Standard-64 still has substantially lower PPL, while using twice as many
+denoiser calls.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
