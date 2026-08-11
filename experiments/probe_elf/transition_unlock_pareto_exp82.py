@@ -258,7 +258,10 @@ def generate_scope(
         if info["denoiser_calls"] != first["denoiser_calls"] or info["readout_calls"] != first["readout_calls"]:
             raise AssertionError(f"call count changed across batches for {arm}")
     result = dict(first)
-    for key in ("anchor_fraction", "anchor_confidence"):
+    averaged_keys = ["anchor_fraction", "anchor_confidence"]
+    if "release_fraction" in first:
+        averaged_keys.append("release_fraction")
+    for key in averaged_keys:
         values = [
             (count, info[key]) for count, info in infos
             if info[key] == info[key]
