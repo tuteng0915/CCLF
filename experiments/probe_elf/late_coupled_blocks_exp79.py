@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -42,16 +43,20 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--block_length", type=int, default=128)
     parser.add_argument("--n_steps", type=int, default=32)
-    parser.add_argument("--maturities", nargs="+", type=int, default=[20, 24, 28, 30])
+    parser.add_argument("--maturities", nargs="+", type=int, default=[24, 28])
+    parser.add_argument("--parallel_steps", nargs="+", type=int, default=[60])
+    parser.add_argument("--freeze_a_maturities", nargs="*", type=int, default=[28])
     parser.add_argument(
         "--representations",
         nargs="+",
         choices=REPRESENTATIONS,
-        default=list(REPRESENTATIONS),
+        default=["reencoded"],
     )
     parser.add_argument("--noise_scale", type=float, default=2.0)
     parser.add_argument("--sccfg", type=float, default=3.0)
     parser.add_argument("--hybrid_confidence", type=float, default=0.90)
+    parser.add_argument("--skip_ppl", action="store_true")
+    parser.add_argument("--skip_reference_gate", action="store_true")
     parser.add_argument("--label", default="screen")
     return parser.parse_args()
 
@@ -127,35 +132,70 @@ def make_condition(x_pred, model, encoder, representation, threshold):
 
 
 def init_records(args):
-    names = ["parallel32", "semi_ar64"]
+    names = [
+        f"parallel{steps}"
+        for steps in sorted({args.n_steps, *args.parallel_steps})
+    ]
+    names.append("semi_ar64")
     names.extend(
         f"late_{representation}_m{m}"
         for representation in args.representations
         for m in args.maturities
     )
+    names.extend(
+        f"late_reencoded_m{m}_freeze_a"
+        for m in args.freeze_a_maturities
+        if m in args.maturities and "reencoded" in args.representations
+    )
     return {
         name: {
             "texts": [],
+            "prefix_texts": [],
+            "suffix_texts": [],
             "prefix_revision": [],
+            "suffix_revision": [],
             "highconf_revision": [],
             "lowconf_revision": [],
             "hybrid_fraction": [],
             "condition_cosine": [],
+            "clamp_error": [],
             "samples": [],
         }
         for name in names
     }
 
 
-def append_ids(record, ids, tokenizer, maturity_ids=None, selected=None):
-    texts = common.decode_texts(ids.cpu(), tokenizer)
+def append_ids(
+    record,
+    ids,
+    tokenizer,
+    block_length,
+    maturity_ids=None,
+    selected=None,
+    suffix_before_ids=None,
+):
+    prefix_texts = common.decode_texts(ids[:, :block_length].cpu(), tokenizer)
+    suffix_texts = common.decode_texts(ids[:, block_length:].cpu(), tokenizer)
+    # Each block has its own EOS convention. Decoding the concatenated token
+    # tensor directly would stop at A's EOS and silently discard all of B.
+    texts = [
+        f"{prefix.strip()} {suffix.strip()}".strip()
+        for prefix, suffix in zip(prefix_texts, suffix_texts)
+    ]
     record["texts"].extend(texts)
+    record["prefix_texts"].extend(prefix_texts)
+    record["suffix_texts"].extend(suffix_texts)
     if len(record["samples"]) < 4:
         record["samples"].extend(texts[: 4 - len(record["samples"])])
     if maturity_ids is None:
         return
     changed = ids[:, : maturity_ids.shape[1]].cpu() != maturity_ids.cpu()
     record["prefix_revision"].extend(changed.float().mean(dim=1).tolist())
+    if suffix_before_ids is not None:
+        suffix_changed = ids[:, block_length:].cpu() != suffix_before_ids.cpu()
+        record["suffix_revision"].extend(
+            suffix_changed.float().mean(dim=1).tolist()
+        )
     if selected is not None:
         selected = selected.cpu()
         for row in range(changed.shape[0]):
@@ -177,6 +217,7 @@ def run_batch(
     joint_model,
     encoder,
     grid,
+    parallel_grids,
     args,
     records,
     tokenizer,
@@ -185,21 +226,24 @@ def run_batch(
     block = args.block_length
     snapshots = prefix_snapshots(z0_a, block_model, grid, args.maturities, args)
 
-    # Fully parallel ODE-32.
-    z_parallel, _ = ode_range(
-        torch.cat([z0_a, z0_b], dim=1),
-        torch.zeros(batch, 2 * block, z0_a.shape[-1], device=z0_a.device),
-        joint_model,
-        grid,
-        0,
-        args.n_steps,
-        args,
-    )
-    append_ids(
-        records["parallel32"],
-        common.decode(z_parallel, joint_model, z0_a.device),
-        tokenizer,
-    )
+    # Fully parallel references, including an exact denoiser-call match for
+    # the primary m=28 late-coupled arm.
+    for steps, parallel_grid in parallel_grids.items():
+        z_parallel, _ = ode_range(
+            torch.cat([z0_a, z0_b], dim=1),
+            torch.zeros(batch, 2 * block, z0_a.shape[-1], device=z0_a.device),
+            joint_model,
+            parallel_grid,
+            0,
+            steps,
+            args,
+        )
+        append_ids(
+            records[f"parallel{steps}"],
+            common.decode(z_parallel, joint_model, z0_a.device),
+            tokenizer,
+            block,
+        )
 
     # Native reencoded block Semi-AR baseline.
     z_a_final, _ = snapshots[args.n_steps]
@@ -229,6 +273,10 @@ def run_batch(
         records["semi_ar64"],
         torch.cat([ids_a_final, ids_b_full], dim=1),
         tokenizer,
+        block,
+    )
+    records["semi_ar64"]["clamp_error"].append(
+        float((z_b_full[:, :block] - cond_a_final).abs().max().item())
     )
 
     for maturity in args.maturities:
@@ -261,6 +309,9 @@ def run_batch(
                 cond_seq,
                 cond_mask,
             )
+            suffix_before_ids = common.decode(
+                z_b_m_full, joint_model, z0_a.device
+            )[:, block:]
             z_joint = torch.cat([z_a_m, z_b_m_full[:, block:]], dim=1)
             x_joint = torch.cat([x_a_m, x_b_m_full[:, block:]], dim=1)
             z_joint, _ = ode_range(
@@ -277,16 +328,135 @@ def run_batch(
                 records[name],
                 final_ids,
                 tokenizer,
+                block,
                 maturity_ids=maturity_ids,
                 selected=selected,
+                suffix_before_ids=suffix_before_ids,
             )
-            records[name]["hybrid_fraction"].append(float(selected.float().mean().item()))
+            records[name]["hybrid_fraction"].append(
+                float(selected.float().mean().item())
+            )
             records[name]["condition_cosine"].append(cosine)
+            records[name]["clamp_error"].append(
+                float((z_b_m_full[:, :block] - condition).abs().max().item())
+            )
+
+            if (
+                representation == "reencoded"
+                and maturity in args.freeze_a_maturities
+            ):
+                freeze_name = f"late_reencoded_m{maturity}_freeze_a"
+                z_freeze = torch.cat([condition, z_b_m_full[:, block:]], dim=1)
+                x_freeze = torch.cat([condition, x_b_m_full[:, block:]], dim=1)
+                z_freeze, _ = ode_range(
+                    z_freeze,
+                    x_freeze,
+                    joint_model,
+                    grid,
+                    maturity,
+                    args.n_steps,
+                    args,
+                    cond_seq,
+                    cond_mask,
+                )
+                freeze_readout = common.decode(
+                    z_freeze, joint_model, z0_a.device
+                )
+                freeze_ids = torch.cat(
+                    [maturity_ids, freeze_readout[:, block:]], dim=1
+                )
+                append_ids(
+                    records[freeze_name],
+                    freeze_ids,
+                    tokenizer,
+                    block,
+                    maturity_ids=maturity_ids,
+                    selected=selected,
+                    suffix_before_ids=suffix_before_ids,
+                )
+                records[freeze_name]["hybrid_fraction"].append(
+                    float(selected.float().mean().item())
+                )
+                records[freeze_name]["condition_cosine"].append(cosine)
+                records[freeze_name]["clamp_error"].append(
+                    float((z_freeze[:, :block] - condition).abs().max().item())
+                )
 
 
 def finite_mean(values):
     clean = [value for value in values if value == value]
     return sum(clean) / len(clean) if clean else float("nan")
+
+
+def text_metrics_without_ppl(texts):
+    lengths = [len(text.split()) for text in texts]
+    metrics = {
+        "ppl": float("nan"),
+        "d1": common.distinct_n(texts, 1),
+        "d2": common.distinct_n(texts, 2),
+        "rep4": common.repetition_rate(texts),
+        "degeneration_rate": common.degeneration_rate(texts),
+        "mean_words": sum(lengths) / len(lengths) if lengths else 0.0,
+    }
+    metrics.update(common.unigram_collapse_stats(texts))
+    return metrics
+
+
+@torch.no_grad()
+def conditional_boundary_ppl(
+    prefix_texts,
+    suffix_texts,
+    evaluator,
+    tokenizer,
+    device,
+    suffix_tokens=32,
+    max_length=256,
+):
+    """GPT-2 PPL on the first suffix tokens while conditioning on prefix text."""
+    sequences = []
+    prefix_lengths = []
+    for prefix, suffix in zip(prefix_texts, suffix_texts):
+        prefix_ids = tokenizer.encode(prefix, add_special_tokens=False)
+        separator = " " if prefix.strip() and suffix.strip() else ""
+        suffix_ids = tokenizer.encode(
+            separator + suffix, add_special_tokens=False
+        )[:suffix_tokens]
+        prefix_budget = max(max_length - len(suffix_ids), 0)
+        prefix_ids = prefix_ids[-prefix_budget:] if prefix_budget else []
+        sequences.append(prefix_ids + suffix_ids)
+        prefix_lengths.append(len(prefix_ids))
+
+    pad_id = tokenizer.pad_token_id
+    width = max((len(sequence) for sequence in sequences), default=1)
+    ids = torch.full((len(sequences), width), pad_id, dtype=torch.long)
+    attention = torch.zeros_like(ids)
+    suffix_mask = torch.zeros_like(ids, dtype=torch.bool)
+    for row, (sequence, prefix_length) in enumerate(zip(sequences, prefix_lengths)):
+        if not sequence:
+            continue
+        ids[row, : len(sequence)] = torch.tensor(sequence, dtype=torch.long)
+        attention[row, : len(sequence)] = 1
+        suffix_mask[row, prefix_length : len(sequence)] = True
+
+    total_nll, total_tokens = 0.0, 0
+    for start in range(0, len(sequences), 8):
+        ids_b = ids[start : start + 8].to(device)
+        attention_b = attention[start : start + 8].to(device)
+        valid = suffix_mask[start : start + 8, 1:].to(device)
+        logits = evaluator(
+            input_ids=ids_b, attention_mask=attention_b
+        ).logits[:, :-1].float()
+        targets = ids_b[:, 1:]
+        nll = -F.log_softmax(logits, dim=-1).gather(
+            -1, targets.unsqueeze(-1)
+        ).squeeze(-1)
+        total_nll += float(nll[valid].sum().item())
+        total_tokens += int(valid.sum().item())
+    return (
+        math.exp(total_nll / total_tokens)
+        if total_tokens
+        else float("nan")
+    )
 
 
 def main():
@@ -295,6 +465,10 @@ def main():
         raise ValueError("maturities must lie strictly between 0 and n_steps")
     if args.block_length * 2 > 1024:
         raise ValueError("this bounded evaluator supports total length at most 1024")
+    if any(steps <= 0 for steps in args.parallel_steps):
+        raise ValueError("parallel_steps must be positive")
+    if any(m not in args.maturities for m in args.freeze_a_maturities):
+        raise ValueError("freeze_a_maturities must be a subset of maturities")
 
     from transformers import T5Tokenizer
 
@@ -330,7 +504,38 @@ def main():
         device=device,
     )
     grid = get_sampling_steps(args.n_steps, "uniform", device=device)
+    parallel_grids = {
+        steps: get_sampling_steps(steps, "uniform", device=device)
+        for steps in sorted({args.n_steps, *args.parallel_steps})
+    }
     records = init_records(args)
+
+    native_reference_agreement = float("nan")
+    if not args.skip_reference_gate:
+        gate_size = min(args.batch_size, args.n_samples)
+        gate_z0 = torch.cat([z0_a[:gate_size], z0_b[:gate_size]], dim=1)
+        native_z, _ = common.standard_ode(
+            gate_z0, joint_model, grid, args.sccfg
+        )
+        local_z, _ = ode_range(
+            gate_z0,
+            torch.zeros_like(gate_z0),
+            joint_model,
+            grid,
+            0,
+            args.n_steps,
+            args,
+        )
+        native_ids = common.decode(native_z, joint_model, device)
+        local_ids = common.decode(local_z, joint_model, device)
+        native_reference_agreement = float(
+            (native_ids == local_ids).float().mean().item()
+        )
+        if native_reference_agreement != 1.0:
+            raise RuntimeError(
+                "native reference gate failed: "
+                f"agreement={native_reference_agreement:.6f}"
+            )
 
     for start in range(0, args.n_samples, args.batch_size):
         end = min(start + args.batch_size, args.n_samples)
@@ -342,10 +547,26 @@ def main():
             joint_model,
             encoder,
             grid,
+            parallel_grids,
             args,
             records,
             elf_tokenizer,
         )
+
+    for name, record in records.items():
+        if record["clamp_error"] and max(record["clamp_error"]) > 1e-6:
+            raise RuntimeError(
+                f"condition restore gate failed for {name}: "
+                f"max_error={max(record['clamp_error']):.6g}"
+            )
+        if (
+            name.endswith("_freeze_a")
+            and finite_mean(record["prefix_revision"]) != 0.0
+        ):
+            raise RuntimeError(
+                f"freeze-A gate failed for {name}: "
+                f"revision={finite_mean(record['prefix_revision']):.6g}"
+            )
 
     # The two ELF instances are both needed during generation but not during
     # GPT-2 evaluation. Release them before loading the evaluator so the
@@ -356,45 +577,88 @@ def main():
     del block_model, joint_model, encoder, checkpoint, weights
     torch.cuda.empty_cache()
 
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    ppl_model = None
+    ppl_tokenizer = None
+    if not args.skip_ppl:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    ppl_tokenizer = AutoTokenizer.from_pretrained("gpt2-large")
-    if ppl_tokenizer.pad_token is None:
-        ppl_tokenizer.pad_token = ppl_tokenizer.eos_token
-        ppl_tokenizer.pad_token_id = ppl_tokenizer.eos_token_id
-    ppl_model = AutoModelForCausalLM.from_pretrained(
-        "gpt2-large", torch_dtype=torch.bfloat16
-    ).to(device).eval()
+        ppl_tokenizer = AutoTokenizer.from_pretrained("gpt2-large")
+        if ppl_tokenizer.pad_token is None:
+            ppl_tokenizer.pad_token = ppl_tokenizer.eos_token
+            ppl_tokenizer.pad_token_id = ppl_tokenizer.eos_token_id
+        ppl_model = AutoModelForCausalLM.from_pretrained(
+            "gpt2-large", torch_dtype=torch.bfloat16
+        ).to(device).eval()
 
     results = {}
     for name, record in records.items():
-        metrics = common.text_metrics(
-            record["texts"],
-            ppl_model,
-            ppl_tokenizer,
-            device,
-            max_length=total_length,
-        )
-        if name == "parallel32":
-            denoiser_calls, readout_calls, t5_calls = 32, 0, 0
-        elif name == "semi_ar64":
-            denoiser_calls, readout_calls, t5_calls = 64, 1, 1
+        if ppl_model is None:
+            metrics = text_metrics_without_ppl(record["texts"])
+            prefix_ppl = suffix_ppl = boundary_ppl = float("nan")
         else:
-            maturity = int(name.rsplit("m", 1)[1])
+            metrics = common.text_metrics(
+                record["texts"],
+                ppl_model,
+                ppl_tokenizer,
+                device,
+                max_length=total_length,
+            )
+            prefix_ppl = common.compute_ppl(
+                record["prefix_texts"], ppl_model, ppl_tokenizer, device,
+                max_length=args.block_length,
+            )
+            suffix_ppl = common.compute_ppl(
+                record["suffix_texts"], ppl_model, ppl_tokenizer, device,
+                max_length=args.block_length,
+            )
+            boundary_ppl = conditional_boundary_ppl(
+                record["prefix_texts"],
+                record["suffix_texts"],
+                ppl_model,
+                ppl_tokenizer,
+                device,
+                suffix_tokens=32,
+                max_length=total_length,
+            )
+        if name.startswith("parallel"):
+            denoiser_calls = int(name[len("parallel") :])
+            processed_token_calls = denoiser_calls * total_length
+            readout_calls, t5_calls = 0, 0
+        elif name == "semi_ar64":
+            denoiser_calls = 2 * args.n_steps
+            processed_token_calls = (
+                args.n_steps * args.block_length
+                + args.n_steps * total_length
+            )
+            readout_calls, t5_calls = 1, 1
+        else:
+            maturity = int(name.rsplit("_m", 1)[1].split("_", 1)[0])
             representation = name[len("late_") : name.rfind("_m")]
-            denoiser_calls = 32 + maturity
+            denoiser_calls = args.n_steps + maturity
+            processed_token_calls = (
+                maturity * args.block_length
+                + args.n_steps * total_length
+            )
             readout_calls = 1
             t5_calls = int(representation in ("reencoded", "hybrid"))
         metrics.update(
             {
                 "denoiser_calls": denoiser_calls,
+                "processed_token_calls": processed_token_calls,
                 "readout_calls": readout_calls,
                 "t5_calls": t5_calls,
+                "prefix_ppl": prefix_ppl,
+                "suffix_ppl": suffix_ppl,
+                "boundary32_conditional_ppl": boundary_ppl,
                 "prefix_revision": finite_mean(record["prefix_revision"]),
+                "suffix_revision": finite_mean(record["suffix_revision"]),
                 "highconf_prefix_revision": finite_mean(record["highconf_revision"]),
                 "lowconf_prefix_revision": finite_mean(record["lowconf_revision"]),
                 "hybrid_fraction": finite_mean(record["hybrid_fraction"]),
                 "condition_cosine": finite_mean(record["condition_cosine"]),
+                "max_clamp_restore_error": (
+                    max(record["clamp_error"]) if record["clamp_error"] else 0.0
+                ),
                 "texts": record["texts"],
                 "samples": record["samples"],
             }
@@ -410,10 +674,14 @@ def main():
         "total_length": total_length,
         "n_steps": args.n_steps,
         "maturities": args.maturities,
+        "parallel_steps": args.parallel_steps,
+        "freeze_a_maturities": args.freeze_a_maturities,
         "representations": args.representations,
         "noise_scale": args.noise_scale,
         "sccfg": args.sccfg,
         "hybrid_confidence": args.hybrid_confidence,
+        "skip_ppl": args.skip_ppl,
+        "native_reference_agreement": native_reference_agreement,
         "results": results,
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -432,9 +700,15 @@ def main():
                 "d2",
                 "rep4",
                 "degeneration_rate",
+                "prefix_ppl",
+                "suffix_ppl",
+                "boundary32_conditional_ppl",
                 "prefix_revision",
+                "suffix_revision",
+                "max_clamp_restore_error",
                 "hybrid_fraction",
                 "denoiser_calls",
+                "processed_token_calls",
                 "readout_calls",
                 "t5_calls",
             )
