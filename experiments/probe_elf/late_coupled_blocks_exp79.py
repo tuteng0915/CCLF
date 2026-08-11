@@ -57,6 +57,8 @@ def parse_args():
     parser.add_argument("--hybrid_confidence", type=float, default=0.90)
     parser.add_argument("--skip_ppl", action="store_true")
     parser.add_argument("--skip_reference_gate", action="store_true")
+    parser.add_argument("--conditional", action="store_true")
+    parser.add_argument("--prefix_length", type=int, default=64)
     parser.add_argument("--label", default="screen")
     return parser.parse_args()
 
@@ -87,12 +89,15 @@ def ode_range(z, x_pred, model, grid, start, end, args, cond_seq=None, cond_mask
 
 
 @torch.no_grad()
-def prefix_snapshots(z0, model, grid, maturities, args):
+def prefix_snapshots(
+    z0, model, grid, maturities, args, cond_seq=None, cond_mask=None
+):
     wanted = set(maturities) | {args.n_steps}
     snapshots = {}
     z = z0.clone()
     x_pred = torch.zeros_like(z)
-    cond_seq, cond_mask = common.empty_condition(z)
+    if cond_seq is None:
+        cond_seq, cond_mask = common.empty_condition(z)
     for index in range(args.n_steps):
         z, x_pred = ode_range(
             z, x_pred, model, grid, index, index + 1, args, cond_seq, cond_mask
@@ -150,8 +155,12 @@ def init_records(args):
     return {
         name: {
             "texts": [],
+            "prompt_texts": [],
             "prefix_texts": [],
             "suffix_texts": [],
+            "boundary_prefix_texts": [],
+            "references": [],
+            "decoded_prefix_agreement": [],
             "prefix_revision": [],
             "suffix_revision": [],
             "highconf_revision": [],
@@ -170,11 +179,16 @@ def append_ids(
     ids,
     tokenizer,
     block_length,
+    external_prefix_length=0,
+    prompt_ids=None,
+    references=None,
     maturity_ids=None,
     selected=None,
     suffix_before_ids=None,
 ):
-    prefix_texts = common.decode_texts(ids[:, :block_length].cpu(), tokenizer)
+    prefix_texts = common.decode_texts(
+        ids[:, external_prefix_length:block_length].cpu(), tokenizer
+    )
     suffix_texts = common.decode_texts(ids[:, block_length:].cpu(), tokenizer)
     # Each block has its own EOS convention. Decoding the concatenated token
     # tensor directly would stop at A's EOS and silently discard all of B.
@@ -185,11 +199,33 @@ def append_ids(
     record["texts"].extend(texts)
     record["prefix_texts"].extend(prefix_texts)
     record["suffix_texts"].extend(suffix_texts)
+    if prompt_ids is not None:
+        prompt_texts = common.decode_texts(prompt_ids.cpu(), tokenizer)
+        record["prompt_texts"].extend(prompt_texts)
+        record["boundary_prefix_texts"].extend(
+            [
+                f"{prompt.strip()} {prefix.strip()}".strip()
+                for prompt, prefix in zip(prompt_texts, prefix_texts)
+            ]
+        )
+        record["decoded_prefix_agreement"].extend(
+            (ids[:, :external_prefix_length].cpu() == prompt_ids.cpu())
+            .all(dim=1)
+            .float()
+            .tolist()
+        )
+    else:
+        record["boundary_prefix_texts"].extend(prefix_texts)
+    if references is not None:
+        record["references"].extend(references)
     if len(record["samples"]) < 4:
         record["samples"].extend(texts[: 4 - len(record["samples"])])
     if maturity_ids is None:
         return
-    changed = ids[:, : maturity_ids.shape[1]].cpu() != maturity_ids.cpu()
+    changed = (
+        ids[:, external_prefix_length : maturity_ids.shape[1]].cpu()
+        != maturity_ids[:, external_prefix_length:].cpu()
+    )
     record["prefix_revision"].extend(changed.float().mean(dim=1).tolist())
     if suffix_before_ids is not None:
         suffix_changed = ids[:, block_length:].cpu() != suffix_before_ids.cpu()
@@ -197,7 +233,7 @@ def append_ids(
             suffix_changed.float().mean(dim=1).tolist()
         )
     if selected is not None:
-        selected = selected.cpu()
+        selected = selected[:, external_prefix_length:].cpu()
         for row in range(changed.shape[0]):
             high = changed[row][selected[row]]
             low = changed[row][~selected[row]]
@@ -221,10 +257,35 @@ def run_batch(
     args,
     records,
     tokenizer,
+    base_cond_seq_a=None,
+    base_cond_mask_a=None,
+    prompt_ids=None,
+    references=None,
 ):
     batch = z0_a.shape[0]
     block = args.block_length
-    snapshots = prefix_snapshots(z0_a, block_model, grid, args.maturities, args)
+    external_prefix_length = args.prefix_length if args.conditional else 0
+    snapshots = prefix_snapshots(
+        z0_a,
+        block_model,
+        grid,
+        args.maturities,
+        args,
+        base_cond_seq_a,
+        base_cond_mask_a,
+    )
+    if base_cond_seq_a is None:
+        base_cond_seq_a, base_cond_mask_a = common.empty_condition(z0_a)
+    joint_base_cond = torch.cat(
+        [base_cond_seq_a, torch.zeros_like(z0_b)], dim=1
+    )
+    joint_base_mask = torch.cat(
+        [
+            base_cond_mask_a,
+            torch.zeros(batch, block, dtype=z0_a.dtype, device=z0_a.device),
+        ],
+        dim=1,
+    )
 
     # Fully parallel references, including an exact denoiser-call match for
     # the primary m=28 late-coupled arm.
@@ -237,18 +298,39 @@ def run_batch(
             0,
             steps,
             args,
+            joint_base_cond,
+            joint_base_mask,
         )
         append_ids(
             records[f"parallel{steps}"],
             common.decode(z_parallel, joint_model, z0_a.device),
             tokenizer,
             block,
+            external_prefix_length,
+            prompt_ids,
+            references,
+        )
+        records[f"parallel{steps}"]["clamp_error"].append(
+            float(
+                (
+                    z_parallel[:, :block][base_cond_mask_a.bool()]
+                    - base_cond_seq_a[base_cond_mask_a.bool()]
+                )
+                .abs()
+                .max()
+                .item()
+            )
+            if base_cond_mask_a.any()
+            else 0.0
         )
 
     # Native reencoded block Semi-AR baseline.
     z_a_final, _ = snapshots[args.n_steps]
     ids_a_final = common.decode(z_a_final, block_model, z0_a.device)
     cond_a_final = t5_reencode(ids_a_final, encoder, z0_a.dtype)
+    cond_a_final = torch.where(
+        base_cond_mask_a.unsqueeze(-1).bool(), base_cond_seq_a, cond_a_final
+    )
     cond_seq = torch.cat([cond_a_final, torch.zeros_like(z0_b)], dim=1)
     cond_mask = torch.cat(
         [
@@ -274,6 +356,9 @@ def run_batch(
         torch.cat([ids_a_final, ids_b_full], dim=1),
         tokenizer,
         block,
+        external_prefix_length,
+        prompt_ids,
+        references,
     )
     records["semi_ar64"]["clamp_error"].append(
         float((z_b_full[:, :block] - cond_a_final).abs().max().item())
@@ -290,6 +375,15 @@ def run_batch(
                 representation,
                 args.hybrid_confidence,
             )
+            condition = torch.where(
+                base_cond_mask_a.unsqueeze(-1).bool(),
+                base_cond_seq_a,
+                condition,
+            )
+            if prompt_ids is not None:
+                maturity_ids = maturity_ids.clone()
+                maturity_ids[:, :external_prefix_length] = prompt_ids
+            selected &= base_cond_mask_a < 0.5
             cond_seq = torch.cat([condition, torch.zeros_like(z0_b)], dim=1)
             cond_mask = torch.cat(
                 [
@@ -322,6 +416,8 @@ def run_batch(
                 maturity,
                 args.n_steps,
                 args,
+                joint_base_cond,
+                joint_base_mask,
             )
             final_ids = common.decode(z_joint, joint_model, z0_a.device)
             append_ids(
@@ -329,6 +425,9 @@ def run_batch(
                 final_ids,
                 tokenizer,
                 block,
+                external_prefix_length,
+                prompt_ids,
+                references,
                 maturity_ids=maturity_ids,
                 selected=selected,
                 suffix_before_ids=suffix_before_ids,
@@ -340,6 +439,18 @@ def run_batch(
             records[name]["clamp_error"].append(
                 float((z_b_m_full[:, :block] - condition).abs().max().item())
             )
+            if base_cond_mask_a.any():
+                records[name]["clamp_error"].append(
+                    float(
+                        (
+                            z_joint[:, :block][base_cond_mask_a.bool()]
+                            - base_cond_seq_a[base_cond_mask_a.bool()]
+                        )
+                        .abs()
+                        .max()
+                        .item()
+                    )
+                )
 
             if (
                 representation == "reencoded"
@@ -370,6 +481,9 @@ def run_batch(
                     freeze_ids,
                     tokenizer,
                     block,
+                    external_prefix_length,
+                    prompt_ids,
+                    references,
                     maturity_ids=maturity_ids,
                     selected=selected,
                     suffix_before_ids=suffix_before_ids,
@@ -410,7 +524,7 @@ def conditional_boundary_ppl(
     tokenizer,
     device,
     suffix_tokens=32,
-    max_length=256,
+    max_length=1024,
 ):
     """GPT-2 PPL on the first suffix tokens while conditioning on prefix text."""
     sequences = []
@@ -418,9 +532,9 @@ def conditional_boundary_ppl(
     for prefix, suffix in zip(prefix_texts, suffix_texts):
         prefix_ids = tokenizer.encode(prefix, add_special_tokens=False)
         separator = " " if prefix.strip() and suffix.strip() else ""
-        suffix_ids = tokenizer.encode(
-            separator + suffix, add_special_tokens=False
-        )[:suffix_tokens]
+        suffix_ids = tokenizer.encode(separator + suffix, add_special_tokens=False)
+        if suffix_tokens is not None:
+            suffix_ids = suffix_ids[:suffix_tokens]
         prefix_budget = max(max_length - len(suffix_ids), 0)
         prefix_ids = prefix_ids[-prefix_budget:] if prefix_budget else []
         sequences.append(prefix_ids + suffix_ids)
@@ -465,6 +579,10 @@ def main():
         raise ValueError("maturities must lie strictly between 0 and n_steps")
     if args.block_length * 2 > 1024:
         raise ValueError("this bounded evaluator supports total length at most 1024")
+    if args.conditional and not 0 < args.prefix_length < args.block_length:
+        raise ValueError(
+            "conditional prefix_length must lie between 0 and block_length"
+        )
     if any(steps <= 0 for steps in args.parallel_steps):
         raise ValueError("parallel_steps must be positive")
     if any(m not in args.maturities for m in args.freeze_a_maturities):
@@ -503,6 +621,40 @@ def main():
         generator=generator,
         device=device,
     )
+    base_cond_seq_a = base_cond_mask_a = prompt_ids = None
+    references = None
+    if args.conditional:
+        pairs = common.get_gutenberg_pairs(
+            elf_tokenizer,
+            args.n_samples,
+            args.prefix_length,
+            total_length - args.prefix_length,
+        )
+        if len(pairs) != args.n_samples:
+            raise RuntimeError(
+                f"requested {args.n_samples} conditioned pairs, got {len(pairs)}"
+            )
+        full_cond_seq, full_cond_mask, references = common.build_condition_data(
+            pairs,
+            elf_tokenizer,
+            encoder,
+            device,
+            total_length,
+            args.prefix_length,
+        )
+        base_cond_seq_a = full_cond_seq[:, : args.block_length]
+        base_cond_mask_a = full_cond_mask[:, : args.block_length]
+        z0_a[:, : args.prefix_length] = base_cond_seq_a[:, : args.prefix_length]
+        prompt_ids = torch.zeros(
+            args.n_samples,
+            args.prefix_length,
+            dtype=torch.long,
+            device=device,
+        )
+        for row, (prefix, _) in enumerate(pairs):
+            prompt_ids[row, : min(len(prefix), args.prefix_length)] = torch.tensor(
+                prefix[: args.prefix_length], dtype=torch.long, device=device
+            )
     grid = get_sampling_steps(args.n_steps, "uniform", device=device)
     parallel_grids = {
         steps: get_sampling_steps(steps, "uniform", device=device)
@@ -514,8 +666,35 @@ def main():
     if not args.skip_reference_gate:
         gate_size = min(args.batch_size, args.n_samples)
         gate_z0 = torch.cat([z0_a[:gate_size], z0_b[:gate_size]], dim=1)
+        gate_cond = (
+            torch.cat(
+                [
+                    base_cond_seq_a[:gate_size],
+                    torch.zeros_like(z0_b[:gate_size]),
+                ],
+                dim=1,
+            )
+            if args.conditional
+            else None
+        )
+        gate_mask = (
+            torch.cat(
+                [
+                    base_cond_mask_a[:gate_size],
+                    torch.zeros(
+                        gate_size,
+                        args.block_length,
+                        dtype=z0_a.dtype,
+                        device=device,
+                    ),
+                ],
+                dim=1,
+            )
+            if args.conditional
+            else None
+        )
         native_z, _ = common.standard_ode(
-            gate_z0, joint_model, grid, args.sccfg
+            gate_z0, joint_model, grid, args.sccfg, gate_cond, gate_mask
         )
         local_z, _ = ode_range(
             gate_z0,
@@ -525,6 +704,8 @@ def main():
             0,
             args.n_steps,
             args,
+            gate_cond,
+            gate_mask,
         )
         native_ids = common.decode(native_z, joint_model, device)
         local_ids = common.decode(local_z, joint_model, device)
@@ -551,6 +732,18 @@ def main():
             args,
             records,
             elf_tokenizer,
+            (
+                base_cond_seq_a[start:end]
+                if base_cond_seq_a is not None
+                else None
+            ),
+            (
+                base_cond_mask_a[start:end]
+                if base_cond_mask_a is not None
+                else None
+            ),
+            prompt_ids[start:end] if prompt_ids is not None else None,
+            references[start:end] if references is not None else None,
         )
 
     for name, record in records.items():
@@ -595,6 +788,7 @@ def main():
         if ppl_model is None:
             metrics = text_metrics_without_ppl(record["texts"])
             prefix_ppl = suffix_ppl = boundary_ppl = float("nan")
+            prompt_conditioned_ppl = float("nan")
         else:
             metrics = common.text_metrics(
                 record["texts"],
@@ -612,14 +806,36 @@ def main():
                 max_length=args.block_length,
             )
             boundary_ppl = conditional_boundary_ppl(
-                record["prefix_texts"],
+                record["boundary_prefix_texts"],
                 record["suffix_texts"],
                 ppl_model,
                 ppl_tokenizer,
                 device,
                 suffix_tokens=32,
-                max_length=total_length,
+                max_length=1024,
             )
+            prompt_conditioned_ppl = (
+                conditional_boundary_ppl(
+                    record["prompt_texts"],
+                    record["texts"],
+                    ppl_model,
+                    ppl_tokenizer,
+                    device,
+                    suffix_tokens=None,
+                    max_length=1024,
+                )
+                if record["prompt_texts"]
+                else float("nan")
+            )
+        if record["references"]:
+            metrics["rouge_l"] = sum(
+                common.rouge_l_f1(hypothesis, reference)
+                for hypothesis, reference in zip(
+                    record["texts"], record["references"]
+                )
+            ) / len(record["references"])
+        else:
+            metrics["rouge_l"] = float("nan")
         if name.startswith("parallel"):
             denoiser_calls = int(name[len("parallel") :])
             processed_token_calls = denoiser_calls * total_length
@@ -650,6 +866,10 @@ def main():
                 "prefix_ppl": prefix_ppl,
                 "suffix_ppl": suffix_ppl,
                 "boundary32_conditional_ppl": boundary_ppl,
+                "prompt_conditioned_ppl": prompt_conditioned_ppl,
+                "decoded_prefix_agreement": finite_mean(
+                    record["decoded_prefix_agreement"]
+                ),
                 "prefix_revision": finite_mean(record["prefix_revision"]),
                 "suffix_revision": finite_mean(record["suffix_revision"]),
                 "highconf_prefix_revision": finite_mean(record["highconf_revision"]),
@@ -680,6 +900,8 @@ def main():
         "noise_scale": args.noise_scale,
         "sccfg": args.sccfg,
         "hybrid_confidence": args.hybrid_confidence,
+        "conditional": args.conditional,
+        "prefix_length": args.prefix_length if args.conditional else 0,
         "skip_ppl": args.skip_ppl,
         "native_reference_agreement": native_reference_agreement,
         "results": results,
@@ -703,6 +925,9 @@ def main():
                 "prefix_ppl",
                 "suffix_ppl",
                 "boundary32_conditional_ppl",
+                "prompt_conditioned_ppl",
+                "rouge_l",
+                "decoded_prefix_agreement",
                 "prefix_revision",
                 "suffix_revision",
                 "max_clamp_restore_error",
