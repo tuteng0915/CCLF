@@ -52,6 +52,7 @@ OUT_DIR = Path("results/exp82_transition_unlock_pareto")
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", choices=CHECKPOINTS, default="baseline")
+    parser.add_argument("--checkpoint_path", default=None)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n_uncond", type=int, default=32)
@@ -298,7 +299,11 @@ def main():
     common.SamplingConfig.denoiser_noise_scale = args.noise_scale
     from transformers import T5Tokenizer
 
-    checkpoint_path = REPO_ROOT / CHECKPOINTS[args.checkpoint]
+    checkpoint_path = (
+        Path(args.checkpoint_path)
+        if args.checkpoint_path is not None
+        else REPO_ROOT / CHECKPOINTS[args.checkpoint]
+    )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     model = ELF_B(**common.model_config(args.max_length))
     missing, unexpected = model.load_state_dict(common.load_weights(checkpoint), strict=False)
