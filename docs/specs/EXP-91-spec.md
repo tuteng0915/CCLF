@@ -1,6 +1,6 @@
 # EXP-91 Spec — Triggered Subset Flow Forcing
 
-**Status:** 200-STEP PAIRED TRAINING DONE / GENERATION EVAL RUNNING
+**Status:** DONE / NEGATIVE (200-STEP PAIRED PILOT)
 **Launch evidence:** EXP-82 shows random-position, position-correct temporary
 anchors outperform top-confidence selection in three formal U/C panels, while
 shuffled content is catastrophic.
@@ -51,5 +51,16 @@ Both matched 200-step runs completed. The synchronous control reaches
 validation losses `sync=.7133`, `anchor=.7361`; subset-flow reaches
 `sync=.7213`, `anchor=.7320`. Thus the targeted anchor-conditioned loss is only
 slightly better (`-.0041`) while ordinary validation is slightly worse
-(`+.0080`). Per the gate, this is not yet a method result: paired unconditional
-and conditional generation on both checkpoints is running.
+(`+.0080`). Paired held-out generation is now complete:
+
+| Checkpoint | Arm | U-PPL | C-PPL | Prompt gain | C-RL | C-D1 | C-Rep4 | C-Deg. |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| matched control | Standard | 296.3 | 599.1 | .2353 | .0762 | .5257 | .0098 | .0156 |
+| matched control | Random anchor | 211.7 | **416.9** | **.2943** | .0810 | .5078 | .0131 | .0234 |
+| subset-flow | Standard | 301.8 | 610.0 | .2334 | .0745 | .5301 | .0120 | .0234 |
+| subset-flow | Random anchor | **208.6** | 419.9 | .2817 | **.0816** | **.5097** | .0134 | .0391 |
+
+The random-minus-Standard interaction improves by about 8 PPL only because
+the subset-flow Standard baseline becomes worse. Absolute conditioned PPL and
+prompt gain regress, and degeneration rises. The preregistered gate fails; do
+not expand this formulation to more seeds.

@@ -49,7 +49,7 @@ method ledger is:
 | [EXP-88](EXP-88-spec.md) | **DONE / GATE FAILED** | Can shadow-validated rollback remove harmful temporary anchors? | identity/combined rollback releases about one third and further lowers PPL, but D1 worsens; no multi-seed promotion |
 | [EXP-89](EXP-89-spec.md) | **DONE / SCALE SIGN POSITIVE** | Does the frozen random-anchor policy survive length and prefix-ratio changes? | PPL improves in all 9 new cells through length 1024; unconditional gain shrinks with length and the small diversity trade-off remains |
 | [EXP-90](EXP-90-spec.md) | **IMPLEMENTED / CALIBRATION PILOTS PENDING** | Is temporary predicted-clean anchoring portable beyond ELF? | paired U/C LangFlow and Plaid runner uses native trigger clocks, exact prompt clamp, and paired Plaid ancestral noise |
-| [EXP-91](EXP-91-spec.md) | **GENERATION EVAL RUNNING** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | paired 200-step checkpoints are complete; validation losses nearly tie, so U/C generation decides the gate |
+| [EXP-91](EXP-91-spec.md) | **DONE / NEGATIVE** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | no: absolute conditioned PPL worsens slightly, prompt gain falls, and degeneration rises; the apparent interaction comes from a worse Standard baseline |
 
 Completed decision:
 

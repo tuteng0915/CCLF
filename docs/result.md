@@ -89,6 +89,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | What part of temporary anchoring matters? | EXP-82 | Correct position-content and coverage matter more than high confidence: random 50% anchors beat top-confidence anchors on PPL in all three panels, while shuffled content is catastrophic. |
 | Does the temporary-anchor sign scale? | EXP-89 | Yes for PPL through length 1024 and prefix ratios `.25/.50/.75`; the unconditional effect shrinks with length and the D1/Rep-4 trade-off remains. |
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
+| Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Absolute random-anchor C-PPL worsens slightly (`416.9 -> 419.9`), prompt gain falls, and degeneration rises; the better within-checkpoint delta comes from a worse Standard baseline. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
@@ -1136,6 +1137,27 @@ The unconditional effect decays with sequence length, whereas conditional
 benefit grows with observed-prefix ratio. No new degeneration appears. This
 supports scale robustness of the PPL sign, but the diversity trade-off remains
 and prevents an unqualified method claim.
+
+### 6.14 Triggered subset-flow training (EXP-91)
+
+A matched continued-training control and a subset-flow checkpoint each receive
+200 real-OWT steps. In half of subset-flow examples, a random 50% subset is
+replaced by the frozen teacher's predicted-clean state and loss is applied only
+to unresolved positions. The held-out paired panel uses `n_U=n_C=128` and no
+training-document overlap.
+
+| Checkpoint | Arm | U-PPL | U-D1 | U-Rep4 | C-PPL | Gain | C-RL | C-D1 | C-Rep4 | C-Deg. |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| matched control | Standard | 296.3 | .4719 | .0076 | 599.1 | .2353 | .0762 | .5257 | .0098 | .0156 |
+| matched control | Random anchor | 211.7 | .4489 | .0116 | **416.9** | **.2943** | .0810 | .5078 | .0131 | .0234 |
+| subset-flow | Standard | 301.8 | .4694 | .0063 | 610.0 | .2334 | .0745 | .5301 | .0120 | .0234 |
+| subset-flow | Random anchor | **208.6** | **.4506** | .0096 | 419.9 | .2817 | **.0816** | **.5097** | .0134 | .0391 |
+
+Random-minus-Standard improves by about 8 PPL within the subset-flow
+checkpoint, but only because its Standard baseline is worse. The actual method
+output has slightly worse conditioned PPL, lower prompt gain, and higher
+degeneration than the matched control. This formulation fails its gate and is
+not expanded.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
