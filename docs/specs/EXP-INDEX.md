@@ -31,6 +31,7 @@
 | **EXP-82** | **DONE / ODE PPL POSITIVE WITH TRADE-OFF** | Random 50% position-correct temporary anchors beat confidence selection across three U/C panels; shuffled content fails catastrophically, while D1/Rep-4 remain the limiting trade-off |
 | **EXP-88** | **DONE / PARETO GATE FAILED** | Shadow disagreement releases one third of anchors and further lowers PPL, but does not recover D1; adaptive rollback is not promoted |
 | **EXP-89** | **DONE / SCALE SIGN POSITIVE** | Frozen random anchors improve PPL in all 9 length/prefix cells through length 1024; U benefit shrinks with length and the diversity trade-off remains |
+| **EXP-90** | **IMPLEMENTED / CALIBRATION PILOTS PENDING** | Paired U/C LangFlow/Plaid test of native-clock temporary anchors with shared ancestral noise and exact prompt clamping |
 | **EXP-91** | **TRAINING DONE / GENERATION EVAL RUNNING** | Matched subset-flow and synchronous 200-step checkpoints nearly tie on validation loss; paired U/C generation decides whether training learned the inference clue |
 
 The older queue entries below are retained as a historical ledger. In
