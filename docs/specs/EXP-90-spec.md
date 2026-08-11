@@ -21,7 +21,8 @@ Anchors remain active for four native solver intervals and are then released.
 All arms share initial noise. Plaid additionally shares the exact ancestral
 noise at every solver step. Evaluate paired unconditional and fixed-prefix
 conditional generation; conditional runs restore the observed clean prompt
-after every native step.
+after every native step. A duplicate native-parallel batch must achieve exact
+token agreement (`1.0`) in both scopes before any arm is scored.
 
 Report U-PPL, prompt-conditioned and shuffled-prompt PPL, prompt gain, ROUGE-L,
 D1/D2/Rep-4/degeneration/collapse, exact anchor fraction and confidence,

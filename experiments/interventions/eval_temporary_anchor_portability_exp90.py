@@ -54,6 +54,7 @@ def parse_args():
     parser.add_argument("--ppl_model", default="gpt2-large")
     parser.add_argument("--ppl_batch_size", type=int, default=4)
     parser.add_argument("--skip_ppl", action="store_true")
+    parser.add_argument("--skip_reference_gate", action="store_true")
     return parser.parse_args()
 
 
@@ -124,7 +125,7 @@ def exact_mask(scores, eligible, density):
     return mask
 
 
-def build_anchor(adapter, logits, arm, eligible, density, seed):
+def build_anchor(adapter, logits, predicted_clean, arm, eligible, density, seed):
     probs = torch.softmax(logits.float(), dim=-1)
     confidence, ids = probs.max(-1)
     if arm == "top_confidence":
@@ -134,12 +135,13 @@ def build_anchor(adapter, logits, arm, eligible, density, seed):
         scores = torch.rand(confidence.shape, generator=generator).to(confidence.device)
     mask = exact_mask(scores, eligible, density)
     content_ids = ids.clone()
+    clean = predicted_clean.to(adapter.device).clone()
     if arm == "shuffled_content":
         for row in range(content_ids.shape[0]):
             selected = torch.nonzero(mask[row], as_tuple=False).flatten()
             if len(selected) > 1:
                 content_ids[row, selected] = torch.roll(content_ids[row, selected], 1)
-    clean = adapter.encode_clean(content_ids).to(adapter.device)
+                clean[row, selected] = torch.roll(clean[row, selected], 1, dims=0)
     selected_conf = confidence[mask]
     return mask.to(adapter.device), content_ids.to(adapter.device), clean, float(selected_conf.mean())
 
@@ -170,6 +172,7 @@ def run_arm(adapter, eps, grid, args, arm, scope, batch_index, prompt_clean=None
             anchor_mask, anchor_ids, anchor_clean, anchor_confidence = build_anchor(
                 adapter,
                 out["logits"].to(adapter.device),
+                out["predicted_clean"].to(adapter.device),
                 arm,
                 eligible,
                 args.density,
@@ -233,6 +236,7 @@ def run_arm(adapter, eps, grid, args, arm, scope, batch_index, prompt_clean=None
 def evaluate_scope(adapter, args, grid, scope, panel_ids=None):
     count = args.n_uncond if scope == "unconditional" else args.n_cond
     records = {arm: {"ids": [], "stats": []} for arm in args.arms}
+    reference_agreements = []
     for batch_index, start in enumerate(range(0, count, args.batch_size)):
         end = min(start + args.batch_size, count)
         size = end - start
@@ -250,13 +254,34 @@ def evaluate_scope(adapter, args, grid, scope, panel_ids=None):
             result = run_arm(
                 adapter, eps, grid, args, arm, scope, batch_index, prompt_clean
             )
+            if scope == "conditional":
+                result["decoded_prompt_agreement"] = float(
+                    (
+                        result["ids"][:, : args.prefix_length]
+                        == panel_ids[start:end, : args.prefix_length]
+                    )
+                    .float()
+                    .mean()
+                )
             records[arm]["ids"].append(result.pop("ids"))
             records[arm]["stats"].append(result)
+        if batch_index == 0 and "standard" in args.arms and not args.skip_reference_gate:
+            duplicate = run_arm(
+                adapter, eps, grid, args, "standard", scope, batch_index, prompt_clean
+            )
+            agreement = float(
+                (duplicate["ids"] == records["standard"]["ids"][-1]).float().mean()
+            )
+            reference_agreements.append(agreement)
+            if agreement != 1.0:
+                raise RuntimeError(
+                    f"{scope} native reference agreement={agreement:.8f}"
+                )
         print(f"{scope}: completed {end}/{count}")
 
     for record in records.values():
         record["ids"] = torch.cat(record["ids"], dim=0)
-    return records
+    return records, min(reference_agreements) if reference_agreements else None
 
 
 def mean_stat(stats, key):
@@ -281,8 +306,12 @@ def main():
     grid = np.linspace(adapter.t_eps, 0.999, args.n_steps + 1).tolist()
 
     panel_ids, dataset_name = load_conditional_panel(adapter, args.n_cond, args.seq_len)
-    unconditional = evaluate_scope(adapter, args, grid, "unconditional")
-    conditional = evaluate_scope(adapter, args, grid, "conditional", panel_ids)
+    unconditional, u_reference = evaluate_scope(
+        adapter, args, grid, "unconditional"
+    )
+    conditional, c_reference = evaluate_scope(
+        adapter, args, grid, "conditional", panel_ids
+    )
 
     prompts = [decode_ids(adapter, row[: args.prefix_length]) for row in panel_ids]
     references = [decode_ids(adapter, row[args.prefix_length :]) for row in panel_ids]
@@ -344,6 +373,9 @@ def main():
             "max_prompt_clamp_error": max(
                 row["max_prompt_clamp_error"] for row in stats
             ),
+            "decoded_prompt_agreement": mean_stat(
+                stats, "decoded_prompt_agreement"
+            ),
             "denoiser_calls": args.n_steps,
             "readout_calls": int(arm != "standard"),
         }
@@ -359,6 +391,10 @@ def main():
         "model_native_trigger_t": grid[args.trigger_step],
         "paired_initial_noise": True,
         "paired_plaid_step_noise": args.model == "plaid",
+        "native_reference_agreement": {
+            "unconditional": u_reference,
+            "conditional": c_reference,
+        },
         "results": results,
     }
     out_dir = Path(args.out_dir)
