@@ -95,9 +95,29 @@ def _solver_step(adapter, z, sc, t, t_next, noise=None):
     return adapter.solver_step(z, sc, t, t_next)
 
 
+def _batched_solver_step(adapter, z, sc, t, t_next, batch_size, noise=None):
+    """Memory-bounded native step without changing per-example dynamics."""
+    if batch_size is None or z.shape[0] <= batch_size:
+        return _solver_step(adapter, z, sc, t, t_next, noise=noise)
+    z_parts, sc_parts = [], []
+    for start in range(0, z.shape[0], batch_size):
+        end = min(start + batch_size, z.shape[0])
+        z_next, sc_next = _solver_step(
+            adapter,
+            z[start:end],
+            sc[start:end],
+            t,
+            t_next,
+            noise=(noise[start:end] if noise is not None else None),
+        )
+        z_parts.append(z_next)
+        sc_parts.append(sc_next)
+    return torch.cat(z_parts, dim=0), torch.cat(sc_parts, dim=0)
+
+
 @torch.no_grad()
 def rollout_base_with_checkpoints(adapter, z_start, t_start, checkpoint_ts,
-                                  n_steps, device, seed):
+                                  n_steps, device, seed, batch_size=None):
     """Base rollout plus the exact Plaid noise schedule after every step.
 
     For deterministic adapters this is the usual checkpoint rollout.  For
@@ -123,7 +143,8 @@ def rollout_base_with_checkpoints(adapter, z_start, t_start, checkpoint_ts,
     for i in range(len(merged) - 1):
         t, t_next = merged[i], merged[i + 1]
         noise = torch.randn(z.shape, generator=gen)
-        z, sc = _solver_step(adapter, z, sc, t, t_next, noise=noise)
+        z, sc = _batched_solver_step(
+            adapter, z, sc, t, t_next, batch_size, noise=noise)
         step_noises.append(noise.cpu())
         if round(t_next, 6) in checkpoint_set:
             saved[round(t_next, 6)] = (z.cpu(), sc.cpu())
@@ -184,7 +205,8 @@ def calibrate_eta(adapter, z_bank, sc_bank, t_bank, t_next, kappa_step, device,
 
 @torch.no_grad()
 def rollout_k_branches(adapter, z_bank, sc_bank, t_bank, t_end, K, eta, full_n_steps,
-                        device, seed, t_steps=None, paired_step_noises=None):
+                        device, seed, t_steps=None, paired_step_noises=None,
+                        solver_batch_size=None):
     """z_bank, sc_bank: (N,L,d) cpu -> z_final (N,K,L,d) cpu, decoded tokens."""
     N, L, d = z_bank.shape
     gen = torch.Generator().manual_seed(seed)
@@ -209,8 +231,9 @@ def rollout_k_branches(adapter, z_bank, sc_bank, t_bank, t_end, K, eta, full_n_s
             # Same ancestral draw for all K arms belonging to one trajectory.
             noise = (paired_step_noises[i].unsqueeze(1)
                      .expand(N, K, L, d).reshape(N * K, L, d))
-        z, sc = _solver_step(
-            adapter, z, sc, t_steps[i], t_steps[i + 1], noise=noise)
+        z, sc = _batched_solver_step(
+            adapter, z, sc, t_steps[i], t_steps[i + 1],
+            solver_batch_size, noise=noise)
     return z.cpu().reshape(N, K, L, d), sc.cpu().reshape(N, K, L, d)
 
 
@@ -267,7 +290,7 @@ def main():
     eps = adapter.sample_epsilon((N, L, d))
     saved, base_steps, base_step_noises = rollout_base_with_checkpoints(
         adapter, eps, t_start, grid, args.full_n_steps, device,
-        seed=args.seed + 10_000)
+        seed=args.seed + 10_000, batch_size=args.batch_size)
     print("[GS16] Stage 1 done: dense base rollout saved at all checkpoints")
 
     z_bank_all, sc_bank_all = saved[t_bank]
@@ -300,7 +323,8 @@ def main():
                                              t_steps=continuation_steps,
                                              paired_step_noises=(
                                                  [x[:n_div] for x in continuation_noises]
-                                                 if continuation_noises is not None else None))
+                                                 if continuation_noises is not None else None),
+                                             solver_batch_size=args.batch_size)
         out = adapter.forward_state(z_final_div.reshape(n_div * K, L, d), None, t_end,
                                      batch_size=args.batch_size)
         toks = out["logits"].argmax(-1).reshape(n_div, K, L)
@@ -329,7 +353,8 @@ def main():
     z_branch_end, _ = rollout_k_branches(adapter, z_bank_all, sc_bank_all, t_bank, t_end,
                                           K, eta_used, args.full_n_steps, device,
                                           args.seed + 2, t_steps=continuation_steps,
-                                          paired_step_noises=continuation_noises)
+                                          paired_step_noises=continuation_noises,
+                                          solver_batch_size=args.batch_size)
     out_branch = adapter.forward_state(z_branch_end.reshape(N * K, L, d), None, t_end,
                                         batch_size=args.batch_size)
     branch_toks = out_branch["logits"].argmax(-1).reshape(N, K, L)
