@@ -83,21 +83,72 @@ def centered_residual(Z):
     return mu, Z - mu[None, :]
 
 
+def _solver_step(adapter, z, sc, t, t_next, noise=None):
+    """Call a native step, supplying explicit noise only for Plaid.
+
+    Plaid's ancestral sampler is stochastic.  Common random numbers are
+    required when the purpose of a comparison is to isolate a state
+    perturbation rather than ordinary sampler noise.
+    """
+    if adapter.name == "plaid":
+        return adapter.solver_step(z, sc, t, t_next, noise=noise)
+    return adapter.solver_step(z, sc, t, t_next)
+
+
 @torch.no_grad()
-def one_step_relative_divergence(adapter, z, sc, t, t_next, eta, u, device):
+def rollout_base_with_checkpoints(adapter, z_start, t_start, checkpoint_ts,
+                                  n_steps, device, seed):
+    """Base rollout plus the exact Plaid noise schedule after every step.
+
+    For deterministic adapters this is the usual checkpoint rollout.  For
+    Plaid we own the ancestral noise draws so the same future randomness can
+    be replayed for every counterfactual branch.
+    """
+    if adapter.name != "plaid":
+        saved = rollout_with_checkpoints_and_sc(
+            adapter, z_start, t_start, checkpoint_ts, n_steps, device)
+        return saved, None, None
+
+    t_end = max(checkpoint_ts)
+    merged = sorted(set(np.linspace(t_start, t_end, n_steps + 1).tolist()) |
+                    set(checkpoint_ts))
+    checkpoint_set = set(round(t, 6) for t in checkpoint_ts)
+    gen = torch.Generator().manual_seed(seed)
+    z = z_start.to(device)
+    sc = torch.zeros_like(z)
+    saved = {}
+    step_noises = []
+    if round(merged[0], 6) in checkpoint_set:
+        saved[round(merged[0], 6)] = (z.cpu(), sc.cpu())
+    for i in range(len(merged) - 1):
+        t, t_next = merged[i], merged[i + 1]
+        noise = torch.randn(z.shape, generator=gen)
+        z, sc = _solver_step(adapter, z, sc, t, t_next, noise=noise)
+        step_noises.append(noise.cpu())
+        if round(t_next, 6) in checkpoint_set:
+            saved[round(t_next, 6)] = (z.cpu(), sc.cpu())
+    return saved, merged, step_noises
+
+
+@torch.no_grad()
+def one_step_relative_divergence(adapter, z, sc, t, t_next, eta, u, device,
+                                 paired_noise=None):
     """z, sc, u: (L,d) cpu (sc may be None). Returns scalar relative Frobenius
     divergence between one native solver step from z and from z+eta*u."""
     z_b = z.unsqueeze(0).to(device)
     sc_b = (sc.unsqueeze(0).to(device) if sc is not None else torch.zeros_like(z_b))
     z_pert_b = z_b + eta * u.unsqueeze(0).to(device)
-    z_next, _ = adapter.solver_step(z_b, sc_b, t, t_next)
-    z_next_pert, _ = adapter.solver_step(z_pert_b, sc_b, t, t_next)
+    noise_b = paired_noise.unsqueeze(0) if paired_noise is not None else None
+    z_next, _ = _solver_step(adapter, z_b, sc_b, t, t_next, noise=noise_b)
+    z_next_pert, _ = _solver_step(
+        adapter, z_pert_b, sc_b, t, t_next, noise=noise_b)
     diff = (z_next_pert - z_next).reshape(-1)
     base = z_next.reshape(-1)
     return float(diff.norm() / (base.norm() + 1e-12))
 
 
-def calibrate_eta(adapter, z_bank, sc_bank, t_bank, t_next, kappa_step, device, seed):
+def calibrate_eta(adapter, z_bank, sc_bank, t_bank, t_next, kappa_step, device,
+                  seed, paired_noise=None):
     """z_bank: (N,L,d) cpu states at t_bank for N base trajectories.
     Bisects a scalar eta so median one-step relative divergence == kappa_step.
     Returns (eta, u) where u: (N,L,d) is the (single, magnitude-probing) unit
@@ -112,7 +163,8 @@ def calibrate_eta(adapter, z_bank, sc_bank, t_bank, t_next, kappa_step, device, 
         for n in range(N):
             sc_n = sc_bank[n] if sc_bank is not None else None
             divs.append(one_step_relative_divergence(
-                adapter, z_bank[n], sc_n, t_bank, t_next, eta, u[n], device))
+                adapter, z_bank[n], sc_n, t_bank, t_next, eta, u[n], device,
+                paired_noise[n] if paired_noise is not None else None))
         return float(np.median(divs))
 
     lo, hi = 1e-6, 1.0
@@ -132,7 +184,7 @@ def calibrate_eta(adapter, z_bank, sc_bank, t_bank, t_next, kappa_step, device, 
 
 @torch.no_grad()
 def rollout_k_branches(adapter, z_bank, sc_bank, t_bank, t_end, K, eta, full_n_steps,
-                        device, seed):
+                        device, seed, t_steps=None, paired_step_noises=None):
     """z_bank, sc_bank: (N,L,d) cpu -> z_final (N,K,L,d) cpu, decoded tokens."""
     N, L, d = z_bank.shape
     gen = torch.Generator().manual_seed(seed)
@@ -144,12 +196,21 @@ def rollout_k_branches(adapter, z_bank, sc_bank, t_bank, t_end, K, eta, full_n_s
               if sc_bank is not None else torch.zeros(N * K, L, d))
     z_rep = z_rep + eta * u
 
-    n_steps = max(4, round(full_n_steps * (t_end - t_bank)))
-    t_steps = torch.linspace(t_bank, t_end, n_steps + 1).tolist()
+    if t_steps is None:
+        n_steps = max(4, round(full_n_steps * (t_end - t_bank)))
+        t_steps = torch.linspace(t_bank, t_end, n_steps + 1).tolist()
+    if paired_step_noises is not None and len(paired_step_noises) != len(t_steps) - 1:
+        raise ValueError("paired Plaid noise schedule does not match continuation grid")
     z = z_rep.to(device)
     sc = sc_rep.to(device)
     for i in range(len(t_steps) - 1):
-        z, sc = adapter.solver_step(z, sc, t_steps[i], t_steps[i + 1])
+        noise = None
+        if paired_step_noises is not None:
+            # Same ancestral draw for all K arms belonging to one trajectory.
+            noise = (paired_step_noises[i].unsqueeze(1)
+                     .expand(N, K, L, d).reshape(N * K, L, d))
+        z, sc = _solver_step(
+            adapter, z, sc, t_steps[i], t_steps[i + 1], noise=noise)
     return z.cpu().reshape(N, K, L, d), sc.cpu().reshape(N, K, L, d)
 
 
@@ -204,12 +265,23 @@ def main():
 
     # ---------- Stage 1: dense unperturbed base rollout (all N) ----------
     eps = adapter.sample_epsilon((N, L, d))
-    saved = rollout_with_checkpoints_and_sc(adapter, eps, t_start, grid,
-                                             args.full_n_steps, device)
+    saved, base_steps, base_step_noises = rollout_base_with_checkpoints(
+        adapter, eps, t_start, grid, args.full_n_steps, device,
+        seed=args.seed + 10_000)
     print("[GS16] Stage 1 done: dense base rollout saved at all checkpoints")
 
     z_bank_all, sc_bank_all = saved[t_bank]
     t_next_for_calib = grid[grid.index(t_bank) + 1] if t_bank != grid[-1] else t_end
+    continuation_steps = None
+    continuation_noises = None
+    calibration_noise = None
+    if adapter.name == "plaid":
+        bank_step_idx = next(
+            i for i, t in enumerate(base_steps) if round(t, 6) == t_bank)
+        continuation_steps = base_steps[bank_step_idx:]
+        continuation_noises = base_step_noises[bank_step_idx:]
+        t_next_for_calib = continuation_steps[1]
+        calibration_noise = continuation_noises[0]
 
     # ---------- Stage 0: calibration + diversity check ----------
     n_div = min(args.diversity_n_traj, N)
@@ -219,10 +291,16 @@ def main():
     calib_records = []
     for kappa in sorted(args.kappa_steps):
         eta, _ = calibrate_eta(adapter, z_bank_all[:n_div], sc_bank_all[:n_div],
-                                t_bank, t_next_for_calib, kappa, device, args.seed)
+                                t_bank, t_next_for_calib, kappa, device, args.seed,
+                                paired_noise=(calibration_noise[:n_div]
+                                              if calibration_noise is not None else None))
         z_final_div, _ = rollout_k_branches(adapter, z_bank_all[:n_div], sc_bank_all[:n_div],
                                              t_bank, t_end, K, eta, args.full_n_steps,
-                                             device, args.seed + 1)
+                                             device, args.seed + 1,
+                                             t_steps=continuation_steps,
+                                             paired_step_noises=(
+                                                 [x[:n_div] for x in continuation_noises]
+                                                 if continuation_noises is not None else None))
         out = adapter.forward_state(z_final_div.reshape(n_div * K, L, d), None, t_end,
                                      batch_size=args.batch_size)
         toks = out["logits"].argmax(-1).reshape(n_div, K, L)
@@ -250,7 +328,8 @@ def main():
     # ---------- Stage 2: full K-branch bank for all N trajectories ----------
     z_branch_end, _ = rollout_k_branches(adapter, z_bank_all, sc_bank_all, t_bank, t_end,
                                           K, eta_used, args.full_n_steps, device,
-                                          args.seed + 2)
+                                          args.seed + 2, t_steps=continuation_steps,
+                                          paired_step_noises=continuation_noises)
     out_branch = adapter.forward_state(z_branch_end.reshape(N * K, L, d), None, t_end,
                                         batch_size=args.batch_size)
     branch_toks = out_branch["logits"].argmax(-1).reshape(N, K, L)
@@ -376,6 +455,7 @@ def main():
         "n_traj": N, "k_branches": K, "t_bank": t_bank, "t_end": t_end,
         "checkpoint_ts": grid, "score_ts": score_ts,
         "kappa_step_used": kappa_used, "eta_used": eta_used,
+        "paired_plaid_solver_noise": adapter.name == "plaid",
         "calibration_records": calib_records,
         "n_unique_endpoints_per_traj": n_unique_summary,
         "records": [r for traj_recs in per_traj_records for r in traj_recs],
@@ -390,6 +470,11 @@ def main():
             "upper bound that the pipeline recovers the trivial answer.",
             "Only the one-step-matched-impact calibration protocol is implemented "
             "(Control 6 / terminal-linearized protocol is NOT implemented).",
+            "For Plaid, the base rollout owns the ancestral solver-noise schedule. "
+            "Calibration compares base/perturbed states under the same draw, and "
+            "every K-way branch replays the base trajectory's exact future draws. "
+            "Thus branch differences measure perturbation sensitivity rather than "
+            "uncontrolled sampler noise.",
             "Cross-trajectory null (Control 1) matches by sequence length only "
             "(all trajectories share seq_len here), not terminal token entropy.",
             "a_mean_only (Control 5) broadcasts the position-mean back to (L,d) "
