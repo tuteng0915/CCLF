@@ -69,16 +69,29 @@ def canonical_input(z, x_pred, selected, shuffled=False):
 
 @torch.no_grad()
 def canonical_pipeline(
-    z0, model, groups, sccfg, order="ltr", refine_steps=0, shuffled=False, seed=42
+    z0,
+    model,
+    groups,
+    sccfg,
+    order="ltr",
+    refine_steps=0,
+    shuffled=False,
+    seed=42,
+    cond_seq=None,
+    cond_mask=None,
+    eligible_mask=None,
 ):
     cfg = common.SamplingConfig()
-    cond_seq, cond_mask = exp70.empty_condition(z0)
-    group_of = exp70.balanced_group_map(z0.shape[1], groups, order, z0.device, seed)
+    if cond_seq is None:
+        cond_seq, cond_mask = exp70.empty_condition(z0)
+    group_of = exp70.balanced_group_map(
+        z0.shape[1], groups, order, z0.device, seed, eligible_mask
+    )
     async_updates = groups - refine_steps
     total_stages = groups + async_updates - 1
     dt = 1.0 / groups
-    z = z0.clone()
-    x_pred = torch.zeros_like(z)
+    z = restore_cond(z0.clone(), cond_seq, cond_mask)
+    x_pred = restore_cond(torch.zeros_like(z), cond_seq, cond_mask)
     calls = 0
     with torch.amp.autocast(
         "cuda", dtype=torch.bfloat16, enabled=z.device.type == "cuda"

@@ -77,19 +77,31 @@ def leader_count(progress, length, start, end):
     return int(fraction * length)
 
 
-def position_mask(kind, batch, length, count, device, random_rank=None):
+def position_mask(
+    kind,
+    batch,
+    length,
+    count,
+    device,
+    random_rank=None,
+    eligible_mask=None,
+):
     mask = torch.zeros(batch, length, dtype=torch.bool, device=device)
     if count <= 0:
         return mask
-    if kind == "ltr":
-        mask[:, :count] = True
-    elif kind == "rtl":
-        mask[:, length - count:] = True
+    if eligible_mask is None:
+        eligible_mask = torch.ones(length, dtype=torch.bool, device=device)
+    eligible_positions = torch.arange(length, device=device)[eligible_mask]
+    if kind == "rtl":
+        eligible_positions = eligible_positions.flip(0)
     elif kind == "random":
-        mask = random_rank[None, :] < count
-        mask = mask.expand(batch, -1)
-    else:
+        eligible_positions = eligible_positions[
+            random_rank[eligible_positions].argsort()
+        ]
+    elif kind != "ltr":
         raise ValueError(kind)
+    chosen = eligible_positions[:count]
+    mask[:, chosen] = True
     return mask
 
 
@@ -111,23 +123,33 @@ def lexical_confidence(x_pred, model):
     return F.softmax(logits.float(), dim=-1).amax(-1)
 
 
-def confidence_mask(confidence, count):
+def confidence_mask(confidence, count, eligible_mask=None):
     batch, length = confidence.shape
     if count <= 0:
         return torch.zeros_like(confidence, dtype=torch.bool)
     if count >= length:
         return torch.ones_like(confidence, dtype=torch.bool)
-    indices = confidence.topk(count, dim=1).indices
+    scores = confidence
+    if eligible_mask is not None:
+        scores = confidence.masked_fill(~eligible_mask[None, :], float("-inf"))
+    indices = scores.topk(count, dim=1).indices
     mask = torch.zeros_like(confidence, dtype=torch.bool)
     return mask.scatter(1, indices, True)
 
 
 @torch.no_grad()
-def two_forward_ode(z0, model, t_steps, sccfg, arm, args):
+def two_forward_ode(
+    z0, model, t_steps, sccfg, arm, args, cond_seq=None, cond_mask=None
+):
     cfg = common.SamplingConfig()
-    cond_seq, cond_mask = empty_condition(z0)
-    z = z0.clone()
-    x_pred = torch.zeros_like(z)
+    if cond_seq is None:
+        cond_seq, cond_mask = empty_condition(z0)
+    if not torch.equal(cond_mask, cond_mask[:1].expand_as(cond_mask)):
+        raise ValueError("all examples must share the same condition mask")
+    eligible_mask = cond_mask[0] < 0.5
+    eligible_count = int(eligible_mask.sum().item())
+    z = restore_cond(z0.clone(), cond_seq, cond_mask)
+    x_pred = restore_cond(torch.zeros_like(z), cond_seq, cond_mask)
     length = z.shape[1]
     generator = torch.Generator(device=z.device).manual_seed(args.seed)
     permutation = torch.randperm(length, generator=generator, device=z.device)
@@ -159,23 +181,31 @@ def two_forward_ode(z0, model, t_steps, sccfg, arm, args):
 
             progress = index / max(t_steps.shape[0] - 2, 1)
             count = leader_count(
-                progress, length, args.wave_start, args.wave_end
+                progress, eligible_count, args.wave_start, args.wave_end
             )
             if arm == "two_forward_none":
                 leaders = torch.zeros(
                     z.shape[:2], dtype=torch.bool, device=z.device
                 )
             elif arm == "two_forward_all":
-                leaders = torch.ones(
-                    z.shape[:2], dtype=torch.bool, device=z.device
-                )
+                leaders = eligible_mask[None, :].expand(z.shape[0], -1)
             elif arm in ("soft_ltr", "soft_shuffled"):
                 leaders = position_mask(
-                    "ltr", z.shape[0], length, count, z.device
+                    "ltr",
+                    z.shape[0],
+                    length,
+                    count,
+                    z.device,
+                    eligible_mask=eligible_mask,
                 )
             elif arm == "soft_rtl":
                 leaders = position_mask(
-                    "rtl", z.shape[0], length, count, z.device
+                    "rtl",
+                    z.shape[0],
+                    length,
+                    count,
+                    z.device,
+                    eligible_mask=eligible_mask,
                 )
             elif arm == "soft_random":
                 leaders = position_mask(
@@ -185,9 +215,14 @@ def two_forward_ode(z0, model, t_steps, sccfg, arm, args):
                     count,
                     z.device,
                     random_rank,
+                    eligible_mask,
                 )
             elif arm == "soft_confidence":
-                leaders = confidence_mask(lexical_confidence(current_pred, model), count)
+                leaders = confidence_mask(
+                    lexical_confidence(current_pred, model),
+                    count,
+                    eligible_mask,
+                )
                 readout_calls += 1
             else:
                 raise ValueError(arm)
@@ -216,7 +251,9 @@ def two_forward_ode(z0, model, t_steps, sccfg, arm, args):
             z = restore_cond(z, cond_seq, cond_mask)
             x_pred = restore_cond(x_pred, cond_seq, cond_mask)
             model_calls += 1
-            leader_fractions.append(float(leaders.float().mean().item()))
+            leader_fractions.append(
+                float(leaders[:, eligible_mask].float().mean().item())
+            )
     return z, x_pred, {
         "denoiser_calls": model_calls,
         "lexical_readout_calls": readout_calls,

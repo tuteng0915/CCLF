@@ -65,20 +65,36 @@ def parse_args():
     return parser.parse_args()
 
 
-def balanced_group_map(length, groups, order, device, seed):
+def balanced_group_map(
+    length, groups, order, device, seed, eligible_mask=None
+):
     positions = torch.arange(length, device=device)
-    base = torch.div(positions * groups, length, rounding_mode="floor")
-    if order == "ltr":
-        return base
+    if eligible_mask is None:
+        eligible_mask = torch.ones(length, dtype=torch.bool, device=device)
+    else:
+        eligible_mask = eligible_mask.to(device=device, dtype=torch.bool)
+        if eligible_mask.shape != (length,):
+            raise ValueError("eligible_mask must have shape [length]")
+    eligible_positions = positions[eligible_mask]
+    if not eligible_positions.numel():
+        raise ValueError("at least one position must be eligible")
     if order == "rtl":
-        return groups - 1 - base
-    if order == "random":
+        eligible_positions = eligible_positions.flip(0)
+    elif order == "random":
         generator = torch.Generator(device=device).manual_seed(seed)
-        permutation = torch.randperm(length, generator=generator, device=device)
-        rank = torch.empty_like(permutation)
-        rank[permutation] = torch.arange(length, device=device)
-        return torch.div(rank * groups, length, rounding_mode="floor")
-    raise ValueError(order)
+        eligible_positions = eligible_positions[
+            torch.randperm(
+                eligible_positions.numel(), generator=generator, device=device
+            )
+        ]
+    elif order != "ltr":
+        raise ValueError(order)
+    group_of = torch.full((length,), -1, dtype=torch.long, device=device)
+    ranks = torch.arange(eligible_positions.numel(), device=device)
+    group_of[eligible_positions] = torch.div(
+        ranks * groups, eligible_positions.numel(), rounding_mode="floor"
+    )
+    return group_of
 
 
 def empty_condition(z0):
@@ -95,12 +111,22 @@ def masked_replace(old, new, position_mask):
 
 
 @torch.no_grad()
-def pipeline_shared(z0, model, groups, sccfg, cond_seq=None, cond_mask=None):
+def pipeline_shared(
+    z0,
+    model,
+    groups,
+    sccfg,
+    cond_seq=None,
+    cond_mask=None,
+    eligible_mask=None,
+):
     """Correctly reproduce the current average-clock Pipeline with balanced blocks."""
     cfg = common.SamplingConfig()
     if cond_seq is None:
         cond_seq, cond_mask = empty_condition(z0)
-    group_of = balanced_group_map(z0.shape[1], groups, "ltr", z0.device, 0)
+    group_of = balanced_group_map(
+        z0.shape[1], groups, "ltr", z0.device, 0, eligible_mask
+    )
     z = restore_cond(z0.clone(), cond_seq, cond_mask)
     x_pred = restore_cond(torch.zeros_like(z), cond_seq, cond_mask)
     total = 2 * groups - 1
@@ -143,6 +169,7 @@ def pipeline_local(
     cond_seq=None,
     cond_mask=None,
     seed=42,
+    eligible_mask=None,
 ):
     """Block-Jacobi Pipeline using the target block's intended local time."""
     if not 0 <= refine_steps < groups:
@@ -150,7 +177,9 @@ def pipeline_local(
     cfg = common.SamplingConfig()
     if cond_seq is None:
         cond_seq, cond_mask = empty_condition(z0)
-    group_of = balanced_group_map(z0.shape[1], groups, order, z0.device, seed)
+    group_of = balanced_group_map(
+        z0.shape[1], groups, order, z0.device, seed, eligible_mask
+    )
     async_updates = groups - refine_steps
     total_stages = groups + async_updates - 1
     dt = 1.0 / groups
