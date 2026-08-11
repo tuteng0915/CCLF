@@ -69,24 +69,41 @@ def rouge_l_f1(prediction, reference):
     return 2 * precision * recall / (precision + recall + 1e-12)
 
 
-def load_gutenberg_panel(adapter, n_samples, total_length):
-    import nltk
+def load_owt_panel(adapter, n_samples, total_length):
+    """Load full-length OWT2-family documents without importing NLTK.
 
-    nltk.download("gutenberg", quiet=True)
-    from nltk.corpus import gutenberg
+    Plaid's pinned environment has an ICU/libstdc++ ABI conflict in Python's
+    sqlite3 extension, which NLTK imports eagerly.  The model itself and the
+    Hugging Face streaming datasets path are unaffected.
+    """
+    from datasets import load_dataset
 
     sequences = []
-    for filename in gutenberg.fileids():
-        words = re.split(r"\s+", gutenberg.raw(filename).strip())
-        window_words = total_length * 2
-        for start in range(0, max(len(words) - window_words, 0), window_words):
-            text = " ".join(words[start : start + window_words])
-            ids = adapter.tokenizer.encode(text, add_special_tokens=False).ids
-            if len(ids) >= total_length:
-                sequences.append(ids[:total_length])
-            if len(sequences) >= n_samples:
-                return torch.tensor(sequences, dtype=torch.long)
-    raise RuntimeError(f"requested {n_samples} Gutenberg sequences, found {len(sequences)}")
+    sources = (
+        ("Skylion007/openwebtext", {}),
+        ("stas/openwebtext-10k", {}),
+        ("wikitext", {"name": "wikitext-103-raw-v1"}),
+    )
+    errors = []
+    for name, kwargs in sources:
+        try:
+            dataset = load_dataset(name, split="train", streaming=True, **kwargs)
+            for example in dataset:
+                text = example["text"].strip()
+                if len(text) < total_length * 3:
+                    continue
+                ids = adapter.tokenizer.encode(text, add_special_tokens=False).ids
+                if len(ids) >= total_length:
+                    sequences.append(ids[:total_length])
+                if len(sequences) >= n_samples:
+                    return torch.tensor(sequences, dtype=torch.long), name
+        except Exception as error:
+            errors.append(f"{name}: {error}")
+            continue
+    raise RuntimeError(
+        f"requested {n_samples} full-length sequences, found {len(sequences)}; "
+        + " | ".join(errors)
+    )
 
 
 @torch.no_grad()
@@ -350,7 +367,9 @@ def main():
     adapter = load_adapter("plaid", "baseline", None, device)
     adapter.seq_len = 2 * args.block_size
     grid = np.linspace(adapter.t_eps, 0.999, args.n_steps + 1).tolist()
-    panel_ids = load_gutenberg_panel(adapter, args.n_samples, 2 * args.block_size)
+    panel_ids, dataset_name = load_owt_panel(
+        adapter, args.n_samples, 2 * args.block_size
+    )
     prompt_ids_all = panel_ids[:, : args.prefix_length]
     prompt_clean_all = adapter.encode_clean(prompt_ids_all).to(device)
 
@@ -486,7 +505,7 @@ def main():
     payload = {
         **vars(args),
         "model": "plaid",
-        "dataset": "gutenberg",
+        "dataset": dataset_name,
         "paired_suffix_and_step_noise": True,
         "native_reference_agreement": min(reference_agreements),
         "results": results,

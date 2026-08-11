@@ -3,7 +3,7 @@
 **Status:** IMPLEMENTED / P1 BOUNDED VERIFICATION
 **Purpose:** decide whether Plaid hard-`m=24` survives a real-prefix test.
 
-Use a fixed 64-token Gutenberg prefix, a 192-token continuation, paired suffix
+Use a fixed 64-token OWT-family prefix, a 192-token continuation, paired suffix
 and ancestral noise, at least 128 examples per seed for seeds 42/123/456.
 Compare only Parallel-32, Block-SAR-64, and raw/continuous/hard `m=24`.
 
