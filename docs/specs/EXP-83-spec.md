@@ -1,45 +1,26 @@
-# EXP-83 Spec — Adaptive Rollback Anchoring
+# EXP-83 Spec — Formal Cross-Architecture Endpoint Collapse
 
-**Status:** READY AFTER EXP-82 SCREEN
+**Status:** READY / P0
+**Purpose:** test whether endpoint exploration--collapse is cross-architecture
+rather than an ELF-only observation.
 
-## Question
+Run LangFlow and Plaid with model-specific branch-point and log-SNR
+calibration. Never reuse an ELF nominal time. Use at least 32 trajectories,
+8 deduplicated branches, and seeds 42/123/456. Plaid pairs ancestral noise.
 
-Can dynamic release retain the Unlock PPL improvement while removing its
-distinctness and repetition cost?
+Report centered-cosine self specificity, self-endpoint rank, normalized
+endpoint entropy, effective candidate count, and affinity-collapse time, with
+position-shuffled and norm-matched random endpoint controls.
 
-## Arms
+Gates require native reference agreement 1.0, at least four distinct endpoints
+on average, model-native time calibration, and shuffled specificity near zero.
 
-Start from the best non-saturated EXP-82 density/trigger cell and compare:
+- **Confirmation:** early self specificity is indistinguishable from zero and
+  rank/entropy collapse in a narrow, seed-stable window on both models.
+- **Architecture boundary:** the effect survives on only one model after native
+  calibration.
+- **Measurement failure:** branch diversity or null gates fail.
 
-1. Standard-32;
-2. fixed Unlock-4;
-3. confidence rollback: release when confidence falls below its trigger value
-   by margin `delta`;
-4. identity rollback: release after a fresh lexical readout disagrees with the
-   anchored identity;
-5. combined rollback;
-6. fixed-budget rollback: release the least stable anchors first so the active
-   budget never exceeds `q`.
-
-Every arm uses the same scheduled readout points and reports them separately
-from denoiser calls. Released positions return to continuous joint refinement;
-they are never irreversibly remasked or decoded.
-
-## Gate
-
-Use paired `n=64+64` U/C screen, then three `n=128+128` replications for at
-most one rollback arm. A pass requires
-
-```text
-delta PPL < 0,
-delta D1 >= -.005,
-delta Rep-4 <= +.002,
-delta degeneration <= +.01
-```
-
-against Standard-32, plus nonzero release and final revision rates. If no arm
-beats fixed Unlock-4 on the quality Pareto frontier, retain the trade-off as a
-method boundary rather than tuning further.
-
-Planned runner:
-`models/ELF-torch/experiments/probe_elf/adaptive_rollback_exp83.py`.
+Runner: the existing
+`experiments/global_state/analyze_endpoint_specificity.py` via LangFlow/Plaid
+adapters, preceded by bounded branch-point calibration pilots.

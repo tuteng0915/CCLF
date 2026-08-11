@@ -1,40 +1,27 @@
-# EXP-84 Spec — Scale and Architecture Portability
+# EXP-84 Spec — Counterfactual Endpoint Steering
 
-**Status:** READY AFTER EXP-82/83 CELL FREEZE
+**Status:** IMPLEMENTED / P0
+**Purpose:** convert endpoint collapse from an observational curve into a
+causal basin-rigidity test.
 
-## Question
+For state `z_t`, self endpoint `e_0`, and reachable alternative `e_j`, perturb
+the centered residual along the normalized contrast `e_j-e_0` using magnitude
+`epsilon ||R_t||_F`. Compare alternative, opposite/self, random-orthogonal,
+position-shuffled, and no-perturbation directions at times on both sides of the
+collapse window. Continue with paired native rollout.
 
-Does the best calibrated temporary-anchor policy survive longer sequences,
-different observed-prefix ratios, and different continuous-language-model
-samplers?
-
-## ELF scaling panel
-
-Freeze one policy before inspecting scale results. Compare Standard-32 and the
-frozen policy at lengths `128/256/512/1024`. For conditional generation use
-prefix ratios `.25/.50/.75`; use paired suffix noise and at least 64 samples per
-cell where memory permits. Report the full U/C panel, prompt gain, boundary
-bands, anchor fraction, repetition/collapse, and processed-token calls.
-
-## Cross-architecture panel
-
-Test deterministic LangFlow first, then Plaid. Do not transfer ELF's nominal
-time. Calibrate trigger checkpoint and confidence threshold without changing
-text quality so that anchor density matches the frozen ELF cell. Compare:
+Report alternative capture, self retention, token agreement with both
+endpoints, and
 
 ```text
-native standard / readout-only / calibrated temporary anchor /
-same-position shuffled-content control.
+epsilon_50(t) = min epsilon such that P_redirect(t, epsilon) >= .5.
 ```
 
-Both unconditional and native-prefix conditional generation are mandatory.
-Plaid must reuse paired ancestral noise after the fork.
+- **Causal exploration--collapse:** alternative steering works before collapse,
+  `epsilon_50` rises across the collapse window, and matched nulls do not.
+- **Predetermined transport:** alternative steering is weak from the earliest
+  time.
+- **Generic fragility:** random and endpoint directions redirect equally.
 
-## Decision
-
-A general method claim requires a favorable conditional sign beyond ELF and
-no architecture-specific degeneration. ELF-only length scaling supports an
-ELF sampler method; failure under stochastic Plaid defines a solver boundary.
-
-Planned runners:
-`scale_unlock_exp84.py` and architecture-specific wrappers.
+Start with deterministic ELF formal GS16 banks, then promote to LangFlow.
+Runner: `experiments/global_state/intervene_endpoint_steering.py`.

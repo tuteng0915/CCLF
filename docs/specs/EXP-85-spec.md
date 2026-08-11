@@ -1,40 +1,24 @@
-# EXP-85 Spec — Triggered Anchor Distillation
+# EXP-85 Spec — Anchor-Mediated Endpoint Collapse
 
-**Status:** GATED / DO NOT LAUNCH BEFORE EXP-82 OR EXP-83 PASSES
+**Status:** READY / P0
+**Purpose:** test whether anchors improve generation by resolving endpoint
+uncertainty rather than by generic ODE regularization.
 
-## Goal
+At pre-transition, transition, and post-transition checkpoints, anchor exact
+density-matched `.10/.25/.50` subsets using correct high-confidence content,
+within-sequence shuffled content, a reachable alternative endpoint, random
+tokens, and a mask/readout sham. Release after four solver intervals.
 
-Train a single forward transition to absorb the useful asymmetric condition
-identified by temporary anchoring, rather than training another local-clock
-pipeline.
+On unanchored positions report immediate and final changes in endpoint entropy,
+self rank, first/stable time, alternative-endpoint capture, and the complete
+generation-quality panel.
 
-At a calibrated transition state, divide eligible positions into reliable
-anchors `A` and unresolved positions `U`. A frozen teacher performs the
-temporary-anchor branch. The student sees the same state and anchor context,
-but is supervised only on the unresolved transition:
+- **Coordination mediation:** correct anchors lower endpoint entropy and
+  stabilize unanchored positions; shuffled/random controls do not; alternative
+  anchors redirect the joint endpoint, with the largest effect near collapse.
+- **Solver regularization:** PPL changes without endpoint entropy/rank changes.
+- **Wrong lock-in:** entropy falls only by increasing wrong-endpoint capture or
+  degeneration.
 
-```text
-L_async = mean_U ||v_student(z, x_hat_A, t) - v_teacher_unlock(z, x_hat_A, t)||^2
-L_clean = mean_U ||x_student - x_teacher_unlock||^2
-L = L_async + lambda_x L_clean + lambda_sync L_sync.
-```
-
-At least half of batches remain ordinary synchronous ELF transitions.
-
-## Stages
-
-1. **Functional overfit:** frozen backbone plus a small anchor-context adapter,
-   200 steps, fixed train bank and held-out noise.
-2. **Bounded rollout pilot:** unfreeze only the top four blocks for 500 steps
-   if held-out unresolved-transition MSE falls by at least 40% and standard
-   generation remains within 10% PPL.
-3. **Formal U/C evaluation:** compare matched synchronous distillation,
-   triggered distillation, shuffled-anchor teacher, and the inference-time
-   Unlock policy.
-
-## Promotion gate
-
-The method passes only if it improves the triggered-minus-standard interaction
-over synchronous distillation, retains native standard sampling, improves
-conditional generation, and does not reproduce the diversity/repetition cost.
-Otherwise keep temporary anchoring as an inference-only diagnostic.
+Implement by extending the paired endpoint-bank logic in EXP67/74 rather than
+creating another independent sampler.

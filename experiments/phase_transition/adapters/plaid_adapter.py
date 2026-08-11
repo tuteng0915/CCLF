@@ -243,7 +243,7 @@ class PlaidAdapter:
 
     # ------------------------------------------------------------------
     @torch.no_grad()
-    def solver_step(self, state, sc_state, t, t_next, generator=None):
+    def solver_step(self, state, sc_state, t, t_next, generator=None, noise=None):
         """Native ancestral VDM step (stochastic; VDM paper Appendix A.4 eq
         33, transcribed from Plaid's generate_samples()). t, t_next: this
         repo's convention (0=noisy,1=clean); internally t_next > t must map
@@ -266,8 +266,17 @@ class PlaidAdapter:
         z_next = z_next + c * alpha_sq_s.sqrt() * x_reconst
         noise_std = (c * (1 - alpha_sq_s)).sqrt()
         if float(t_next) < 1.0 - 1e-9:  # skip final-step noise, matching sample.py's `if t > 0`
-            z_next = z_next + noise_std * torch.randn(
-                z.shape, device=self.device, generator=generator, dtype=torch.float64)
+            if noise is None:
+                noise = torch.randn(
+                    z.shape, device=self.device, generator=generator, dtype=torch.float64
+                )
+            else:
+                noise = noise.to(device=self.device, dtype=torch.float64)
+                if noise.shape != z.shape:
+                    raise ValueError(
+                        f"explicit step noise shape {noise.shape} != state shape {z.shape}"
+                    )
+            z_next = z_next + noise_std * noise
 
         return z_next.float(), x_reconst.float()
 
