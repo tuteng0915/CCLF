@@ -23,6 +23,7 @@ for path in (HERE, PT_DIR):
         sys.path.insert(0, str(path))
 
 from common import frobenius_cosine, load_adapter  # noqa: E402
+from analyze_endpoint_specificity import rollout_base_with_checkpoints  # noqa: E402
 
 
 def parse_args():
@@ -32,6 +33,7 @@ def parse_args():
     parser.add_argument("--label", default="smoke")
     parser.add_argument("--n_traj", type=int, default=None)
     parser.add_argument("--n_states", type=int, default=17)
+    parser.add_argument("--full_n_steps", type=int, default=32)
     parser.add_argument("--k_draws", type=int, default=16)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
@@ -66,16 +68,61 @@ def main():
     if z_bank.shape[-2:] != (length, dim):
         raise ValueError("endpoint bank and Plaid adapter shapes do not match")
 
-    grid = np.linspace(adapter.t_eps, 0.99, args.n_states).round(6).tolist()
-    generator = torch.Generator(device=device).manual_seed(args.seed)
-    z = adapter.sample_epsilon((n_traj, length, dim), generator=generator)
-    sc = torch.zeros_like(z)
-    saved = {grid[0]: (z.detach().cpu(), sc.detach().cpu())}
-    for index in range(len(grid) - 1):
-        z, sc = adapter.solver_step(
-            z, sc, grid[index], grid[index + 1], generator=generator
+    bank_path = Path(args.endpoint_bank_npz)
+    bank_json_path = Path(str(bank_path).replace("_bank.npz", ".json"))
+    if not bank_json_path.exists():
+        raise FileNotFoundError(
+            f"matching endpoint-bank JSON is required: {bank_json_path}"
         )
-        saved[grid[index + 1]] = (z.detach().cpu(), sc.detach().cpu())
+    bank_payload = json.loads(bank_json_path.read_text(encoding="utf-8"))
+    grid = sorted(round(float(t), 6) for t in bank_payload["checkpoint_ts"])
+    if len(grid) != args.n_states:
+        raise ValueError(
+            f"bank has {len(grid)} checkpoints but --n_states={args.n_states}; "
+            "use the bank's exact checkpoint count"
+        )
+
+    # Reproduce the full bank batch, not merely the requested prefix.  Plaid's
+    # per-step CPU generator consumes N*L*d values; changing N would preserve
+    # the first step but shift every later ancestral draw.
+    eps = adapter.sample_epsilon((bank_n, length, dim))
+    saved_full, _, _ = rollout_base_with_checkpoints(
+        adapter,
+        eps,
+        adapter.t_eps,
+        grid,
+        args.full_n_steps,
+        device,
+        seed=args.seed + 10_000,
+        batch_size=args.batch_size,
+    )
+    saved = {
+        time_value: (states[:n_traj], sc_states[:n_traj])
+        for time_value, (states, sc_states) in saved_full.items()
+    }
+
+    replayed_endpoint = saved[grid[-1]][0].numpy()
+    expected_endpoint = z_bank[:, 0]
+    replay_max_abs_error = float(
+        np.max(np.abs(replayed_endpoint - expected_endpoint))
+    )
+    replay_cosines = [
+        frobenius_cosine(
+            centered_numpy(replayed_endpoint[index]),
+            centered_numpy(expected_endpoint[index]),
+        )
+        for index in range(n_traj)
+    ]
+    replay_min_cosine = float(np.min(replay_cosines))
+    if replay_max_abs_error > 1e-5 or replay_min_cosine < 1.0 - 1e-7:
+        raise RuntimeError(
+            "replayed Plaid trajectory does not match endpoint bank: "
+            f"max_abs={replay_max_abs_error:.3g}, min_cos={replay_min_cosine:.9f}"
+        )
+    print(
+        f"endpoint replay gate passed: max_abs={replay_max_abs_error:.3g}, "
+        f"min_cos={replay_min_cosine:.9f}"
+    )
 
     records = []
     for index in range(len(grid) - 1):
@@ -174,15 +221,19 @@ def main():
         "label": args.label,
         "seed": args.seed,
         "n_traj": n_traj,
-        "n_states": args.n_states,
+        "n_states": len(grid),
         "k_draws": args.k_draws,
         "grid": grid,
         "endpoint_bank_npz": args.endpoint_bank_npz,
+        "endpoint_bank_json": str(bank_json_path),
+        "endpoint_replay_max_abs_error": replay_max_abs_error,
+        "endpoint_replay_min_cosine": replay_min_cosine,
         "records": records,
         "timeline": timeline,
         "notes": [
             "Each conditional drift estimate uses exact antithetic xi/-xi pairs.",
-            "The endpoint bank and base trajectory must share seed and trajectory order.",
+            "The base trajectory replays the endpoint bank's exact checkpoint grid, "
+            "batch size, initial-noise RNG, and paired ancestral-noise schedule.",
             "GS18-B collective susceptibility remains a separate second-stage analysis.",
         ],
     }
