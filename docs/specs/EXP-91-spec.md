@@ -1,6 +1,6 @@
 # EXP-91 Spec — Triggered Subset Flow Forcing
 
-**Status:** IMPLEMENTED / 200-STEP PAIRED PILOT READY
+**Status:** 200-STEP PAIRED TRAINING DONE / GENERATION EVAL RUNNING
 **Launch evidence:** EXP-82 shows random-position, position-correct temporary
 anchors outperform top-confidence selection in three formal U/C panels, while
 shuffled content is catastrophic.
@@ -44,3 +44,12 @@ loss alone is not a pass.
 
 Runner:
 `models/ELF-torch/experiments/probe_elf/train_subset_flow_exp91.py`.
+
+## Training checkpoint (2026-08-11)
+
+Both matched 200-step runs completed. The synchronous control reaches
+validation losses `sync=.7133`, `anchor=.7361`; subset-flow reaches
+`sync=.7213`, `anchor=.7320`. Thus the targeted anchor-conditioned loss is only
+slightly better (`-.0041`) while ordinary validation is slightly worse
+(`+.0080`). Per the gate, this is not yet a method result: paired unconditional
+and conditional generation on both checkpoints is running.

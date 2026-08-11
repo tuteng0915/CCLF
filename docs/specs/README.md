@@ -44,6 +44,11 @@ method ledger is:
 | [EXP-78](EXP-78-spec.md) | **DONE / ODE-ONLY REVISABLE POSITIVE** | Does post-transition hard anchoring survive multi-seed, conditioned, stochastic, and reversibility tests? | robust ODE gain and real revision after release; native-SDE effect is inert |
 | [EXP-79](EXP-79-spec.md) | **DONE / CONDITIONAL NEGATIVE** | Can late synchronization make block decoding revisable without raw mixed-time interaction? | fixed-prefix P1 confirms that late coupling only matches Semi-AR and loses to parallel on prompt-conditioned PPL, ROUGE-L, and boundary quality |
 | [EXP-80](EXP-80-spec.md) | **DONE / ASYNC NEGATIVE; UNLOCK PPL GAIN REPLICATED** | Do key ELF methods change rank under real prefix conditioning? | conditioning does not rescue soft/local/canonical arms; Unlock-4's same-call U/C PPL gain replicates on two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain |
+| [EXP-81](EXP-81-spec.md) | **DONE / GENERIC-QUALITY EFFECT** | Is Unlock-4's conditional gain concentrated at the prompt boundary? | true-prompt NLL improves in every suffix band, but pooled prompt-gain CIs cross zero; this is not evidence of stronger prompt use |
+| [EXP-82](EXP-82-spec.md) | **DONE / ODE PPL POSITIVE WITH TRADE-OFF** | Can lower-density temporary anchors retain the gain? | random 50% position-correct anchors at `t=.30`, `H=4` beat confidence selection on PPL/ROUGE-L in three panels; D1 falls and Rep-4 often rises |
+| [EXP-88](EXP-88-spec.md) | **DONE / GATE FAILED** | Can shadow-validated rollback remove harmful temporary anchors? | identity/combined rollback releases about one third and further lowers PPL, but D1 worsens; no multi-seed promotion |
+| [EXP-89](EXP-89-spec.md) | **DONE / SCALE SIGN POSITIVE** | Does the frozen random-anchor policy survive length and prefix-ratio changes? | PPL improves in all 9 new cells through length 1024; unconditional gain shrinks with length and the small diversity trade-off remains |
+| [EXP-91](EXP-91-spec.md) | **GENERATION EVAL RUNNING** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | paired 200-step checkpoints are complete; validation losses nearly tie, so U/C generation decides the gate |
 
 Completed decision:
 

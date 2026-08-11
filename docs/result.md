@@ -85,6 +85,10 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
 | Does late clock-aligned coupling help prompted continuation? | EXP-79 | No. On fixed-prefix conditional generation it only matches Semi-AR and loses to parallel decoding on prompt-conditioned PPL, ROUGE-L, and A-to-B boundary PPL. |
 | Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes. Unlock-4's same-call PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain. |
+| Is Unlock-4 actually using the prompt more strongly? | EXP-81 | Not robustly. It lowers NLL in every suffix band, but the pooled full-suffix prompt-gain delta is only `+.0045 [-.0085,.0181]`. |
+| What part of temporary anchoring matters? | EXP-82 | Correct position-content and coverage matter more than high confidence: random 50% anchors beat top-confidence anchors on PPL in all three panels, while shuffled content is catastrophic. |
+| Does the temporary-anchor sign scale? | EXP-89 | Yes for PPL through length 1024 and prefix ratios `.25/.50/.75`; the unconditional effect shrinks with length and the D1/Rep-4 trade-off remains. |
+| Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
@@ -1039,6 +1043,99 @@ claim is therefore a same-denoiser-call PPL improvement with modest lexical
 diversity/repetition trade-offs, not a general improvement on every metric.
 Standard-64 still has substantially lower PPL, while using twice as many
 denoiser calls.
+
+### 6.13 Temporary-anchor diagnosis and scale (EXP-81/82/88/89)
+
+These experiments diagnose the replicated ELF ODE Unlock signal without
+changing the base model or the 32 denoiser-call budget.
+
+#### Where does the conditional gain occur? (EXP-81)
+
+EXP-81 rescored the exact `384` EXP-80 P1 continuations with GPT-2-large. The
+reported quantity is Unlock-4 minus Standard-32; negative true NLL is better,
+while positive prompt gain means stronger preference for the true prompt over
+a shuffled prompt.
+
+| suffix band | `Delta` true NLL | paired-bootstrap 95% CI | `Delta` prompt gain | paired-bootstrap 95% CI |
+|---|---:|---:|---:|---:|
+| GPT-2 tokens 1--8 | `-.2735` | `[-.3528,-.1945]` | `+.0465` | `[-.0071,+.0985]` |
+| GPT-2 tokens 9--32 | `-.2369` | `[-.2930,-.1815]` | `-.0076` | `[-.0300,+.0152]` |
+| GPT-2 tokens 33+ | `-.3749` | `[-.4292,-.3224]` | `-.0002` | `[-.0161,+.0162]` |
+| full suffix | `-.3009` | `[-.3363,-.2653]` | `+.0045` | `[-.0085,+.0181]` |
+
+Unlock lowers NLL throughout the continuation, but no pooled prompt-gain band
+is significant. Full-suffix prompt-gain deltas across Gutenberg and two OWT
+panels are `+.0096/-.0023/+.0063`, all with intervals crossing zero. The
+replicated conditional PPL improvement is therefore mainly generic sample
+likelihood, not demonstrably stronger prompt utilization.
+
+#### Confidence, coverage, and correct content (EXP-82)
+
+The P0 sweep freezes trigger `t=.30`, anchor density `.50`, and horizon `H=4`.
+Formal results use three paired `n_U=n_C=128` panels. All arms have 32 denoiser
+calls; anchor arms add one lexical readout.
+
+| Panel | Arm | U-PPL | C-PPL | Gain | C-RL | C-D1 | C-Rep4 | C-Deg. |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Gutenberg | Standard-32 | 296.7 | 572.2 | .1517 | .0870 | .4514 | .0075 | .0234 |
+|  | top-confidence | 243.0 | 424.6 | .1783 | .0899 | .4372 | .0128 | .0156 |
+|  | random position | **206.5** | **392.4** | **.1838** | **.0920** | .4281 | .0120 | .0078 |
+|  | shuffled content | 805.5 | 1554.1 | .0111 | .0791 | -- | -- | -- |
+| OWT-42 | Standard-32 | 296.7 | 728.6 | .2251 | .0812 | .5262 | .0090 | .0234 |
+|  | top-confidence | 243.0 | 517.9 | .2483 | .0854 | .5176 | .0129 | .0312 |
+|  | random position | **206.5** | **512.7** | **.2642** | **.0876** | .5145 | .0103 | .0391 |
+|  | shuffled content | 805.5 | 1971.7 | .0607 | .0590 | -- | -- | -- |
+| OWT-43 | Standard-32 | 287.0 | 572.7 | .2535 | .0846 | .4916 | .0133 | .0547 |
+|  | top-confidence | 240.5 | 430.9 | **.2754** | .0879 | .4800 | .0175 | .0625 |
+|  | random position | **203.7** | **380.2** | .2739 | **.0888** | .4744 | .0173 | .0547 |
+|  | shuffled content | 830.8 | 1580.3 | .0495 | .0705 | -- | -- | -- |
+
+Random anchors have lower trigger confidence than top-confidence anchors in
+P0 (`.887` versus `.999`) yet are consistently better or near-better. Correct
+position-content is essential because matched shuffled content destroys both
+U/C PPL. Thus broad coverage, rather than selecting only already-confident
+tokens, is the stronger mechanism clue. The caveat is consistent: C-D1 falls
+and C-Rep4 often rises.
+
+#### Shadow-validated rollback (EXP-88)
+
+An unconditioned shadow forward at the lock midpoint gives a valid disagreement
+signal. Shadow-null exactly matches Standard and shadow-keep matches the fixed
+anchor arm, ruling out an extra-compute explanation.
+
+| Arm | U-PPL | C-PPL | Gain | C-RL | C-D1 | C-Rep4 | Released |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Standard-32 | 278.7 | 812.8 | .1845 | .0778 | .5945 | .0086 | -- |
+| fixed random anchor | 192.1 | 561.3 | .2149 | .0874 | .5754 | .0121 | .000 |
+| identity rollback | 183.2 | 515.1 | **.2208** | **.0884** | .5669 | .0111 | .325 |
+| confidence rollback | 194.4 | 550.5 | .2121 | .0873 | .5734 | .0125 | .076 |
+| combined rollback | **182.6** | **511.1** | .2167 | .0877 | .5680 | .0108 | .341 |
+
+Rollback is active and further improves PPL, but it does not recover lexical
+diversity. It fails the preregistered Pareto gate and is not promoted.
+
+#### Length and prefix-ratio scaling (EXP-89)
+
+The frozen random-anchor policy improves PPL in all nine new cells. Entries are
+random-anchor minus Standard-32 deltas; length-1024 uses the preregistered
+preliminary `n_U=n_C=16` budget.
+
+| length | prefix ratio | `Delta` U-PPL | `Delta` C-PPL | `Delta` gain | `Delta` C-RL | `Delta` C-D1 | `Delta` C-Rep4 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 256 | .25 | -25.2 | -41.7 | -.006 | +.004 | -.011 | +.003 |
+| 256 | .50 | -25.2 | -96.5 | +.012 | +.004 | -.016 | +.003 |
+| 256 | .75 | -25.2 | -175.3 | +.018 | +.003 | -.020 | +.001 |
+| 512 | .25 | -9.8 | -18.7 | .000 | +.003 | -.010 | +.001 |
+| 512 | .50 | -9.8 | -52.9 | +.005 | +.005 | -.011 | .000 |
+| 512 | .75 | -9.8 | -126.0 | +.011 | +.003 | -.005 | .000 |
+| 1024 | .25 | -2.5 | -13.0 | .000 | +.003 | .000 | -.001 |
+| 1024 | .50 | -2.5 | -42.4 | +.027 | +.001 | -.012 | -.002 |
+| 1024 | .75 | -2.5 | -184.0 | -.002 | +.002 | -.013 | +.003 |
+
+The unconditional effect decays with sequence length, whereas conditional
+benefit grows with observed-prefix ratio. No new degeneration appears. This
+supports scale robustness of the PPL sign, but the diversity trade-off remains
+and prevents an unqualified method claim.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

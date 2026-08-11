@@ -27,6 +27,11 @@
 | **EXP-78** | **DONE / ODE-ONLY REVISABLE POSITIVE** | Three-checkpoint, three-seed ODE gains survive conditioned evaluation; Unlock-4 is best and 8--10% of anchors revise after release, but native-SDE effects are negligible |
 | **EXP-79** | **DONE / CONDITIONAL NEGATIVE** | On 64-token-prefix/192-token-continuation generation, late coupling only matches Semi-AR (`prompt-cond PPL 419--420` vs `421`) and loses badly to Parallel-32/60 (`253/135`); ROUGE-L also favors parallel |
 | **EXP-80** | **DONE / ASYNC NEGATIVE; UNLOCK PPL GAIN REPLICATED** | Paired U/C audit: soft LTR/random and local/canonical remain negative; Unlock-4's same-call U/C PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain |
+| **EXP-81** | **DONE / GENERIC-QUALITY EFFECT** | Bandwise rescoring shows NLL improvements throughout the suffix, but no prompt-gain CI excludes zero; Unlock does not robustly increase prompt use |
+| **EXP-82** | **DONE / ODE PPL POSITIVE WITH TRADE-OFF** | Random 50% position-correct temporary anchors beat confidence selection across three U/C panels; shuffled content fails catastrophically, while D1/Rep-4 remain the limiting trade-off |
+| **EXP-88** | **DONE / PARETO GATE FAILED** | Shadow disagreement releases one third of anchors and further lowers PPL, but does not recover D1; adaptive rollback is not promoted |
+| **EXP-89** | **DONE / SCALE SIGN POSITIVE** | Frozen random anchors improve PPL in all 9 length/prefix cells through length 1024; U benefit shrinks with length and the diversity trade-off remains |
+| **EXP-91** | **TRAINING DONE / GENERATION EVAL RUNNING** | Matched subset-flow and synchronous 200-step checkpoints nearly tie on validation loss; paired U/C generation decides whether training learned the inference clue |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
