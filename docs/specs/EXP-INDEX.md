@@ -29,6 +29,11 @@
 | **EXP-80** | **DONE / ASYNC NEGATIVE; UNLOCK PPL GAIN REPLICATED** | Paired U/C audit: soft LTR/random and local/canonical remain negative; Unlock-4's same-call U/C PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain |
 | **EXP-81** | **DONE / GENERIC-QUALITY EFFECT** | Bandwise rescoring shows NLL improvements throughout the suffix, but no prompt-gain CI excludes zero; Unlock does not robustly increase prompt use |
 | **EXP-82** | **DONE / ODE PPL POSITIVE WITH TRADE-OFF** | Random 50% position-correct temporary anchors beat confidence selection across three U/C panels; shuffled content fails catastrophically, while D1/Rep-4 remain the limiting trade-off |
+| **EXP-83** | **SEED REPLICATION RUNNING** | Corrected cross-architecture endpoint bank: LangFlow lacks a non-tautological narrow collapse; paired-noise Plaid self rank improves gradually while entropy stays high |
+| **EXP-84** | **P0 MIXED** | Endpoint-contrast perturbations redirect specific alternatives while matched controls do not, but `epsilon_50` does not rise monotonically through the ELF collapse window |
+| **EXP-85** | **TWO-SEED PARTIAL POSITIVE** | Correct high-coverage anchors add pre-transition entropy collapse; alternative anchors causally redirect endpoints, with non-negligible shuffled/random effects at 50% density |
+| **EXP-86** | **SMOKE DONE / FORMAL PENDING** | Antithetic Plaid mean-drift estimator passes a measurability smoke; formal run waits for corrected endpoint banks |
+| **EXP-87** | **DONE / THREE-SEED POSITIVE** | Plaid raw/continuous/hard late coupling beats Block-SAR prompt PPL in every seed with 56 versus 64 calls; raw mean `95.38` versus `100.87` |
 | **EXP-88** | **DONE / PARETO GATE FAILED** | Shadow disagreement releases one third of anchors and further lowers PPL, but does not recover D1; adaptive rollback is not promoted |
 | **EXP-89** | **DONE / SCALE SIGN POSITIVE** | Frozen random anchors improve PPL in all 9 length/prefix cells through length 1024; U benefit shrinks with length and the diversity trade-off remains |
 | **EXP-90** | **THREE-SEED P0 RUNNING / GATES PASSED** | Paired U/C LangFlow/Plaid native-clock temporary-anchor panels; duplicate-native agreement is 1.0 and prompt latent clamp error is zero |

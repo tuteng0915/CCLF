@@ -1,6 +1,6 @@
 # EXP-83 Spec — Formal Cross-Architecture Endpoint Collapse
 
-**Status:** READY / P0
+**Status:** SEED-42 FORMAL DONE / SEED REPLICATION RUNNING
 **Purpose:** test whether endpoint exploration--collapse is cross-architecture
 rather than an ELF-only observation.
 

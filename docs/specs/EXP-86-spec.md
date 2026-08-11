@@ -1,6 +1,6 @@
 # EXP-86 Spec — Noise-Debiased Plaid Drift
 
-**Status:** IMPLEMENTED / P1
+**Status:** SMOKE DONE / FORMAL WAITS FOR CORRECTED PLAID BANKS
 **Purpose:** separate genuine Plaid dynamics from ancestral-noise contamination
 of adjacent-state finite differences.
 

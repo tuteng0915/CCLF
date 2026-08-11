@@ -83,7 +83,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can predicted-clean context repair heterogeneous attention? | EXP-75 | Only partially in PPL; vector error is unchanged/worse and generation remains catastrophic. Simple canonical input replacement is rejected. |
 | Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
-| Does late clock-aligned coupling help prompted continuation? | EXP-79 | No. On fixed-prefix conditional generation it only matches Semi-AR and loses to parallel decoding on prompt-conditioned PPL, ROUGE-L, and A-to-B boundary PPL. |
+| Does late clock-aligned coupling help prompted continuation? | EXP-79/87 | Architecture-dependent. It is negative on ELF, but on Plaid all raw/continuous/hard 56-call arms beat Block-SAR-64 C-PPL in three seeds; raw reaches `95.38` versus `100.87`. |
 | Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes. Unlock-4's same-call PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain. |
 | Is Unlock-4 actually using the prompt more strongly? | EXP-81 | Not robustly. It lowers NLL in every suffix band, but the pooled full-suffix prompt-gain delta is only `+.0045 [-.0085,.0181]`. |
 | What part of temporary anchoring matters? | EXP-82 | Correct position-content and coverage matter more than high confidence: random 50% anchors beat top-confidence anchors on PPL in all three panels, while shuffled content is catastrophic. |
@@ -1170,6 +1170,28 @@ Prompt gain falls on two seeds and conditioned degeneration worsens by one of
 128 samples on every seed. The negative decision therefore does not rest on a
 single worse Standard baseline: the targeted asynchronous capability does not
 replicate across inference panels.
+
+### 6.15 Conditional Plaid late coupling (EXP-87)
+
+EXP-79's conditional negative result is ELF-specific. EXP-87 repeats the
+64-token-prefix/192-token-continuation comparison with Plaid's native ancestral
+sampler, shared step noise, exact prompt clamping, `n=128` per seed, and seeds
+`42/123/456`. Values are three-seed means.
+
+| Arm | Calls | Suffix PPL | C-PPL | Shuffle | Gain | Boundary | R-L | D1 | D2 | Rep-4 | Deg. | A/B revision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel | 32 | 107.36 | 105.32 | 127.10 | .1881 | 130.27 | .1034 | .4380 | .8967 | .0001 | .0260 | .000/.000 |
+| Block-SAR | 64 | 104.41 | 100.87 | 124.38 | .2096 | 149.82 | .1080 | .4326 | .8947 | .0010 | .0130 | .000/.000 |
+| Late raw | 56 | **98.93** | **95.38** | **118.44** | .2166 | 133.52 | **.1087** | .4304 | .8916 | .0010 | .0104 | .441/.446 |
+| Late continuous | 56 | 99.98 | 96.18 | 119.68 | **.2185** | 126.58 | .1086 | .4295 | .8921 | .0012 | **.0078** | .441/.446 |
+| Late hard | 56 | 100.19 | 96.06 | 119.27 | .2164 | **122.51** | .1085 | .4290 | .8917 | .0010 | .0156 | .437/.448 |
+
+All three late arms beat Block-SAR C-PPL in every seed while using eight fewer
+calls. Raw gives the best mean suffix/C-PPL, continuous the best prompt gain
+and degeneration, and hard the best boundary PPL. D1/D2 are slightly lower,
+so this is a robust compute-quality lead over Block-SAR, not dominance on every
+metric. The large post-coupling revision rates confirm that the gain does not
+come from irreversibly freezing the first block.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

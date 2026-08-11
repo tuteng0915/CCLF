@@ -1,6 +1,6 @@
 # EXP-85 Spec — Anchor-Mediated Endpoint Collapse
 
-**Status:** READY / P0
+**Status:** TWO-SEED P0 / PARTIAL POSITIVE
 **Purpose:** test whether anchors improve generation by resolving endpoint
 uncertainty rather than by generic ODE regularization.
 

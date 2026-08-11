@@ -1,6 +1,6 @@
 # EXP-84 Spec — Counterfactual Endpoint Steering
 
-**Status:** IMPLEMENTED / P0
+**Status:** P0 DONE / CAUSAL DIRECTION POSITIVE, RIGIDITY NON-MONOTONE
 **Purpose:** convert endpoint collapse from an observational curve into a
 causal basin-rigidity test.
 
