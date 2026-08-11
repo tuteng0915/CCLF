@@ -46,6 +46,7 @@ protocol should not be treated as active.
 | predicted-clean input replacement canonicalizes heterogeneous Pipeline context | EXP-75 lowers PPL partially but leaves vector error unchanged/worse and remains far from coherent generation | correct content is useful, but simple replacement is not a shared dynamical coordinate system |
 | isolated asynchronous block transitions compose after clock bootstrapping | EXP-76 learns a functional clock, yet all EXP-77 fill/drain arms have PPL `3400--3900` | close block-wave distillation in the current architecture; do not sweep schedules or unroll length |
 | post-transition hard anchoring is sampler-independent | EXP-78 gives large, replicated ODE gains but only `0--1` PPL changes under native SDE despite `93--98%` anchor coverage | retain Unlock-4 as an ODE-specific intervention; do not extrapolate it to stochastic samplers |
+| late clock alignment plus native `x0` conditioning recovers parallel quality | EXP-79 reencoded m24/m28 only reaches PPL `300.6/309.1`, close to Semi-AR `311.9` but far worse than Parallel-32/60 `169.5/76.3`; freeze-A differs by only 3 PPL | late coupling is a slightly cheaper Semi-AR path, not a revisable parallel method; do not expand representations, lengths, or architectures |
 
 ## 4. Low-value or appendix-only branches
 

@@ -805,6 +805,31 @@ universal. The supported method claim is therefore temporary reliable
 conditioning in deterministic ODE, not a demonstrated global coordination
 transition.
 
+### 6.11 Late-coupled block denoising (EXP-79)
+
+Protocol: ELF base, two 128-token blocks, native ODE-32, noise 2, SC-CFG 3,
+`n=128`, seed 42. Blocks are decoded separately around their own EOS before
+the text is concatenated. `Boundary` is GPT-2-large PPL on the first 32 suffix
+evaluator tokens conditioned on the decoded prefix.
+
+| Arm | PPL | PPL A | PPL B | Boundary | D1 | D2 | Rep-4 | Deg. | Prefix rev. | Suffix rev. | Calls | Token-calls |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel-32 | **169.5** | 228.9 | 215.8 | 148.6 | .3567 | .8318 | .0068 | .0156 | — | — | 32 | 8192 |
+| Parallel-60 | **76.3** | 102.8 | 102.9 | 67.1 | .3248 | .7852 | .0231 | .0234 | — | — | 60 | 15360 |
+| Semi-AR-64 | 311.9 | 296.7 | 394.2 | 648.8 | .4086 | .8628 | .0131 | .0000 | — | — | 64 | 12288 |
+| Late reencoded m24 | 300.6 | 285.0 | 382.1 | 602.9 | .4011 | .8618 | .0127 | .0078 | .0573 | .0828 | 56 | 11264 |
+| Late reencoded m28 | 309.1 | 290.8 | 392.8 | 634.8 | .4093 | .8648 | .0113 | .0000 | .0370 | .0519 | 60 | 11776 |
+| Late m28 freeze-A | 312.1 | 297.7 | 395.5 | 630.5 | .4097 | .8651 | .0113 | .0000 | .0000 | .0514 | 60 | 11776 |
+
+The `n=8` smoke first passed exact native-runner agreement (`1.0`), zero
+condition-restore error, and zero freeze-A prefix revision. In the decisive
+panel, late coupling is only marginally better than Semi-AR and dramatically
+worse than parallel decoding on full, suffix, and boundary PPL. Full joint
+refinement changes `3.7%` of prefix tokens at m28 but improves full PPL by only
+`3.0` relative to freeze-A; boundary PPL is instead `4.2` worse. The method is
+stopped at P0 and is not promoted across representations, checkpoints, lengths,
+or architectures.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
