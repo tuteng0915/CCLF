@@ -1,4 +1,4 @@
-"""EXP-82: counterfactual endpoint steering and basin rigidity.
+"""EXP-84: counterfactual endpoint steering and basin rigidity.
 
 Reuses a fixed EXP-GS16 endpoint bank.  At several checkpoints on the same
 base trajectories, perturb the centered residual along a contrast between the

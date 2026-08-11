@@ -1,4 +1,4 @@
-"""EXP-84: antithetic Monte Carlo estimate of Plaid's conditional mean drift.
+"""EXP-86: antithetic Monte Carlo estimate of Plaid's conditional mean drift.
 
 Plaid's native ancestral transition injects independent Gaussian noise at each
 step.  A finite difference along one sampled path conflates this diffusion

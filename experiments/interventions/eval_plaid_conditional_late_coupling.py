@@ -1,4 +1,4 @@
-"""EXP-86: fixed-prefix conditional verification of Plaid late coupling."""
+"""EXP-87: fixed-prefix conditional verification of Plaid late coupling."""
 
 import argparse
 import json
@@ -30,7 +30,7 @@ ARMS = ("full_parallel", "block_sar", "late_raw_m24", "late_continuous_m24", "la
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--out_dir", default="results/exp86_plaid_conditional_late_coupling")
+    parser.add_argument("--out_dir", default="results/exp87_plaid_conditional_late_coupling")
     parser.add_argument("--label", default="smoke")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n_samples", type=int, default=16)
