@@ -1,6 +1,6 @@
 # EXP-91 Spec — Triggered Subset Flow Forcing
 
-**Status:** DONE / NEGATIVE (200-STEP PAIRED PILOT)
+**Status:** DONE / THREE-SEED NEGATIVE (200-STEP PAIRED PILOT)
 **Launch evidence:** EXP-82 shows random-position, position-correct temporary
 anchors outperform top-confidence selection in three formal U/C panels, while
 shuffled content is catastrophic.
@@ -51,7 +51,7 @@ Both matched 200-step runs completed. The synchronous control reaches
 validation losses `sync=.7133`, `anchor=.7361`; subset-flow reaches
 `sync=.7213`, `anchor=.7320`. Thus the targeted anchor-conditioned loss is only
 slightly better (`-.0041`) while ordinary validation is slightly worse
-(`+.0080`). Paired held-out generation is now complete:
+(`+.0080`). The first paired held-out panel was:
 
 | Checkpoint | Arm | U-PPL | C-PPL | Prompt gain | C-RL | C-D1 | C-Rep4 | C-Deg. |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -60,7 +60,20 @@ slightly better (`-.0041`) while ordinary validation is slightly worse
 | subset-flow | Standard | 301.8 | 610.0 | .2334 | .0745 | .5301 | .0120 | .0234 |
 | subset-flow | Random anchor | **208.6** | 419.9 | .2817 | **.0816** | **.5097** | .0134 | .0391 |
 
-The random-minus-Standard interaction improves by about 8 PPL only because
-the subset-flow Standard baseline becomes worse. Absolute conditioned PPL and
-prompt gain regress, and degeneration rises. The preregistered gate fails; do
-not expand this formulation to more seeds.
+Two additional paired inference seeds were then run on the same two trained
+checkpoints with independent noise and OWT offsets:
+
+| inference seed | `Delta Delta` U-PPL | `Delta Delta` C-PPL | `Delta Delta` prompt gain | `Delta Delta` C-RL | `Delta Delta` C-D1 | `Delta Delta` C-Rep4 | `Delta Delta` C-Deg. |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 42 | -8.6 | -8.0 | -.0107 | +.0024 | -.0024 | -.0019 | +.0078 |
+| 123 | +11.5 | +28.9 | +.0056 | -.0012 | -.0014 | -.0027 | +.0078 |
+| 456 | +1.7 | -14.0 | -.0166 | -.0016 | +.0013 | +.0024 | +.0078 |
+| mean | **+1.5** | **+2.3** | **-.0072** | **-.0001** | **-.0008** | **-.0007** | **+.0078** |
+
+Here `Delta Delta` is the subset-flow random-minus-Standard effect minus the
+matched-control random-minus-Standard effect; negative PPL is favorable. The
+PPL interaction is not sign-stable and is slightly unfavorable on average.
+Prompt-gain interaction falls on two of three seeds, and conditioned
+degeneration worsens by exactly one sample (`1/128`) on every seed. The
+preregistered gate fails; do not expand this formulation without changing the
+training objective or on-policy state construction.

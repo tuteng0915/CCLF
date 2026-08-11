@@ -89,7 +89,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | What part of temporary anchoring matters? | EXP-82 | Correct position-content and coverage matter more than high confidence: random 50% anchors beat top-confidence anchors on PPL in all three panels, while shuffled content is catastrophic. |
 | Does the temporary-anchor sign scale? | EXP-89 | Yes for PPL through length 1024 and prefix ratios `.25/.50/.75`; the unconditional effect shrinks with length and the D1/Rep-4 trade-off remains. |
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
-| Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Absolute random-anchor C-PPL worsens slightly (`416.9 -> 419.9`), prompt gain falls, and degeneration rises; the better within-checkpoint delta comes from a worse Standard baseline. |
+| Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
@@ -1153,11 +1153,23 @@ training-document overlap.
 | subset-flow | Standard | 301.8 | .4694 | .0063 | 610.0 | .2334 | .0745 | .5301 | .0120 | .0234 |
 | subset-flow | Random anchor | **208.6** | **.4506** | .0096 | 419.9 | .2817 | **.0816** | **.5097** | .0134 | .0391 |
 
-Random-minus-Standard improves by about 8 PPL within the subset-flow
-checkpoint, but only because its Standard baseline is worse. The actual method
-output has slightly worse conditioned PPL, lower prompt gain, and higher
-degeneration than the matched control. This formulation fails its gate and is
-not expanded.
+The single seed-42 interaction is not robust. Two additional inference seeds
+use the same trained checkpoints with independent noise and OWT offsets:
+
+| inference seed | `Delta Delta` U-PPL | `Delta Delta` C-PPL | `Delta Delta` gain | `Delta Delta` C-RL | `Delta Delta` C-D1 | `Delta Delta` C-Rep4 | `Delta Delta` C-Deg. |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 42 | -8.6 | -8.0 | -.0107 | +.0024 | -.0024 | -.0019 | +.0078 |
+| 123 | +11.5 | +28.9 | +.0056 | -.0012 | -.0014 | -.0027 | +.0078 |
+| 456 | +1.7 | -14.0 | -.0166 | -.0016 | +.0013 | +.0024 | +.0078 |
+| mean | **+1.5** | **+2.3** | **-.0072** | **-.0001** | **-.0008** | **-.0007** | **+.0078** |
+
+`Delta Delta` is the subset-flow random-minus-Standard effect minus the
+matched-control effect; negative PPL is favorable. Neither U nor C interaction
+is sign-stable, and both mean PPL interactions are slightly unfavorable.
+Prompt gain falls on two seeds and conditioned degeneration worsens by one of
+128 samples on every seed. The negative decision therefore does not rest on a
+single worse Standard baseline: the targeted asynchronous capability does not
+replicate across inference panels.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

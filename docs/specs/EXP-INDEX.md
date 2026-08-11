@@ -32,7 +32,7 @@
 | **EXP-88** | **DONE / PARETO GATE FAILED** | Shadow disagreement releases one third of anchors and further lowers PPL, but does not recover D1; adaptive rollback is not promoted |
 | **EXP-89** | **DONE / SCALE SIGN POSITIVE** | Frozen random anchors improve PPL in all 9 length/prefix cells through length 1024; U benefit shrinks with length and the diversity trade-off remains |
 | **EXP-90** | **IMPLEMENTED / CALIBRATION PILOTS PENDING** | Paired U/C LangFlow/Plaid test of native-clock temporary anchors with shared ancestral noise and exact prompt clamping |
-| **EXP-91** | **DONE / NEGATIVE** | Predicted-clean subset-flow fails the paired generation gate: absolute random-anchor C-PPL is `419.9` versus control `416.9`, prompt gain falls, and degeneration rises |
+| **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
