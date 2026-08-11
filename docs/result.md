@@ -1,6 +1,6 @@
 # CCLF Major Experimental Results
 
-**Last updated:** 2026-08-10
+**Last updated:** 2026-08-11
 **Purpose:** single source of truth for the major paper-facing experiments and
 the complete quality metrics produced by the formal evaluation runners.
 
@@ -79,6 +79,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can predicted-clean context repair heterogeneous attention? | EXP-75 | Only partially in PPL; vector error is unchanged/worse and generation remains catastrophic. Simple canonical input replacement is rejected. |
 | Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
+| Does late clock-aligned coupling help prompted continuation? | EXP-79 | No. On fixed-prefix conditional generation it only matches Semi-AR and loses to parallel decoding on prompt-conditioned PPL, ROUGE-L, and A-to-B boundary PPL. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
@@ -805,7 +806,7 @@ universal. The supported method claim is therefore temporary reliable
 conditioning in deterministic ODE, not a demonstrated global coordination
 transition.
 
-### 6.11 Late-coupled block denoising (EXP-79)
+### 6.11 Late-coupled block denoising (EXP-79; unconditional P0)
 
 Protocol: ELF base, two 128-token blocks, native ODE-32, noise 2, SC-CFG 3,
 `n=128`, seed 42. Blocks are decoded separately around their own EOS before
@@ -821,14 +822,42 @@ evaluator tokens conditioned on the decoded prefix.
 | Late reencoded m28 | 309.1 | 290.8 | 392.8 | 634.8 | .4093 | .8648 | .0113 | .0000 | .0370 | .0519 | 60 | 11776 |
 | Late m28 freeze-A | 312.1 | 297.7 | 395.5 | 630.5 | .4097 | .8651 | .0113 | .0000 | .0000 | .0514 | 60 | 11776 |
 
-The `n=8` smoke first passed exact native-runner agreement (`1.0`), zero
+These values are an unconditional mechanism screen, not the decisive test of
+the intended prompt-conditioned use case. The `n=8` smoke first passed exact native-runner agreement (`1.0`), zero
 condition-restore error, and zero freeze-A prefix revision. In the decisive
 panel, late coupling is only marginally better than Semi-AR and dramatically
 worse than parallel decoding on full, suffix, and boundary PPL. Full joint
 refinement changes `3.7%` of prefix tokens at m28 but improves full PPL by only
-`3.0` relative to freeze-A; boundary PPL is instead `4.2` worse. The method is
-stopped at P0 and is not promoted across representations, checkpoints, lengths,
-or architectures.
+`3.0` relative to freeze-A; boundary PPL is instead `4.2` worse. This rejects
+an unconditional-quality claim. A fixed 64-token Gutenberg prefix with a
+192-token continuation is now the decisive P1; no broader promotion occurs
+until prompt-conditioned PPL, ROUGE-L, and A-to-B boundary PPL are available.
+
+#### Decisive conditional P1
+
+Protocol: the same ELF-base arms and paired seed-42 noise, now on 128 fixed
+Gutenberg examples with an observed 64-token prefix and a 192-token generated
+continuation. `Prompt PPL` evaluates the continuation under GPT-2-large while
+conditioning on the original prompt. `Boundary` evaluates the first 32 B
+tokens given the original prompt and generated A. All latent prompt-clamp
+errors are zero.
+
+| Arm | Cont. PPL | Prompt PPL | R-L | Boundary | D1 | D2 | Rep-4 | Deg. | Decoded prefix | A rev. | B rev. | Calls | Token-calls |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel-32 | 238.3 | 252.8 | .1020 | 242.9 | .3478 | .8354 | .0102 | .0078 | .9922 | — | — | 32 | 8192 |
+| Parallel-60 | **128.3** | **134.5** | **.1027** | **125.5** | .3205 | .7931 | .0261 | .0156 | 1.0000 | — | — | 60 | 15360 |
+| Semi-AR-64 | 394.9 | 421.2 | .0968 | 553.1 | .3650 | .8561 | .0104 | .0000 | .9922 | — | — | 64 | 12288 |
+| Late reencoded m24 | 393.6 | 419.0 | .0958 | 566.3 | .3653 | .8537 | .0105 | .0000 | .9922 | .0660 | .0817 | 56 | 11264 |
+| Late reencoded m28 | 394.2 | 420.2 | .0967 | 568.3 | .3620 | .8530 | .0111 | .0000 | 1.0000 | .0453 | .0502 | 60 | 11776 |
+| Late m28 freeze-A | 398.1 | 423.3 | .0967 | 566.8 | .3631 | .8533 | .0100 | .0000 | 1.0000 | .0000 | .0494 | 60 | 11776 |
+
+Conditional generation confirms the negative result on the task the method is
+intended to help. Late-28 is effectively tied with Semi-AR (`-1.0` prompt PPL,
+`-.0001` ROUGE-L) and is much worse than Parallel-32/60 (`+167/+286` prompt
+PPL and lower ROUGE-L). Joint revision improves prompt PPL by only `3.0`
+relative to freeze-A, leaves ROUGE-L unchanged, and makes boundary PPL `1.5`
+worse. EXP-79 is therefore stopped on conditional evidence, not on the earlier
+unconditional screen.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

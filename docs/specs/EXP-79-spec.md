@@ -1,6 +1,6 @@
 # EXP-79 Spec — Late-Coupled Block Denoising
 
-**Status:** DONE / NEGATIVE AT P0
+**Status:** DONE / NEGATIVE ON DECISIVE CONDITIONAL P1
 **Motivation:** The discrete Pipeline fails because it exposes the backbone to
 raw positions at incompatible denoising times. ELF's native condition pathway,
 however, holds clean `x0` states fixed. Test whether blocks can mature
@@ -69,7 +69,7 @@ to `m in {20,24,28,30}` and all three representations.
 Use paired `z_A^0,z_B^0` for every arm. A single maturity readout and any T5
 re-encoding calls must be reported separately from denoiser calls.
 
-## Stage A — short-context screen
+## Stage A0 — unconditional mechanism screen
 
 ```text
 checkpoint = ELF base
@@ -90,6 +90,32 @@ Before P0, run `n=8`, `--skip_ppl` smoke gates and require:
 2. every clamped prefix has zero restore error;
 3. calls are reported as `32+m`, not evaluation-time amortized calls;
 4. the frozen-A arm has exactly zero prefix revision.
+
+This is a mechanism/quality sanity check only. It does not answer whether an
+early block provides useful information under a real external prompt.
+
+## Stage A1 — decisive conditional-generation screen
+
+Use the fixed Gutenberg continuation panel shared with EXP-64/66/78. Each
+length-256 example contains a real 64-token prefix that remains clamped in all
+arms. Positions `64:128` form the first generated region A; positions
+`128:256` form B. Thus the experiment directly asks whether partially solving
+A improves a prompt-conditioned continuation and the A-to-B transition.
+
+Keep the P0 arms, paired noise, seed, and compute accounting unchanged. Report:
+
+```text
+PPL(continuation | prompt),
+ROUGE-L(continuation, held-out continuation),
+PPL(first 32 tokens of B | prompt, generated A),
+PPL_A, PPL_B, D1/D2, Rep-4, degeneration, decoded-prefix agreement.
+```
+
+The primary decision is prompt-conditioned continuation PPL jointly with
+ROUGE-L and boundary PPL; unconditional PPL cannot stop promotion. Require
+latent prompt-clamp error `=0` for every arm. Decoded-prefix agreement is an
+autoencoder diagnostic, not a sampler gate: evaluator conditioning always
+uses the original observed prompt rather than a re-decoded copy.
 
 ## Stage B — checkpoint and length promotion
 
@@ -159,7 +185,7 @@ calls, processed-token calls, readout calls, and T5 encoding calls.
   that native `x0` canonicalization rather than soft latent information is
   essential.
 
-## Result (2026-08-11)
+## Unconditional P0 result (2026-08-11)
 
 The `n=8` smoke passed every implementation gate: native Parallel-32 agreement
 was `1.0`, all condition-restore errors were exactly zero, freeze-A prefix
@@ -184,7 +210,33 @@ At `m=28`, full joint refinement improves full PPL by only `3.0` relative to
 freeze-A, while boundary conditional PPL is `4.2` worse. Nonzero revision is
 therefore not providing a meaningful bidirectional-refinement benefit.
 
-**Decision:** stop at P0. Do not sweep continuous/hybrid representations, more
-checkpoints, longer sequences, or LangFlow/Plaid. The native `x0` path does not
-solve the sequential-condition bottleneck; the method effectively recovers a
-slightly cheaper Semi-AR trajectory while losing badly to parallel ODE.
+The unconditional result alone was not used to stop the method.
+
+## Conditional P1 result (2026-08-11)
+
+The decisive run used 128 fixed Gutenberg examples with an observed 64-token
+prefix and a 192-token continuation. All arms shared prompts, suffix noise,
+and seed. Prompt latents were restored exactly (`max error = 0`) in every arm.
+`Decoded prefix` is only the frozen T5/ELF autoencoder reconstruction
+diagnostic; evaluator conditioning uses the original observed prompt.
+
+| Arm | PPL(cont.) | PPL(cont.\|prompt) | R-L | PPL(B-start\|prompt,A) | D1 | D2 | Rep-4 | Deg. | Decoded prefix | A rev. | B rev. |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Parallel-32 | 238.3 | 252.8 | .1020 | 242.9 | .3478 | .8354 | .0102 | .0078 | .9922 | — | — |
+| Parallel-60 | **128.3** | **134.5** | **.1027** | **125.5** | .3205 | .7931 | .0261 | .0156 | 1.0000 | — | — |
+| Semi-AR-64 | 394.9 | 421.2 | .0968 | 553.1 | .3650 | .8561 | .0104 | .0000 | .9922 | — | — |
+| Late reencoded, `m=24` | 393.6 | 419.0 | .0958 | 566.3 | .3653 | .8537 | .0105 | .0000 | .9922 | .0660 | .0817 |
+| Late reencoded, `m=28` | 394.2 | 420.2 | .0967 | 568.3 | .3620 | .8530 | .0111 | .0000 | 1.0000 | .0453 | .0502 |
+| `m=28`, freeze A | 398.1 | 423.3 | .0967 | 566.8 | .3631 | .8533 | .0100 | .0000 | 1.0000 | .0000 | .0494 |
+
+Late-28 versus Semi-AR changes prompt-conditioned PPL by only `-1.0` and
+ROUGE-L by `-0.0001`, while worsening A-to-B boundary PPL by `+15.2`.
+Against Parallel-32/60, prompt-conditioned PPL is worse by `+167.4/+285.7`
+and ROUGE-L is lower by `.0053/.0059`. Allowing A to revise changes `4.5%` of
+its generated positions and improves prompt-conditioned PPL by `3.0` versus
+freeze-A, but leaves ROUGE-L unchanged and worsens boundary PPL by `1.5`.
+
+**Decision:** stop after conditional P1. The method is not rejected because of
+unconditional PPL: it fails the intended prompted-continuation test as well.
+Do not expand representations, checkpoints, lengths, or architectures unless
+the algorithm changes materially.

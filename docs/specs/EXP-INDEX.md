@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-11（EXP-79 late coupling stopped at the decisive ELF P0；92 个实验）
+**更新时间**: 2026-08-11（EXP-79 decisive conditional P1 negative；92 个实验）
 
 ---
 
@@ -25,7 +25,7 @@
 | **EXP-76** | **DONE / PARTIAL PASS** | Frozen adapters learn a functional local clock without damaging Standard generation; wave quality remains poor |
 | **EXP-77** | **DONE / NEGATIVE** | Asynchronous block-transition distillation retains Standard quality but all fill/drain samplers remain catastrophic |
 | **EXP-78** | **DONE / ODE-ONLY REVISABLE POSITIVE** | Three-checkpoint, three-seed ODE gains survive conditioned evaluation; Unlock-4 is best and 8--10% of anchors revise after release, but native-SDE effects are negligible |
-| **EXP-79** | **DONE / NEGATIVE AT P0** | ELF native-`x0` late coupling only matches Semi-AR (`PPL 300--309` vs `312`) and loses badly to Parallel-32/60 (`170/76`); freeze-A is nearly identical, so stop all expansion |
+| **EXP-79** | **DONE / CONDITIONAL NEGATIVE** | On 64-token-prefix/192-token-continuation generation, late coupling only matches Semi-AR (`prompt-cond PPL 419--420` vs `421`) and loses badly to Parallel-32/60 (`253/135`); ROUGE-L also favors parallel |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
@@ -177,7 +177,7 @@ GS16 calibrated endpoint bank + specificity
 | **EXP-76** | **DONE / PARTIAL PASS** | ELF base frozen backbone | Clock-Adapter Bootstrap：冻结 backbone，仅训练逐层 local-time adapter 拟合 teacher wave velocity | held-out MSE 降约 46%，Standard PPL 保持 265.2，clock sensitivity 增强；wave PPL 仍恶化；仅允许 EXP-77 bounded Stage 0；见 EXP-76-spec.md |
 | **EXP-77** | **DONE / NEGATIVE** | EXP-76 bootstrap | Asynchronous Block Transition Distillation：在 staggered sequence 内监督一个 active block 的下一 local transition，比较 sync/off-policy/on-policy/RTL | Standard PPL 健康，但所有 31-call fill/drain sampler PPL `3400--3900`，无 LTR advantage；局部 transition 不可组合；见 EXP-77-spec.md |
 | **EXP-78** | **DONE / ODE-ONLY REVISABLE POSITIVE** | ELF base + Control + Early-KD | Robust Revisable Commitment：三 seed ODE、conditioned continuation、native SDE 与 Unlock-4 timing audit | ODE 中 Unlock-4 在三 checkpoint 将 mean U-PPL `285/265/204 -> 209/203/166`，conditioned 同号；释放后 8--10% anchor 会改写；native SDE 仅 `0--1` PPL 量级变化，故限定为 deterministic-solver inference method；见 EXP-78-spec.md |
-| **EXP-79** | **DONE / NEGATIVE AT P0** | ELF base | Late-Coupled Block Denoising：前后两个 128-token block 分别成熟后再 joint refinement | reencoded `x0` 的 m24/m28 PPL `300.6/309.1`，仅接近 Semi-AR `311.9`，远差于 Parallel-32/60 `169.5/76.3`；full vs freeze-A 仅约 3 PPL，停止扩展；见 EXP-79-spec.md |
+| **EXP-79** | **DONE / CONDITIONAL NEGATIVE** | ELF base | Late-Coupled Block Denoising：前后 block 分别成熟后再 joint refinement | fixed-prefix P1 confirms failure: m24/m28 prompt-cond PPL `419.0/420.2`, only Semi-AR level `421.2`, far worse than Parallel-32/60 `252.8/134.5`; ROUGE-L `.0958/.0967` vs parallel `.1020/.1027`;见 EXP-79-spec.md |
 | EXP-22 | DONE⚠️ | LangFlow | LangFlow 每位置承诺时序（EXP-16 对应） | t<0.80 几乎无位置承诺（模型内有效）；⚠️ 所有 ELF–LangFlow nominal-t 比较无效（EXP-03 已证 log-SNR 不可比）；"LangFlow 比 ELF 晚 0.63t"必须从论文删除；H<1 nat 阈值跨模型不可比；committed_wrong 低是选择效应 |
 | EXP-24 | DONE⚠️ | LangFlow | LangFlow 轨迹稳定性（EXP-14 对应） | LangFlow mean_last_flip=8.3/32（26%）vs ELF baseline 21.2/32（66%，EXP-14v2）；⚠️ 原对比表使用旧版 EXP-14 无效数字（83.4%→正确值 67.6%）；argmax stability≠commitment；LangFlow 可能有 self-conditioning；缺少 entropy/margin 分析 |
 
