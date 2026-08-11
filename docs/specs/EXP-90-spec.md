@@ -1,6 +1,6 @@
 # EXP-90 Spec — Cross-Architecture Temporary-Anchor Portability
 
-**Status:** IMPLEMENTED / CALIBRATION PILOTS PENDING
+**Status:** THREE-SEED P0 RUNNING / IMPLEMENTATION GATES PASSED
 **Purpose:** determine whether the EXP-82 coverage-over-confidence signal is a
 general continuous-LM intervention or an ELF deterministic-ODE special case.
 
@@ -41,3 +41,15 @@ post-release revision, prompt-clamp error, denoiser/readout calls, and texts.
 
 Runner:
 `experiments/interventions/eval_temporary_anchor_portability_exp90.py`.
+
+## Launch record (2026-08-11)
+
+Both architecture smokes pass U/C duplicate-native agreement `1.0`, exact
+anchor density `.50`, and zero latent prompt-clamp error. Plaid shares seeded
+ancestral noise at every step. Model-native endpoint calibration freezes:
+
+- LangFlow: trigger step `26/32` (`t_native=.8211`), horizon 4;
+- Plaid: trigger step `18/32` (`t_native=.5837`), horizon 4.
+
+Three inference seeds (`42/123/456`) with `n_U=n_C=32` are running for each
+architecture. These are P0 portability panels, not formal method claims.
