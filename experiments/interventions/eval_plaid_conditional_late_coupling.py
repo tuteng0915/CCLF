@@ -311,8 +311,10 @@ def run_batch(adapter, eps_a, eps_b, prompt_ids, prompt_clean, grid, args, batch
         }
 
     for output in outputs.values():
+        prompt_ids_for_readout = prompt_ids.to(output["ids"].device)
         output["decoded_prompt_agreement"] = float(
-            (output["ids"][:, : args.prefix_length] == prompt_ids).float().mean()
+            (output["ids"][:, : args.prefix_length] == prompt_ids_for_readout)
+            .float().mean()
         )
     return outputs, agreement
 
