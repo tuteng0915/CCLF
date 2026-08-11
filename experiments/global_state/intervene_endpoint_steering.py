@@ -23,7 +23,6 @@ for path in (HERE, PT_DIR):
         sys.path.insert(0, str(path))
 
 from branch_true_trajectory import (  # noqa: E402
-    rollout_branches_from_state,
     rollout_with_checkpoints_and_sc,
 )
 from common import frobenius_cosine, load_adapter  # noqa: E402
@@ -70,6 +69,33 @@ def endpoint_assignment(z_final, z_bank, n_candidates):
     return assigned, scores
 
 
+def gs16_grid(bank_path, t_start, t_end, full_n_steps):
+    bank_path = Path(bank_path)
+    json_path = Path(str(bank_path).replace("_bank.npz", ".json"))
+    if not json_path.exists():
+        raise FileNotFoundError(
+            f"matching GS16 JSON is required to reproduce the bank trajectory: {json_path}"
+        )
+    payload = json.load(open(json_path, encoding="utf-8"))
+    checkpoints = [round(float(value), 6) for value in payload["checkpoint_ts"]]
+    merged = sorted(
+        set(np.linspace(t_start, t_end, full_n_steps + 1).tolist())
+        | set(checkpoints)
+    )
+    return checkpoints, merged, str(json_path)
+
+
+@torch.no_grad()
+def continue_on_grid(adapter, z, sc, local_grid, device):
+    z = z.to(device)
+    sc = sc.to(device)
+    for step in range(len(local_grid) - 1):
+        z, sc = adapter.solver_step(
+            z, sc, local_grid[step], local_grid[step + 1]
+        )
+    return z.cpu(), sc.cpu(), len(local_grid) - 1
+
+
 @torch.no_grad()
 def main():
     args = parse_args()
@@ -90,9 +116,7 @@ def main():
     hamming = bank_npz["hamming"][:n_traj]
     n_candidates = bank_npz["n_candidates_per_traj"][:n_traj]
     t_bank = float(bank_npz["t_bank"])
-    times = sorted(set(round(float(t), 6) for t in args.times if t >= t_bank))
     t_end = float(bank_npz["t_end"])
-    checkpoints = sorted(set(times + [round(t_end, 6)]))
 
     adapter = load_adapter(args.model, args.checkpoint, args.config, device)
     length, dim = adapter.seq_len, adapter.d_model
@@ -101,12 +125,22 @@ def main():
             f"bank shape {z_bank.shape[-2:]} does not match adapter {(length, dim)}"
         )
 
+    bank_grid, merged_grid, gs16_json = gs16_grid(
+        args.endpoint_bank_npz, adapter.t_eps, t_end, args.full_n_steps
+    )
+    times = sorted(
+        set(
+            min(bank_grid, key=lambda value: abs(value - float(requested)))
+            for requested in args.times
+            if requested >= t_bank
+        )
+    )
     epsilon = adapter.sample_epsilon((n_traj, length, dim))
     saved = rollout_with_checkpoints_and_sc(
         adapter,
         epsilon,
         adapter.t_eps,
-        checkpoints,
+        bank_grid,
         args.full_n_steps,
         device,
     )
@@ -155,6 +189,7 @@ def main():
     random_orthogonal = unit_frobenius(random - projection)
 
     directions = {
+        "no_perturbation": torch.zeros_like(alt_direction),
         "alternative": alt_direction,
         "self": self_direction,
         "random_orthogonal": random_orthogonal,
@@ -172,17 +207,14 @@ def main():
     for time_value in times:
         z_time, sc_time = saved[time_value]
         residual_norm = centered(z_time).flatten(1).norm(dim=1).view(-1, 1, 1)
+        local_grid = [value for value in merged_grid if value >= time_value - 1e-9]
         for epsilon_value in args.epsilons:
             for arm, direction in directions.items():
+                if arm == "no_perturbation" and epsilon_value != args.epsilons[0]:
+                    continue
                 perturbed = z_time + float(epsilon_value) * residual_norm * direction
-                z_final, sc_final, n_steps = rollout_branches_from_state(
-                    adapter,
-                    perturbed,
-                    sc_time,
-                    time_value,
-                    t_end,
-                    args.full_n_steps,
-                    device,
+                z_final, sc_final, n_steps = continue_on_grid(
+                    adapter, perturbed, sc_time, local_grid, device
                 )
                 assigned, cosine_scores = endpoint_assignment(
                     z_final, z_bank, n_candidates
@@ -246,6 +278,16 @@ def main():
                     f"self={self_retention:.3f}"
                 )
 
+        sham = [
+            row for row in records
+            if row["t"] == time_value and row["arm"] == "no_perturbation"
+        ][0]
+        if sham["self_retention_rate"] != 1.0:
+            raise RuntimeError(
+                f"paired continuation gate failed at t={time_value}: "
+                f"self retention={sham['self_retention_rate']}"
+            )
+
     output = {
         "model": args.model,
         "checkpoint": args.checkpoint,
@@ -257,6 +299,7 @@ def main():
         "times": times,
         "epsilons": args.epsilons,
         "endpoint_bank_npz": args.endpoint_bank_npz,
+        "gs16_json": gs16_json,
         "n_candidates_per_traj": n_candidates.tolist(),
         "alternative_index": alt_index,
         "records": records,
@@ -264,6 +307,7 @@ def main():
             "Perturbation magnitude is epsilon times the centered-state Frobenius norm.",
             "Alternative endpoint is the maximum-Hamming distinct bank endpoint.",
             "Assignment uses centered-residual Frobenius cosine to the fixed bank.",
+            "The exact GS16 merged ODE grid is reused; no-perturbation self retention must be 1.0.",
             "ELF/LangFlow deterministic solvers are required for exact paired continuation.",
         ],
     }

@@ -99,6 +99,21 @@ def endpoint_assignment(states, z_bank, n_candidates):
     return [int(np.argmax(row["affinities"])) for row in stats]
 
 
+def gs16_grid(bank_path, t_start, t_end, full_n_steps):
+    json_path = Path(str(bank_path).replace("_bank.npz", ".json"))
+    if not json_path.exists():
+        raise FileNotFoundError(
+            f"matching GS16 JSON is required to reproduce the bank trajectory: {json_path}"
+        )
+    payload = json.load(open(json_path, encoding="utf-8"))
+    checkpoints = [round(float(value), 6) for value in payload["checkpoint_ts"]]
+    merged = sorted(
+        set(np.linspace(t_start, t_end, full_n_steps + 1).tolist())
+        | set(checkpoints)
+    )
+    return checkpoints, merged, str(json_path)
+
+
 @torch.no_grad()
 def main():
     args = parse_args()
@@ -122,8 +137,6 @@ def main():
     n_candidates = bank_npz["n_candidates_per_traj"][:n_traj]
     t_end = float(bank_npz["t_end"])
     t_bank = float(bank_npz["t_bank"])
-    times = sorted(set(round(float(t), 6) for t in args.times if t >= t_bank))
-
     adapter = load_adapter(args.model, args.checkpoint, args.config, device)
     length, dim = adapter.seq_len, adapter.d_model
     if z_bank.shape[-2:] != (length, dim):
@@ -138,17 +151,22 @@ def main():
         )
         random_index.append((traj + 1) % n_traj)
 
-    epsilon = adapter.sample_epsilon((n_traj, length, dim))
-    checkpoints = sorted(set(times + [round(t_end, 6)]))
-    merged_grid = sorted(
-        set(np.linspace(adapter.t_eps, t_end, args.full_n_steps + 1).tolist())
-        | set(checkpoints)
+    bank_grid, merged_grid, gs16_json = gs16_grid(
+        args.endpoint_bank_npz, adapter.t_eps, t_end, args.full_n_steps
     )
+    times = sorted(
+        set(
+            min(bank_grid, key=lambda value: abs(value - float(requested)))
+            for requested in args.times
+            if requested >= t_bank
+        )
+    )
+    epsilon = adapter.sample_epsilon((n_traj, length, dim))
     saved = rollout_with_checkpoints_and_sc(
         adapter,
         epsilon,
         adapter.t_eps,
-        checkpoints,
+        bank_grid,
         args.full_n_steps,
         device,
     )
@@ -240,6 +258,18 @@ def main():
                     f"alt={record['alternative_capture_rate']:.3f}"
                 )
 
+            sham = [
+                row for row in records
+                if row["t"] == time_value
+                and row["density"] == float(density)
+                and row["arm"] == "sham"
+            ]
+            if sham and sham[0]["self_retention_rate"] != 1.0:
+                raise RuntimeError(
+                    f"paired continuation gate failed at t={time_value}, "
+                    f"density={density}: self retention={sham[0]['self_retention_rate']}"
+                )
+
     output = {
         "model": args.model,
         "checkpoint": args.checkpoint,
@@ -252,9 +282,11 @@ def main():
         "densities": args.densities,
         "horizon": args.horizon,
         "endpoint_bank_npz": args.endpoint_bank_npz,
+        "gs16_json": gs16_json,
         "records": records,
         "notes": [
             "Anchors replace self-conditioning memory only; the latent remains free.",
+            "The exact GS16 merged ODE grid is reused; sham self retention must be 1.0.",
             "Endpoint entropy is computed on unanchored positions only.",
             "Alternative content comes from the maximum-Hamming reachable endpoint.",
             "This mechanism runner omits PPL; EXP-82 supplies the matched quality panel.",
