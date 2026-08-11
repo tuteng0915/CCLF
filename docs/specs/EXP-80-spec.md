@@ -1,6 +1,6 @@
 # EXP-80 Spec — Paired Conditional Revalidation
 
-**Status:** DONE / ASYNCHRONOUS ARMS NEGATIVE; UNLOCK-4 POSITIVE CONTROL RETAINED
+**Status:** P0 DONE / P1 ROBUSTNESS REPLICATION RUNNING
 
 ## Question
 
@@ -128,3 +128,22 @@ ranking. Close the current local-clock, repeated-soft-anchor, and canonical
 context inference implementations. Retain Unlock-4 as an ODE-specific,
 revisable conditional intervention. Do not launch asynchronous retraining from
 this P0; first establish a positive conditional mechanism intervention.
+
+## P1 robustness replication (running, 2026-08-11)
+
+P1 tests only the retained positive signal rather than reopening the failed
+pipeline variants. Every cell evaluates paired unconditional and native-prefix
+conditional generation with `n_uncond=n_cond=128` and reports the complete P0
+metric panel.
+
+| Run | Conditional corpus | Seed / data block | Arms | Server session |
+|---|---|---|---|---|
+| OWT replication A | in-domain OWT | seed 43 / offset 11000 | Standard-32/64/136, Unlock-4 | `exp80_owt43` |
+| OWT replication B | in-domain OWT | seed 44 / offset 12000 | Standard-32/64/136, Unlock-4 | `exp80_owt44` |
+| Domain-shift replication | Gutenberg | seed 42 | Standard-32/64/136, Unlock-4 | `exp80_gut42` |
+
+The Gutenberg smoke passed before launch: prompt latent clamp error was zero,
+the decoded prefix was exact for all four smoke samples, and paired scopes used
+identical denoiser-call counts. P1 supports the Unlock-4 claim only if its sign
+against Standard-32 persists in prompt-conditioned PPL and prompt gain without
+a material diversity, repetition, degeneration, or ROUGE-L regression.

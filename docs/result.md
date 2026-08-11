@@ -918,6 +918,13 @@ Standard-32 it improves unconditional PPL by `77.1`, prompt-conditioned PPL by
 readout. The supported method claim remains temporary, revisable anchoring in
 deterministic ELF ODE—not a general asynchronous wave.
 
+**Replication status (2026-08-11):** a paired `n=128+128` robustness panel is
+running for two independent OWT noise/data blocks (seeds 43/44, offsets
+11000/12000) and one Gutenberg out-of-domain panel (seed 42). Each panel
+compares Standard-32/64/136 with Unlock-4 and will populate this table only
+after all required conditional and unconditional metrics finish. Server tmux
+sessions: `exp80_owt43`, `exp80_owt44`, and `exp80_gut42`.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
