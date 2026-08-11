@@ -36,7 +36,7 @@
 | **EXP-87** | **DONE / THREE-SEED POSITIVE** | Plaid raw/continuous/hard late coupling beats Block-SAR prompt PPL in every seed with 56 versus 64 calls; raw mean `95.38` versus `100.87` |
 | **EXP-88** | **DONE / PARETO GATE FAILED** | Shadow disagreement releases one third of anchors and further lowers PPL, but does not recover D1; adaptive rollback is not promoted |
 | **EXP-89** | **DONE / SCALE SIGN POSITIVE** | Frozen random anchors improve PPL in all 9 length/prefix cells through length 1024; U benefit shrinks with length and the diversity trade-off remains |
-| **EXP-90** | **THREE-SEED P0 RUNNING / GATES PASSED** | Paired U/C LangFlow/Plaid native-clock temporary-anchor panels; duplicate-native agreement is 1.0 and prompt latent clamp error is zero |
+| **EXP-90** | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Native-clock random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds; shuffled content is catastrophic, while U-PPL/full Pareto behavior are architecture-dependent |
 | **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
 
 The older queue entries below are retained as a historical ledger. In

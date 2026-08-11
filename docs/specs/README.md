@@ -53,7 +53,7 @@ method ledger is:
 | [EXP-87](EXP-87-spec.md) | **DONE / THREE-SEED POSITIVE** | Does Plaid late coupling survive real-prefix evaluation? | yes: all 56-call late arms beat Block-SAR-64 C-PPL in every seed; raw has mean `95.38` versus `100.87` |
 | [EXP-88](EXP-88-spec.md) | **DONE / GATE FAILED** | Can shadow-validated rollback remove harmful temporary anchors? | identity/combined rollback releases about one third and further lowers PPL, but D1 worsens; no multi-seed promotion |
 | [EXP-89](EXP-89-spec.md) | **DONE / SCALE SIGN POSITIVE** | Does the frozen random-anchor policy survive length and prefix-ratio changes? | PPL improves in all 9 new cells through length 1024; unconditional gain shrinks with length and the small diversity trade-off remains |
-| [EXP-90](EXP-90-spec.md) | **THREE-SEED P0 RUNNING** | Is temporary predicted-clean anchoring portable beyond ELF? | both architecture gates pass; native-calibrated LangFlow/Plaid U/C panels are running with paired Plaid ancestral noise |
+| [EXP-90](EXP-90-spec.md) | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Is temporary predicted-clean anchoring portable beyond ELF? | random correct anchors improve C-PPL in 3/3 seeds on both LangFlow and Plaid; shuffled content is catastrophic, while U-PPL and full Pareto behavior remain architecture-dependent |
 | [EXP-91](EXP-91-spec.md) | **DONE / THREE-SEED NEGATIVE** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | no: mean U/C PPL interactions are slightly unfavorable, prompt-gain interaction falls, and conditioned degeneration worsens on every inference seed |
 
 Completed decision:

@@ -87,11 +87,13 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes. Unlock-4's same-call PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain. |
 | Is Unlock-4 actually using the prompt more strongly? | EXP-81 | Not robustly. It lowers NLL in every suffix band, but the pooled full-suffix prompt-gain delta is only `+.0045 [-.0085,.0181]`. |
 | What part of temporary anchoring matters? | EXP-82 | Correct position-content and coverage matter more than high confidence: random 50% anchors beat top-confidence anchors on PPL in all three panels, while shuffled content is catastrophic. |
+| Is temporary anchoring portable beyond ELF? | EXP-90 | Conditionally yes. Random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds, and shuffled content is catastrophic; unconditional and random-versus-confidence rankings remain architecture-dependent. |
 | Does the temporary-anchor sign scale? | EXP-89 | Yes for PPL through length 1024 and prefix ratios `.25/.50/.75`; the unconditional effect shrinks with length and the D1/Rep-4 trade-off remains. |
+| Is temporary anchoring portable beyond ELF? | EXP-90 | Conditionally, yes: random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds, while shuffled content is catastrophic. LangFlow U-PPL worsens slightly, and diversity/degeneration trade-offs remain architecture-dependent. |
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
 | Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
-| Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
+| Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
 
 ## 4. Main mechanism evidence
 
@@ -1193,6 +1195,44 @@ so this is a robust compute-quality lead over Block-SAR, not dominance on every
 metric. The large post-coupling revision rates confirm that the gain does not
 come from irreversibly freezing the first block.
 
+### 6.16 Cross-architecture temporary-anchor portability (EXP-90)
+
+LangFlow and Plaid use their own endpoint-calibrated trigger step and native
+32-step solver. Every result is the mean of seeds `42/123/456` with
+`n_U=n_C=32`. Plaid shares the exact ancestral noise at every step. Duplicate
+native baselines agree token-for-token (`1.0`) in both scopes, anchor density
+is exactly `.50`, and observed prompt latent clamp error is zero.
+
+| Model | Arm | U-PPL | C-PPL | Gain | C-RL | C-D1 | C-Rep4 | U-Deg. | C-Deg. | Revision |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| LangFlow | Standard | 13.33 | 82.01 | .4932 | .0461 | .4471 | .1209 | .3021 | .2604 | -- |
+|  | random correct | 14.52 | **73.40** | **.5118** | .0462 | .4316 | .1228 | .3125 | .2708 | .040 |
+|  | top-confidence | 16.72 | 87.95 | .4898 | .0457 | .4527 | .1087 | .3229 | .2708 | .000 |
+|  | shuffled content | 423.43 | 1180.01 | .3238 | .0392 | .5974 | .0031 | .1562 | .0833 | .036 |
+| Plaid | Standard | 136.90 | 97.81 | .5303 | .0964 | .6183 | .0000 | .0417 | .0521 | -- |
+|  | random correct | 121.80 | **85.51** | **.5414** | **.1003** | .6096 | .0000 | .0625 | .0417 | .627 |
+|  | top-confidence | **114.46** | 90.42 | .5128 | .0998 | .6173 | .0002 | .0417 | .0417 | .389 |
+|  | shuffled content | 952.03 | 682.19 | .3082 | .0845 | .6619 | .0002 | .0208 | .0521 | .794 |
+
+Random position-correct anchors improve C-PPL in all six architecture-seed
+panels. On LangFlow the mean conditional delta is `-8.61` PPL and prompt gain
+improves in 3/3 seeds, but U-PPL worsens by `+1.18` in 3/3. On Plaid the mean
+random-anchor deltas are `-15.10` U-PPL and `-12.29` C-PPL, both favorable in
+3/3 seeds. Top confidence is harmful in both LangFlow scopes; on Plaid it is
+best unconditionally but improves C-PPL in only 2/3 seeds.
+
+Correct content is the strongest portable control: shuffled anchors increase
+mean C-PPL by `+1098.0` on LangFlow and `+584.4` on Plaid. Their low repetition
+and degeneration detector rates do not make them coherent; evaluator PPL and
+the texts expose catastrophic corruption. Temporary anchors are also genuinely
+revisable: random-anchor final revision is about `4%` on deterministic
+LangFlow and `63%` on ancestral Plaid.
+
+The safe cross-architecture claim is thus conditional and mechanistic, not an
+all-metric method claim: broad, correct temporary context improves prompted
+continuations, while unconditional gains, confidence selection, revision, and
+diversity/degeneration trade-offs depend on architecture and solver.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1277,12 +1317,16 @@ or methods were withdrawn.
    decisions, while matched shuffled anchors reverse the effect.
 4. Corrected Early-KD improves unconditional ODE generation and commitment
    timing in two training seeds, but conditioned improvement is not robust.
-5. Hard commitment is an ODE-specific intervention, not a sampler-independent
-   method. A four-step lock preserves the replicated ODE gain and permits later
-   revision, while native SDE either makes the intervention inert or loses
-   coherence when commitment is forced earlier.
-6. Pipeline, post-hoc local clocks, and the current gated WFF pilot are not
-   positive methods.
+5. On ELF, hard commitment is solver-specific: a four-step lock preserves the
+   replicated ODE gain and permits later revision, while ELF native SDE either
+   makes it inert or loses coherence when commitment is forced earlier. This
+   boundary must not be generalized to every stochastic architecture.
+6. Native-clock P0 panels provide a narrower portable signal: broad,
+   position-correct temporary anchors improve conditional PPL in 3/3 LangFlow
+   and 3/3 Plaid seeds, while shuffled content is catastrophic. Unconditional
+   gains and the complete quality Pareto are architecture-dependent.
+7. Pipeline, post-hoc local clocks, subset-flow training, and the current gated
+   WFF pilot are not positive methods.
 
 ## 10. Provenance
 

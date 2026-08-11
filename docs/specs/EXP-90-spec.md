@@ -1,6 +1,6 @@
 # EXP-90 Spec — Cross-Architecture Temporary-Anchor Portability
 
-**Status:** THREE-SEED P0 RUNNING / IMPLEMENTATION GATES PASSED
+**Status:** DONE / CONDITIONAL PORTABILITY POSITIVE, FULL PARETO PARTIAL
 **Purpose:** determine whether the EXP-82 coverage-over-confidence signal is a
 general continuous-LM intervention or an ELF deterministic-ODE special case.
 
@@ -51,5 +51,33 @@ ancestral noise at every step. Model-native endpoint calibration freezes:
 - LangFlow: trigger step `26/32` (`t_native=.8211`), horizon 4;
 - Plaid: trigger step `18/32` (`t_native=.5837`), horizon 4.
 
-Three inference seeds (`42/123/456`) with `n_U=n_C=32` are running for each
+Three inference seeds (`42/123/456`) with `n_U=n_C=32` are complete for each
 architecture. These are P0 portability panels, not formal method claims.
+
+## Result
+
+Three-seed means are:
+
+| Model | Arm | U-PPL | C-PPL | Gain | C-RL | C-D1 | C-Rep4 | U-Deg. | C-Deg. | Revision |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| LangFlow | Standard | 13.33 | 82.01 | .4932 | .0461 | .4471 | .1209 | .3021 | .2604 | -- |
+|  | random correct | 14.52 | **73.40** | **.5118** | .0462 | .4316 | .1228 | .3125 | .2708 | .040 |
+|  | top-confidence | 16.72 | 87.95 | .4898 | .0457 | .4527 | .1087 | .3229 | .2708 | .000 |
+|  | shuffled content | 423.43 | 1180.01 | .3238 | .0392 | .5974 | .0031 | .1562 | .0833 | .036 |
+| Plaid | Standard | 136.90 | 97.81 | .5303 | .0964 | .6183 | .0000 | .0417 | .0521 | -- |
+|  | random correct | 121.80 | **85.51** | **.5414** | **.1003** | .6096 | .0000 | .0625 | .0417 | .627 |
+|  | top-confidence | **114.46** | 90.42 | .5128 | .0998 | .6173 | .0002 | .0417 | .0417 | .389 |
+|  | shuffled content | 952.03 | 682.19 | .3082 | .0845 | .6619 | .0002 | .0208 | .0521 | .794 |
+
+Random correct anchors improve C-PPL in `3/3` seeds on both architectures.
+They also improve LangFlow prompt gain in `3/3` seeds and Plaid U-PPL in
+`3/3`. LangFlow U-PPL instead worsens slightly in `3/3`; top-confidence
+anchors worsen both LangFlow scopes, while Plaid top-confidence is strongest
+unconditionally but less consistent conditionally. Shuffled content is
+catastrophic in every model/seed despite often looking superficially diverse.
+
+The portable result is therefore narrower than a universal method win:
+position-correct, broad temporary context reliably helps conditional
+generation, and correct content is necessary. Unconditional benefit,
+confidence selection, revision rate, and the D1/degeneration trade-off are
+architecture- and solver-dependent.
