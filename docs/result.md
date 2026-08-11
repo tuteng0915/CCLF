@@ -51,6 +51,10 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 - **Words**: mean decoded word count per sequence.
 - **R-L**: token-level ROUGE-L F1 against the held-out suffix in conditioned
   generation.
+- **Prompt PPL**: evaluator PPL on the generated suffix while conditioning on
+  the original observed prompt.
+- **Prompt gain**: `log PPL(y|shuffled(c)) - log PPL(y|c)`; positive means the
+  suffix is more compatible with its true prompt than a mismatched prompt.
 - **Commit**: selected anchors divided by eligible, non-prefix positions.
 - **Calls**: denoiser calls; a lexical confidence readout is counted where the
   runner makes an extra model call.
@@ -80,6 +84,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
 | Does late clock-aligned coupling help prompted continuation? | EXP-79 | No. On fixed-prefix conditional generation it only matches Semi-AR and loses to parallel decoding on prompt-conditioned PPL, ROUGE-L, and A-to-B boundary PPL. |
+| Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes; Unlock-4 remains positive and has the strongest prompt gain. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does hard commitment work? | EXP-64--69/74/78 | Yes as an ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; native-SDE effects remain negligible. |
 
@@ -858,6 +863,60 @@ PPL and lower ROUGE-L). Joint revision improves prompt PPL by only `3.0`
 relative to freeze-A, leaves ROUGE-L unchanged, and makes boundary PPL `1.5`
 worse. EXP-79 is therefore stopped on conditional evidence, not on the earlier
 unconditional screen.
+
+### 6.12 Paired unconditional/conditional main table (EXP-80)
+
+Protocol: ELF base, ODE, length 128, paired `n_uncond=n_cond=64`, seed 42,
+noise 2, SC-CFG 3. Conditional generation observes the first 64 positions and
+generates the final 64. The panel uses a deterministic offset into the released
+OWT train split and is therefore labeled **in-domain**, not train-disjoint.
+All conditional schedules cover only free suffix positions. Latent prompt-clamp
+error is zero for every arm.
+
+This is the current unified main table. `C-PPL` uses the true prompt, `Shuffle`
+uses a mismatched prompt with the same generated suffix, and `Gain` is their
+log-PPL difference. `Calls+R` separates denoiser calls from lexical readouts.
+
+| Arm | U-PPL | U-D1 | U-D2 | U-Rep4 | U-Deg | C-PPL | Shuffle | Gain | C-RL | C-D1 | C-D2 | C-Rep4 | C-Deg | Calls+R |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard-32 | 278.7 | .4970 | .8879 | .0137 | .0000 | 587.1 | 770.9 | .2724 | .0851 | .5619 | .9224 | .0162 | .0000 | 32+0 |
+| Standard-64 | 101.5 | .4438 | .8248 | .0346 | .0469 | 267.4 | 358.9 | .2944 | **.0886** | .5165 | .8779 | .0349 | .0469 | 64+0 |
+| Standard-136 | **62.7** | .4160 | .7588 | .0853 | .1406 | **183.5** | **243.6** | .2833 | .0816 | .4965 | .8434 | .0492 | .0938 | 136+0 |
+| Unlock-4 | 201.7 | .4857 | .8801 | .0123 | .0000 | 393.0 | 541.7 | **.3211** | .0877 | .5398 | .9077 | .0202 | .0156 | 32+1 |
+| Soft LTR | 232.9 | .4840 | .8762 | .0165 | .0156 | 512.3 | 657.3 | .2492 | .0846 | .5448 | .9076 | .0200 | .0000 | 64+0 |
+| Soft random | 213.3 | .4837 | .8698 | .0198 | .0000 | 506.0 | 662.0 | .2689 | .0860 | .5524 | .9098 | .0217 | .0000 | 64+0 |
+| Local + refine 8 | 1583.6 | .6020 | .9569 | .0014 | .0000 | 1915.5 | 2346.0 | .2027 | .0643 | .6362 | .9609 | .0018 | .0000 | 136+0 |
+| Canonical + refine 8 | 1395.6 | .6924 | .9787 | .0000 | .0469 | 764.9 | 849.4 | .1048 | .0520 | .6104 | .9245 | .0033 | .2188 | 136+0 |
+
+The remaining generated-quality, preservation, and cost fields from the same
+run are:
+
+| Arm | U-Words | U-MaxShare | U-Unique | U-collapse | C-suffix PPL | C-Words | C-MaxShare | C-Unique | C-collapse | Decoded prefix | Clamp | Token-calls | U/C sec. |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard-32 | 75.7 | .0768 | .6871 | .0000 | 590.3 | 42.9 | .0732 | .7840 | .0000 | .9688 | 0 | 4096 | 6.5/6.0 |
+| Standard-64 | 72.0 | .0931 | .6100 | .0469 | 265.7 | 42.7 | .0822 | .7400 | .0000 | .9531 | 0 | 8192 | 11.8/11.7 |
+| Standard-136 | 69.5 | .1137 | .5301 | .0781 | 183.2 | 43.0 | .0881 | .7115 | .0156 | .9375 | 0 | 17408 | 24.6/24.6 |
+| Unlock-4 | 75.3 | .0793 | .6688 | .0000 | 405.9 | 42.6 | .0765 | .7632 | .0000 | .9688 | 0 | 4096 | 6.2/6.2 |
+| Soft LTR | 76.8 | .0806 | .6652 | .0000 | 497.7 | 42.9 | .0760 | .7675 | .0000 | .9688 | 0 | 8192 | 11.8/11.9 |
+| Soft random | 75.9 | .0780 | .6664 | .0000 | 509.2 | 42.9 | .0733 | .7718 | .0000 | .9844 | 0 | 8192 | 11.9/11.9 |
+| Local + refine 8 | 84.4 | .0494 | .8279 | .0000 | 1777.6 | 43.7 | .0685 | .8470 | .0000 | .9375 | 0 | 17408 | 26.5/26.1 |
+| Canonical + refine 8 | 52.4 | .0529 | .8905 | .0000 | 651.0 | 29.2 | .1207 | .8128 | .1406 | .9688 | 0 | 17408 | 25.8/26.0 |
+
+`Decoded prefix` is an autoencoder reconstruction diagnostic. The actual
+observed prompt latent is clamped exactly in every arm, as shown by `Clamp=0`.
+
+The paired panel resolves the earlier coverage gap without changing the method
+ranking. Soft random is slightly better than soft LTR but both lose badly to
+Standard-64. Local-clock and canonical-context lose to Standard-136;
+canonical-context also has the weakest prompt gain and `21.9%` conditioned
+degeneration. More standard ODE calls lower PPL but increase repetition and
+degeneration, so Standard-136 is not treated as an unqualified quality win.
+
+Unlock-4 is the positive control that survives both scopes. Relative to
+Standard-32 it improves unconditional PPL by `77.1`, prompt-conditioned PPL by
+`194.1`, ROUGE-L by `.0026`, and prompt gain by `.0486`, with one extra
+readout. The supported method claim remains temporary, revisable anchoring in
+deterministic ELF ODE—not a general asynchronous wave.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
