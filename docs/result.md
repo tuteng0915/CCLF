@@ -1080,15 +1080,15 @@ calls; anchor arms add one lexical readout.
 | Gutenberg | Standard-32 | 296.7 | 572.2 | .1517 | .0870 | .4514 | .0075 | .0234 |
 |  | top-confidence | 243.0 | 424.6 | .1783 | .0899 | .4372 | .0128 | .0156 |
 |  | random position | **206.5** | **392.4** | **.1838** | **.0920** | .4281 | .0120 | .0078 |
-|  | shuffled content | 805.5 | 1554.1 | .0111 | .0791 | -- | -- | -- |
+|  | shuffled content | 805.5 | 1554.1 | .0111 | .0791 | .4879 | .0009 | .0078 |
 | OWT-42 | Standard-32 | 296.7 | 728.6 | .2251 | .0812 | .5262 | .0090 | .0234 |
 |  | top-confidence | 243.0 | 517.9 | .2483 | .0854 | .5176 | .0129 | .0312 |
 |  | random position | **206.5** | **512.7** | **.2642** | **.0876** | .5145 | .0103 | .0391 |
-|  | shuffled content | 805.5 | 1971.7 | .0607 | .0590 | -- | -- | -- |
+|  | shuffled content | 805.5 | 1971.7 | .0607 | .0590 | .5622 | .0035 | .0156 |
 | OWT-43 | Standard-32 | 287.0 | 572.7 | .2535 | .0846 | .4916 | .0133 | .0547 |
 |  | top-confidence | 240.5 | 430.9 | **.2754** | .0879 | .4800 | .0175 | .0625 |
 |  | random position | **203.7** | **380.2** | .2739 | **.0888** | .4744 | .0173 | .0547 |
-|  | shuffled content | 830.8 | 1580.3 | .0495 | .0705 | -- | -- | -- |
+|  | shuffled content | 830.8 | 1580.3 | .0495 | .0705 | .5346 | .0039 | .0078 |
 
 Random anchors have lower trigger confidence than top-confidence anchors in
 P0 (`.887` versus `.999`) yet are consistently better or near-better. Correct
@@ -1175,15 +1175,19 @@ matched statistics.
 
 | Test | ELF | Plaid | Decision |
 |---|---|---|---|
-| Endpoint-specificity collapse | Early ambiguity, then narrow collapse | Same pattern, within one checkpoint | Confirmed across architectures |
+| Endpoint-specificity collapse | Early ambiguity, then narrow collapse | Earlier Plaid result was noise-confounded. Corrected paired-noise `n=2` smoke has self rank reach 1 only around `t=.55--.74` and a gradual entropy decline; `n=32` is running. | Pending corrected formal replication |
 | Local velocity dynamics | Endpoint alignment early; collapse after token stability | Early alignment low/non-monotone; event order reverses | Boundary: stochastic finite differences are confounded |
 | Rank/energy control | Top-k beats matched alternatives | Same | Confirmed |
 | Residualized collective coupling | 13/16 checkpoints beat all nulls | 1/16 | Boundary: ancestral step noise likely dilutes increments |
 | Async denoising | All fail, PPL `2--6x` worse | All fail, PPL `3--14.4x` worse | Confirmed negative result |
 
-Endpoint-based/static conclusions replicate more reliably than adjacent-state
-finite-difference conclusions. Plaid injects Gaussian noise at every ancestral
-step, unlike deterministic ELF/LangFlow Euler paths.
+Endpoint-based/static conclusions had appeared to replicate more reliably than
+adjacent-state finite differences. That statement is now provisional: Plaid
+injects Gaussian noise at every ancestral step, unlike deterministic
+ELF/LangFlow Euler paths, and the original endpoint-bank calibration also
+failed to pair that noise. EXP-83 rebuilds the bank with common random numbers
+for base and perturbed branches before any cross-architecture endpoint claim is
+retained.
 
 ## 8. Historical result audit
 
