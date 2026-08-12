@@ -152,6 +152,13 @@ def random_anchor_mask(eligible, fraction, generator):
     return selected
 
 
+def prompt_clamp_error(z, cond_seq, cond_mask):
+    selected = cond_mask.bool()
+    if not selected.any():
+        return 0.0
+    return float((z[selected] - cond_seq[selected]).abs().max().item())
+
+
 @torch.no_grad()
 def teacher_prediction(teacher, z, t, args, cond_seq, cond_mask):
     scale = torch.full((z.shape[0],), args.sccfg, dtype=z.dtype, device=z.device)
@@ -209,12 +216,20 @@ def make_oracle_subset_batch(x0, cond_seq, cond_mask, teacher, args, generator):
     x_teacher = teacher_prediction(teacher, z, t, args, cond_seq, cond_mask)
     density = float(sample_choice(args.anchor_densities, generator))
     anchors = random_anchor_mask(cond_mask < 0.5, density, generator)
+    if (anchors & cond_mask.bool()).any():
+        raise AssertionError("an observed prompt position was selected as an anchor")
     z_mixed = restore_cond(
         torch.where(anchors.unsqueeze(-1), x_teacher, z), cond_seq, cond_mask
     )
     target = (x0 - z_mixed) / torch.clamp(1.0 - t[:, None, None], min=0.05)
     loss_mask = (cond_mask < 0.5) & (~anchors)
-    metadata = {"density": density, "horizon": 0, "state_time": args.trigger_time}
+    metadata = {
+        "density": density,
+        "anchor_fraction": float(anchors.sum() / (cond_mask < 0.5).sum()),
+        "horizon": 0,
+        "state_time": args.trigger_time,
+        "prompt_clamp_error": prompt_clamp_error(z_mixed, cond_seq, cond_mask),
+    }
     return (z_mixed, x_teacher, t, target.detach(), loss_mask), metadata
 
 
@@ -258,6 +273,10 @@ def make_onpolicy_subset_batch(x0, cond_seq, cond_mask, teacher, args, generator
             )
             if index == trigger_index:
                 anchors = random_anchor_mask(cond_mask < 0.5, density, generator)
+                if (anchors & cond_mask.bool()).any():
+                    raise AssertionError(
+                        "an observed prompt position was selected as an anchor"
+                    )
                 content = x_pred.detach()
                 active_seq = torch.where(anchors.unsqueeze(-1), content, cond_seq)
                 active_mask = torch.maximum(active_mask, anchors.to(active_mask.dtype))
@@ -274,7 +293,13 @@ def make_onpolicy_subset_batch(x0, cond_seq, cond_mask, teacher, args, generator
     x_teacher = x_pred.detach()
     target = (x0 - z) / torch.clamp(1.0 - t[:, None, None], min=0.05)
     loss_mask = (cond_mask < 0.5) & (~anchors)
-    metadata = {"density": density, "horizon": horizon, "state_time": state_time}
+    metadata = {
+        "density": density,
+        "anchor_fraction": float(anchors.sum() / (cond_mask < 0.5).sum()),
+        "horizon": horizon,
+        "state_time": state_time,
+        "prompt_clamp_error": prompt_clamp_error(z, cond_seq, cond_mask),
+    }
     return (z, x_teacher, t, target.detach(), loss_mask), metadata
 
 
@@ -302,8 +327,10 @@ def make_second_batch(mode, x0, cond_seq, cond_mask, teacher, args, generator):
     if mode == "control":
         return make_sync_batch(x0, cond_seq, cond_mask, teacher, args, generator), {
             "density": 0.0,
+            "anchor_fraction": 0.0,
             "horizon": 0,
             "state_time": float("nan"),
+            "prompt_clamp_error": 0.0,
         }
     if mode == "conditional_oracle":
         return make_oracle_subset_batch(
