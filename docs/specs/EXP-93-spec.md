@@ -1,6 +1,6 @@
 # EXP-93 Spec — Subset Utility and Selector Headroom
 
-**Status:** ACTIVE / P0 ORACLE-HEADROOM TEST
+**Status:** STAGE 1 DONE / LARGE ORACLE GAP; STAGE 2 ACTIVE
 **Purpose:** determine whether temporary random anchoring is merely a strong
 average policy or already close to the best achievable subset, then replace
 single-token confidence with a subset-level utility selector.
@@ -48,6 +48,20 @@ Decision:
   selection is not the main bottleneck at density `.50`;
 - if the gap is at least `5%`, proceed immediately to proxy prediction;
 - between `2--5%`, proceed only if mask ranking is predictable out of sample.
+
+### Stage-1 result (ELF baseline, seed 42)
+
+The formal conditional panel uses `n=64`, `M=16`, OWT offset `30000`, and all
+paired controls above. Mean-random C-PPL is `335.67`, versus `379.43` for
+top-confidence and `553.43` for Standard-32. Oracle-best-of-16 reaches
+`210.19`, a `37.38%` reduction from mean-random. Paired sequence-NLL headroom
+is `.4767 [.4409,.5126]` nats under trajectory bootstrap; random beats
+top-confidence in `.6113` of the `1024` mask/trajectory cells.
+
+The selector-headroom gate passes. This remains an oracle result: its D1
+`.5273`, Rep-4 `.0294`, and degeneration `.1250` are worse than the average
+random mask (`.5473/.0230/.1074`). Stage 2 must therefore predict held-out
+utility without final-text information and retain the complete quality panel.
 
 ## Stage 2: explain and predict subset utility
 
@@ -110,4 +124,3 @@ gain, D1, Rep-4, or degeneration regression.
 - **Small oracle gap:** random is not mathematically optimal, but selection is
   practically saturated at this density; improve content, trigger, or horizon
   instead.
-

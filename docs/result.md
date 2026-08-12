@@ -93,6 +93,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
 | Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
 | Does conditional/on-policy subset training fix that mismatch? | EXP-92 | No with the current target. Conditional-oracle is non-Pareto; on-policy is unfavorable at `+9.46/+11.58` U/C PPL interaction, and a fixed `.25` weight still worsens C-PPL in 3/3 seeds and prompt gain in 3/3. |
+| Is random anchoring already subset-optimal? | EXP-93 Stage 1 | No on the seed-42 conditional panel. Best-of-16 lowers C-PPL from mean-random `335.67` to `210.19`; paired headroom is `.477 [.441,.513]` nats. This is an oracle upper bound with worse diversity/degeneration, not yet a deployable selector. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
 
@@ -1314,6 +1315,40 @@ Leading post-transition cells also improve PPL but consistently reduce D1.
 Four complementary early/transition cells are being promoted to larger panels
 with Standard, readout-sham, top-confidence, and shuffled-content controls;
 the small screen is not yet a formal method result.
+
+### 6.20 ELF random-subset selector headroom (EXP-93 Stage 1)
+
+This conditional seed-42 `n=64` panel freezes ODE-32, prompt and suffix noise,
+native trigger `.30`, exact anchor density `.50`, predicted-clean content, and
+hold horizon `4`. Only the identity of the random anchored subset changes.
+Sixteen masks are evaluated for every trajectory. The oracle chooses the mask
+with the lowest final suffix GPT-2 NLL separately for each trajectory; it is an
+analysis upper bound and uses information unavailable at inference.
+
+| Arm | C-PPL | Mean seq. NLL | D1 | D2 | Rep-4 | Deg. | R-L | Anchor revision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard-32 | 553.43 | 6.3321 | .5710 | .9161 | .0148 | .0938 | .0770 | — |
+| Top-confidence 50% | 379.43 | 5.9551 | .5580 | .9066 | .0185 | .0625 | .0852 | .0703 |
+| Mean of 16 random masks | 335.67 | 5.8387 | .5473 | .9016 | .0230 | .1074 | .0821 | .3427 |
+| Oracle best-of-16 | **210.19** | **5.3620** | .5273 | .8870 | .0294 | .1250 | .0818 | — |
+| Oracle worst-of-16 | 553.30 | 6.3422 | .5666 | .9126 | .0164 | .0625 | .0853 | — |
+
+Across all `1024` paired mask/trajectory cells, a random mask beats the
+top-confidence mask with probability `.6113`. Per-mask aggregate C-PPL ranges
+from `317.68` to `357.29`, while within-trajectory utility IQR averages `.3547`
+nats. Best-of-16 improves C-PPL by `37.38%` over mean-random and has paired
+headroom `.4767 [.4409,.5126]` nats under trajectory bootstrap. No fixed mask
+index dominates (winner counts range `1--8`), as expected for independently
+sampled subsets.
+
+The Stage-1 gate is therefore passed by a wide margin: selection identity is
+a major variable at fixed schedule and content. It does **not** yet show that
+the good mask is predictable. Oracle-best also reduces D1 and worsens Rep-4
+and degeneration, so a learned selector must be frozen on held-out
+trajectories and judged as a multi-metric Pareto method, not optimized against
+the final-panel GPT-2 score. The next test records trigger-time reliability,
+spatial/latent coverage, redundancy, and shadow-step influence for candidate
+subsets and measures out-of-sample ranking accuracy.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

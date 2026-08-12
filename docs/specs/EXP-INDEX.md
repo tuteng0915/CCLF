@@ -39,7 +39,7 @@
 | **EXP-90** | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Native-clock random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds; shuffled content is catastrophic, while U-PPL/full Pareto behavior are architecture-dependent |
 | **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
 | **EXP-92** | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Conditional-oracle is non-Pareto; on-policy fails, and loss-balanced `.25` worsens C-PPL and prompt-gain interactions in all three seeds |
-| **EXP-93** | **ACTIVE / P0 ORACLE-HEADROOM TEST** | Quantify best-of-16 versus mean-random mask utility, then test subset-level reliability/coverage/influence selectors on held-out trajectories |
+| **EXP-93** | **STAGE 1 DONE / LARGE ORACLE GAP; STAGE 2 ACTIVE** | ELF conditional best-of-16 cuts C-PPL `335.67 -> 210.19` versus mean-random, with paired headroom `.477 [.441,.513]` nats; now test held-out reliability/coverage/influence ranking |
 | **EXP-94** | **DONE / EXTRA DENOISING EXPLAINS GAIN** | Parallel-44 beats late raw/continuous by 23.91 C-PPL at identical 11264 token-calls; late coupling is only a Block-SAR replacement |
 | **EXP-95** | **STAGE 1 DONE / FOUR CELLS PROMOTED** | Eight of 48 Plaid density/horizon/trigger cells pass the Pareto screen; four receive larger complete-control panels |
 | **EXP-96** | **CLOSED BY EXP-94** | No adaptive-trigger sweep without fixed-schedule compute headroom |
