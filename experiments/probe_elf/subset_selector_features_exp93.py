@@ -252,9 +252,17 @@ def extract_rows(utility, model, cond_noise, cond_seq, cond_mask):
 
 
 def rankdata(values):
-    order = torch.argsort(values)
+    """Average ranks for ties, matching the usual Spearman definition."""
+    order = torch.argsort(values, stable=True)
+    sorted_values = values[order]
     ranks = torch.empty_like(values, dtype=torch.float64)
-    ranks[order] = torch.arange(values.numel(), dtype=torch.float64)
+    start = 0
+    while start < values.numel():
+        end = start + 1
+        while end < values.numel() and sorted_values[end] == sorted_values[start]:
+            end += 1
+        ranks[order[start:end]] = (start + end - 1) / 2
+        start = end
     return ranks
 
 
@@ -270,8 +278,10 @@ def ranking_metrics(scores, utilities, trajectories):
         diff_s = score[:, None] - score[None, :]
         diff_u = utility[:, None] - utility[None, :]
         upper = torch.triu(torch.ones_like(diff_s, dtype=torch.bool), diagonal=1)
-        pair_correct += float(((diff_s[upper] * diff_u[upper]) > 0).sum().item())
-        pair_total += int(upper.sum().item())
+        products = diff_s[upper] * diff_u[upper]
+        pair_correct += float((products > 0).sum().item())
+        pair_correct += 0.5 * float((products == 0).sum().item())
+        pair_total += int(products.numel())
         top1 += int(score.argmax().item() == utility.argmax().item())
     count = int(trajectories.unique().numel())
     return {
