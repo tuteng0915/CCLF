@@ -1,6 +1,6 @@
 # EXP-95 Spec — Plaid Temporary-Anchor Pareto
 
-**Status:** ACTIVE / STAGE-1 SCREEN
+**Status:** STAGE 2 POSITIVE / TWO SETTINGS IN FORMAL REPLICATION
 **Purpose:** find whether the portable temporary-anchor clue can improve
 Plaid quality without the diversity trade-off seen in ELF.
 
@@ -61,3 +61,27 @@ readout sham, random, top-confidence, and shuffled-content controls:
 
 Post-transition cells can improve PPL strongly but all leading cells reduce
 D1, so none are promoted.
+
+## Stage-2 complete-control result
+
+The four promoted cells use `n_U=n_C=32`, seed 42. Standard and readout sham
+agree exactly (`U-PPL=138.01`, `C-PPL=111.83`, gain `.4786`, C-D1 `.6281`,
+degeneration `.0313`). Key correct-content arms are:
+
+| Setting | Selector | U-PPL | C-PPL | Gain | C-D1 | Rep-4 | Deg. | Revision |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| t14, d=.50, H=1 | random | 107.58 | 81.85 | .5600 | .6413 | .0000 | .0313 | .769 |
+| t14, d=.50, H=1 | confidence | 105.58 | 87.93 | .5125 | **.6464** | .0000 | .0313 | .605 |
+| t14, d=.75, H=1 | random | 101.32 | 86.54 | .5327 | .6398 | .0000 | .0313 | .775 |
+| t14, d=.75, H=1 | confidence | **98.80** | **78.88** | .5466 | .6439 | .0007 | .0313 | .705 |
+| t14, d=.50, H=4 | random | 117.39 | 87.04 | .5386 | .6372 | .0000 | .0313 | .758 |
+| t18, d=.75, H=2 | confidence | 111.10 | 90.78 | .5230 | .6318 | .0007 | .0313 | .568 |
+
+Shuffled-content C-PPL is `216.80/134.21/287.60/330.47` for the four settings,
+ruling out a generic perturbation/diversity explanation. Correct anchors also
+revise heavily after release, so the gain is not irreversible locking.
+
+Freeze `t14,d=.50,H=1` and `t14,d=.75,H=1` for seeds 123/456 with the same five
+arms and `n_U=n_C=32`. The first setting tests random broad coverage; the
+second tests whether high coverage makes confidence selection useful. Do not
+retune after seeing those seeds.

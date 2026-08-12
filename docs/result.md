@@ -1316,6 +1316,16 @@ Four complementary early/transition cells are being promoted to larger panels
 with Standard, readout-sham, top-confidence, and shuffled-content controls;
 the small screen is not yet a formal method result.
 
+All four larger seed-42 panels are positive. Standard and readout sham match
+exactly (`C-PPL=111.83`, C-D1 `.6281`). At `t14,d=.50,H=1`, random anchoring
+reaches C-PPL `81.85`, gain `.5600`, and D1 `.6413`; at `t14,d=.75,H=1`,
+top-confidence reaches the best C-PPL `78.88` with D1 `.6439`. Random
+`t14,d=.50,H=4` reaches `87.04`, and confidence `t18,d=.75,H=2` reaches
+`90.78`. Degeneration remains `.0313` for these correct-content arms, while
+shuffled-content C-PPL ranges from `134.21` to `330.47`. Anchor revision is
+`.57--.78`, confirming that the intervention is strongly revisable. The two
+single-step early settings are frozen for seeds 123/456 formal replication.
+
 ### 6.20 ELF random-subset selector headroom (EXP-93 Stage 1)
 
 This conditional seed-42 `n=64` panel freezes ODE-32, prompt and suffix noise,

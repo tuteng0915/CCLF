@@ -41,7 +41,7 @@
 | **EXP-92** | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Conditional-oracle is non-Pareto; on-policy fails, and loss-balanced `.25` worsens C-PPL and prompt-gain interactions in all three seeds |
 | **EXP-93** | **STAGE 1 DONE / LARGE ORACLE GAP; STAGE 2 ACTIVE** | ELF conditional best-of-16 cuts C-PPL `335.67 -> 210.19` versus mean-random, with paired headroom `.477 [.441,.513]` nats; now test held-out reliability/coverage/influence ranking |
 | **EXP-94** | **DONE / EXTRA DENOISING EXPLAINS GAIN** | Parallel-44 beats late raw/continuous by 23.91 C-PPL at identical 11264 token-calls; late coupling is only a Block-SAR replacement |
-| **EXP-95** | **STAGE 1 DONE / FOUR CELLS PROMOTED** | Eight of 48 Plaid density/horizon/trigger cells pass the Pareto screen; four receive larger complete-control panels |
+| **EXP-95** | **STAGE 2 POSITIVE / FORMAL REPLICATION RUNNING** | Four complete-control cells pass on seed 42; early single-step `.50/.75` density settings are frozen for seeds 123/456 |
 | **EXP-96** | **CLOSED BY EXP-94** | No adaptive-trigger sweep without fixed-schedule compute headroom |
 | **EXP-97** | **CLOSED BY EXP-94** | No multi-block scale-up of a schedule that loses to compute-matched parallel refinement |
 | **EXP-98** | **CLOSED BY EXP-94** | No trajectory distillation without a verified compute-matched teacher |
