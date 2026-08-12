@@ -57,11 +57,11 @@ method ledger is:
 | [EXP-91](EXP-91-spec.md) | **DONE / THREE-SEED NEGATIVE** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | no: mean U/C PPL interactions are slightly unfavorable, prompt-gain interaction falls, and conditioned degeneration worsens on every inference seed |
 | [EXP-92](EXP-92-spec.md) | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Does conditional, on-policy subset training retain the portable anchor benefit without damaging Standard generation? | no: `lambda_mix=1` fails, and the fixed `.25` follow-up worsens C-PPL interaction in 3/3 seeds and prompt gain in 3/3; preserve the curved teacher field in any successor |
 | [EXP-93](EXP-93-spec.md) | **ACTIVE / P0 ORACLE-HEADROOM TEST** | Is random anchoring close to subset-optimal, and can trigger-time features predict better masks? | measure best-of-16 versus mean-random before designing or training a deployable subset-level selector |
-| [EXP-94](EXP-94-spec.md) | **ACTIVE / P0** | Does Plaid late coupling beat a strictly token-compute-matched parallel sampler, and where is the fixed-compute scheduling frontier? | Stage A must beat Parallel-44 before any broader method claim; Stage B is successive-halving only after that gate |
-| [EXP-95](EXP-95-spec.md) | **GATED** | Is there a Plaid temporary-anchor setting that improves PPL without the ELF diversity trade-off? | run only after the compute audit; require a full Pareto improvement, not PPL alone |
-| [EXP-96](EXP-96-spec.md) | **GATED** | Can a per-sample maturity event beat the best fixed coupling schedule at matched average work? | first require nontrivial offline-oracle headroom |
-| [EXP-97](EXP-97-spec.md) | **GATED** | Does revisable coupling scale from two blocks to a three/four-block wave? | freeze the upstream schedule and require gains at lengths 384 and 512 |
-| [EXP-98](EXP-98-spec.md) | **GATED / DO NOT LAUNCH** | Can on-policy trajectory distillation compress a verified coupling teacher while preserving its curved field? | closed unless EXP-94 and EXP-97 establish a real method target |
+| [EXP-94](EXP-94-spec.md) | **DONE / EXTRA DENOISING EXPLAINS GAIN** | Does Plaid late coupling beat a strictly token-compute-matched parallel sampler? | no: at identical 11264 token-calls, Parallel-44 C-PPL is `90.63` versus late raw/continuous `114.54`; retain only as a Block-SAR replacement |
+| [EXP-95](EXP-95-spec.md) | **ACTIVE / STAGE-1 SCREEN** | Is there a Plaid temporary-anchor setting that improves PPL without the ELF diversity trade-off? | screen density/horizon/trigger with paired noise; promote at most four cells to full controls |
+| [EXP-96](EXP-96-spec.md) | **CLOSED BY EXP-94** | Can a per-sample maturity event beat the best fixed coupling schedule at matched average work? | fixed coupling has no compute-matched headroom |
+| [EXP-97](EXP-97-spec.md) | **CLOSED BY EXP-94** | Does revisable coupling scale from two blocks to a three/four-block wave? | do not scale a two-block schedule that loses to compute-matched parallel refinement |
+| [EXP-98](EXP-98-spec.md) | **CLOSED BY EXP-94** | Can on-policy trajectory distillation compress a verified coupling teacher while preserving its curved field? | no verified compute-matched teacher remains |
 
 Completed decision:
 

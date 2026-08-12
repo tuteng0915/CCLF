@@ -1271,6 +1271,29 @@ falls in all three. The current target is therefore retired. A successor must
 preserve native curved velocity and add only a normalized residual correction,
 not force the rollout state directly toward the endpoint.
 
+### 6.18 Compute-matched Plaid late-coupling audit (EXP-94)
+
+EXP-87 compared denoiser calls, but clamped suffix maturation still evaluates
+the full two-block context. Late-24 therefore costs `11264` token-calls, exactly
+matching Parallel-44 rather than Parallel-32. The paired seed-42 `n=32` audit
+finds:
+
+| Arm | Token-calls | C-PPL | Boundary PPL | Gain | D1 | Deg. |
+|---|---:|---:|---:|---:|---:|---:|
+| Parallel-32 | 8192 | 107.95 | 148.89 | .1680 | .5622 | .0000 |
+| Parallel-44 | 11264 | **90.63** | **113.76** | **.1786** | .5633 | .0625 |
+| Block-SAR-64 | 12288 | 122.27 | 218.33 | .1536 | .5539 | .0000 |
+| Late raw-24 | 11264 | 114.54 | 175.75 | .1740 | .5629 | .0000 |
+| Late continuous-24 | 11264 | 114.54 | 177.39 | .1672 | .5621 | .0000 |
+| Late hard-24 | 11264 | 122.57 | 179.55 | .1726 | .5585 | .0313 |
+
+Late raw/continuous are cleaner Block-SAR replacements, but their EXP-87 lead
+is explained by comparison against an inefficient baseline: they lose to
+Parallel-44 by `+23.91` C-PPL and `+61.99/+63.63` boundary PPL at identical
+token compute. Do not claim an asynchronous compute-allocation advantage, and
+do not expand this schedule into an adaptive/multi-block method without a
+material algorithmic change.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

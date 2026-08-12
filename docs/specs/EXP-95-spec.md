@@ -1,6 +1,6 @@
 # EXP-95 Spec — Plaid Temporary-Anchor Pareto
 
-**Status:** GATED BY EXP-94 STAGE A
+**Status:** ACTIVE / STAGE-1 SCREEN
 **Purpose:** find whether the portable temporary-anchor clue can improve
 Plaid quality without the diversity trade-off seen in ELF.
 
@@ -28,3 +28,9 @@ Delta C-PPL < 0,  Delta D1 >= 0,  Delta degeneration <= 0
 in at least `2/3` seeds, with no material Rep-4 or prompt-gain regression.
 This is a Pareto search, not evidence for a new mechanism if only PPL improves.
 
+Stage-1 runner:
+`experiments/interventions/eval_plaid_anchor_pareto_exp95.py`. It evaluates
+Standard once and the random-anchor grid with exactly shared prompts, initial
+noise, and Plaid ancestral noise. Trigger steps are frozen at `14/18/22`
+(pre/transition/post); complete top-confidence, shuffled-content, and sham
+controls are added only for promoted cells.

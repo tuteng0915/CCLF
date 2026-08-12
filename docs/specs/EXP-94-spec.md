@@ -1,6 +1,6 @@
 # EXP-94 Spec — Compute-Matched Plaid Coupling Frontier
 
-**Status:** ACTIVE / P0
+**Status:** STAGE A DONE / EXTRA DENOISING EXPLAINS THE GAIN
 **Purpose:** decide whether the positive Plaid late-coupling result is a real
 allocation advantage or only a comparison against an inefficient Block-SAR
 baseline.
@@ -69,3 +69,25 @@ Stage A runner: the extended
 `experiments/interventions/eval_plaid_conditional_late_coupling.py` with
 `--parallel_steps_extra 44,56`. Stage B receives a separate runner only after
 Stage A passes.
+
+## Stage-A result (2026-08-12)
+
+The paired seed-42 screen uses `n=32`. Late-24 and Parallel-44 both use exactly
+`11264` token-calls. Key results are:
+
+| Arm | Token-calls | C-PPL | Boundary PPL | Gain | D1 | Deg. |
+|---|---:|---:|---:|---:|---:|---:|
+| Parallel-32 | 8192 | 107.95 | 148.89 | .1680 | .5622 | .0000 |
+| Parallel-44 | 11264 | **90.63** | **113.76** | **.1786** | .5633 | .0625 |
+| Parallel-56 | 14336 | 81.44 | 87.88 | .1845 | .5582 | .0625 |
+| Block-SAR-64 | 12288 | 122.27 | 218.33 | .1536 | .5539 | .0000 |
+| Late raw-24 | 11264 | 114.54 | 175.75 | .1740 | .5629 | .0000 |
+| Late continuous-24 | 11264 | 114.54 | 177.39 | .1672 | .5621 | .0000 |
+| Late hard-24 | 11264 | 122.57 | 179.55 | .1726 | .5585 | .0313 |
+
+Late raw/continuous remain better than Block-SAR but lose to the exact-compute
+Parallel-44 control by `+23.91` C-PPL and `+61.99/+63.63` boundary PPL. The
+fixed-compute maturity frontier, adaptive coupling, progressive coupling, and
+coupling distillation are therefore not launched. The earlier EXP-87 result is
+retained only as a cheaper/better Block-SAR replacement, not a scheduling
+advantage over parallel refinement.

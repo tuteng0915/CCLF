@@ -1,6 +1,6 @@
 # EXP-96 Spec — Event-Triggered Revisable Coupling
 
-**Status:** GATED BY EXP-94
+**Status:** CLOSED BY EXP-94 / NO FIXED-SCHEDULE HEADROOM
 **Purpose:** replace a globally fixed coupling step with a per-sample maturity
 event while preserving the same average compute.
 
@@ -22,4 +22,3 @@ Promote only if an adaptive trigger improves paired C-PPL and boundary PPL in
 `2/3` seeds at matched mean work without worse tail degeneration, D1, Rep-4,
 or prompt gain. If the oracle upper bound is negligible, stop the adaptive
 branch rather than tuning thresholds.
-

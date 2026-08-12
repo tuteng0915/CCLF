@@ -40,11 +40,11 @@
 | **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
 | **EXP-92** | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Conditional-oracle is non-Pareto; on-policy fails, and loss-balanced `.25` worsens C-PPL and prompt-gain interactions in all three seeds |
 | **EXP-93** | **ACTIVE / P0 ORACLE-HEADROOM TEST** | Quantify best-of-16 versus mean-random mask utility, then test subset-level reliability/coverage/influence selectors on held-out trajectories |
-| **EXP-94** | **ACTIVE / P0** | Strict token-compute audit of Plaid late coupling, followed only on a pass by a fixed-11264-token-call scheduling frontier |
-| **EXP-95** | **GATED** | Plaid density/horizon/trigger temporary-anchor Pareto via successive halving |
-| **EXP-96** | **GATED** | Event-triggered coupling at matched average compute, contingent on offline-oracle headroom |
-| **EXP-97** | **GATED** | Three/four-block revisable progressive coupling with frozen upstream schedule |
-| **EXP-98** | **GATED / DO NOT LAUNCH** | Curved-field on-policy coupling distillation; closed unless inference coupling first beats compute-matched Parallel and scales |
+| **EXP-94** | **DONE / EXTRA DENOISING EXPLAINS GAIN** | Parallel-44 beats late raw/continuous by 23.91 C-PPL at identical 11264 token-calls; late coupling is only a Block-SAR replacement |
+| **EXP-95** | **ACTIVE / STAGE-1 SCREEN** | Plaid density/horizon/trigger temporary-anchor Pareto via successive halving |
+| **EXP-96** | **CLOSED BY EXP-94** | No adaptive-trigger sweep without fixed-schedule compute headroom |
+| **EXP-97** | **CLOSED BY EXP-94** | No multi-block scale-up of a schedule that loses to compute-matched parallel refinement |
+| **EXP-98** | **CLOSED BY EXP-94** | No trajectory distillation without a verified compute-matched teacher |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

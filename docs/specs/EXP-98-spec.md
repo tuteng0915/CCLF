@@ -1,6 +1,6 @@
 # EXP-98 Spec — On-Policy Coupling Trajectory Distillation
 
-**Status:** GATED BY EXP-94/97 / DO NOT LAUNCH YET
+**Status:** CLOSED BY EXP-94 / DO NOT LAUNCH
 **Purpose:** compress a verified inference-time coupling schedule without
 repeating the straight-endpoint target rejected by EXP-91/92.
 
@@ -27,4 +27,3 @@ student preserves the teacher's compute-matched C-PPL/boundary advantage in
 
 If EXP-94 finds no advantage over Parallel-44, or EXP-97 finds no scalable
 schedule, this experiment remains closed.
-
