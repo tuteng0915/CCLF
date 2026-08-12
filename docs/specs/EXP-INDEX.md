@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-11（EXP-80 paired U/C audit done；93 个实验）
+**更新时间**: 2026-08-12（EXP-94--98 gated method roadmap；98 个实验）
 
 ---
 
@@ -40,6 +40,11 @@
 | **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
 | **EXP-92** | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Conditional-oracle is non-Pareto; on-policy fails, and loss-balanced `.25` worsens C-PPL and prompt-gain interactions in all three seeds |
 | **EXP-93** | **ACTIVE / P0 ORACLE-HEADROOM TEST** | Quantify best-of-16 versus mean-random mask utility, then test subset-level reliability/coverage/influence selectors on held-out trajectories |
+| **EXP-94** | **ACTIVE / P0** | Strict token-compute audit of Plaid late coupling, followed only on a pass by a fixed-11264-token-call scheduling frontier |
+| **EXP-95** | **GATED** | Plaid density/horizon/trigger temporary-anchor Pareto via successive halving |
+| **EXP-96** | **GATED** | Event-triggered coupling at matched average compute, contingent on offline-oracle headroom |
+| **EXP-97** | **GATED** | Three/four-block revisable progressive coupling with frozen upstream schedule |
+| **EXP-98** | **GATED / DO NOT LAUNCH** | Curved-field on-policy coupling distillation; closed unless inference coupling first beats compute-matched Parallel and scales |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

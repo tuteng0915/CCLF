@@ -39,6 +39,11 @@ def parse_args():
     parser.add_argument("--prefix_length", type=int, default=64)
     parser.add_argument("--n_steps", type=int, default=32)
     parser.add_argument("--split", type=int, default=24)
+    parser.add_argument(
+        "--parallel_steps_extra",
+        default="",
+        help="Comma-separated parallel solver depths used for compute audits.",
+    )
     parser.add_argument("--ppl_model", default="gpt2-large")
     parser.add_argument("--ppl_batch_size", type=int, default=4)
     parser.add_argument("--skip_ppl", action="store_true")
@@ -166,6 +171,7 @@ def run_batch(adapter, eps_a, eps_b, prompt_ids, prompt_clean, grid, args, batch
     outputs["full_parallel"] = {
         "ids": full_ids,
         "calls": args.n_steps,
+        "token_calls": args.n_steps * 2 * args.block_size,
         "prefix_revision": 0.0,
         "suffix_revision": 0.0,
         "clamp_error": full_error,
@@ -189,6 +195,38 @@ def run_batch(adapter, eps_a, eps_b, prompt_ids, prompt_clean, grid, args, batch
         agreement = float((ref_ids == full_ids).float().mean())
         if agreement != 1.0:
             raise RuntimeError(f"native reference agreement={agreement}")
+
+    for item in args.parallel_steps_extra.split(","):
+        if not item.strip():
+            continue
+        steps = int(item)
+        if steps == args.n_steps:
+            continue
+        extra_grid = np.linspace(adapter.t_eps, 0.999, steps + 1).tolist()
+        z_extra, sc_extra, extra_error = advance_clamped(
+            adapter,
+            total_eps.clone(),
+            None,
+            extra_grid,
+            0,
+            steps,
+            args.seed,
+            batch_index,
+            f"full_parallel_{steps}",
+            prompt_clean,
+            args.prefix_length,
+        )
+        extra_ids, _ = base.readout(
+            adapter, z_extra, sc_extra, extra_grid[-1], args.batch_size
+        )
+        outputs[f"full_parallel_{steps}"] = {
+            "ids": extra_ids,
+            "calls": steps,
+            "token_calls": steps * 2 * args.block_size,
+            "prefix_revision": 0.0,
+            "suffix_revision": 0.0,
+            "clamp_error": extra_error,
+        }
 
     # First generated block contains the observed prompt followed by region A.
     z_a, sc_a = eps_a.clone(), None
@@ -246,6 +284,7 @@ def run_batch(adapter, eps_a, eps_b, prompt_ids, prompt_clean, grid, args, batch
     outputs["block_sar"] = {
         "ids": sar_ids,
         "calls": 2 * args.n_steps,
+        "token_calls": 3 * args.n_steps * args.block_size,
         "prefix_revision": 0.0,
         "suffix_revision": 0.0,
         "clamp_error": sar_error,
@@ -298,6 +337,7 @@ def run_batch(adapter, eps_a, eps_b, prompt_ids, prompt_clean, grid, args, batch
         outputs[f"late_{kind}_m{args.split}"] = {
             "ids": final_ids,
             "calls": args.n_steps + args.split,
+            "token_calls": (2 * args.n_steps + args.split) * args.block_size,
             "prefix_revision": float(
                 (
                     final_ids[:, args.prefix_length : args.block_size]
@@ -406,6 +446,7 @@ def main():
                 {
                     "ids": [],
                     "calls": output["calls"],
+                    "token_calls": output["token_calls"],
                     "prefix_revision": [],
                     "suffix_revision": [],
                     "clamp_error": [],
@@ -487,6 +528,7 @@ def main():
                     )
                 ),
                 "calls": record["calls"],
+                "token_calls": record["token_calls"],
                 "prefix_revision_rate": float(np.mean(record["prefix_revision"])),
                 "suffix_revision_rate": float(np.mean(record["suffix_revision"])),
                 "max_clamp_restore_error": float(max(record["clamp_error"])),
@@ -499,6 +541,7 @@ def main():
         results[name] = quality
         print(
             f"{name:24s} calls={quality['calls']:2d} "
+            f"token-calls={quality['token_calls']:5d} "
             f"C-PPL={quality['prompt_conditioned_ppl']:.2f} "
             f"boundary={quality['boundary_ppl']:.2f} RL={quality['rouge_l']:.4f} "
             f"D2={quality['d2']:.4f} deg={quality['degeneration_rate']:.3f}"
