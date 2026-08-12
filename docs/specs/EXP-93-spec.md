@@ -145,9 +145,10 @@ remaining research question is whether non-additive subset interaction can be
 learned on a trajectory-disjoint training bank and validated without final-NLL
 selection leakage.
 
-## Stage 3: deployable selector comparison
+## Closed Stage 3 plan (historical)
 
-Compare at identical anchor density and trigger:
+The original Stage 3 plan was to compare, at identical anchor density and
+trigger:
 
 1. top confidence;
 2. one random mask;
@@ -156,14 +157,16 @@ Compare at identical anchor density and trigger:
 5. learned best-of-16 reranking;
 6. oracle best-of-16, labeled explicitly as an upper bound.
 
-The learned reranker may batch its shadow probes, but report effective model
-calls and FLOPs. It cannot be called a same-budget win if it uses unreported
-lookahead compute. A cheap selector is preferred if its conditional NLL lies
-within the oracle confidence interval.
+This plan is now closed: spatial/latent coverage, learned static reranking,
+one-step shadows, eight-step lookahead, and additive dependency features all
+fail the independent-validation gate. The oracle remains an upper bound only.
 
-Run ELF first. Promote to LangFlow and Plaid only if a frozen non-oracle
-selector beats one-random in at least `2/3` ELF seeds with no material prompt-
-gain, D1, Rep-4, or degeneration regression.
+Any successor is a new experiment, not EXP-93 Stage 3. It must train a
+non-additive set model on a trajectory-disjoint bank, freeze architecture and
+hyperparameters before a new final panel, report effective model calls and
+FLOPs, and beat one-random in at least `2/3` ELF seeds without a material
+prompt-gain, D1, Rep-4, or degeneration regression before cross-architecture
+promotion.
 
 ## Interpretation
 
