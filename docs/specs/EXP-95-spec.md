@@ -1,6 +1,6 @@
 # EXP-95 Spec — Plaid Temporary-Anchor Pareto
 
-**Status:** STAGE 2 POSITIVE / TWO SETTINGS IN FORMAL REPLICATION
+**Status:** DONE / THREE-SEED PLAID METHOD POSITIVE
 **Purpose:** find whether the portable temporary-anchor clue can improve
 Plaid quality without the diversity trade-off seen in ELF.
 
@@ -85,3 +85,33 @@ Freeze `t14,d=.50,H=1` and `t14,d=.75,H=1` for seeds 123/456 with the same five
 arms and `n_U=n_C=32`. The first setting tests random broad coverage; the
 second tests whether high coverage makes confidence selection useful. Do not
 retune after seeing those seeds.
+
+## Formal three-seed result
+
+Seeds `42/123/456` are complete for both frozen settings. Values below are
+three-seed means for the cleanest high-coverage policy (`step=14`,
+`t_native=.4652`, density `.75`, horizon `1`):
+
+| Arm | U-PPL | C-PPL | Shuffled PPL | Gain | C-RL | C-D1 | C-D2 | Rep-4 | Deg. | Revision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 135.43 | 110.39 | 178.49 | .4804 | .1042 | .6330 | .9603 | .0000 | .0417 | -- |
+| Readout sham | 135.43 | 110.39 | 178.49 | .4804 | .1042 | .6330 | .9603 | .0000 | .0417 | -- |
+| Random correct | **95.98** | 80.87 | 141.28 | **.5570** | **.1083** | .6301 | .9507 | .0002 | .0313 | .768 |
+| Top-confidence correct | 99.32 | **80.28** | **139.50** | .5522 | .1042 | **.6363** | .9552 | .0002 | .0313 | .699 |
+| Shuffled content | 234.94 | 138.46 | 221.00 | .4680 | .0902 | .6594 | .9723 | .0000 | .0208 | .856 |
+
+Top-confidence C-PPL improves in all three seeds (`-32.95/-36.00/-21.38`),
+while C-D1 improves in two seeds and by `+.0033` on average. D2 decreases by
+`.0051`, so this is the best balanced operating point rather than strict
+dominance on every metric. Random anchors give slightly better mean U-PPL and
+prompt gain but lower mean D1. The density-.50 random policy also improves
+C-PPL in all three seeds (`110.39 -> 79.73` on average), but its D1 decreases
+in seeds 123/456 and Rep-4 rises in seed 456.
+
+The method claim is therefore specific: an early, high-coverage,
+single-interval lexical context intervention improves both unconditional and
+real-prefix conditional Plaid generation under a native paired-noise protocol.
+It adds one readout but no denoiser step; the exact readout sham rules out that
+extra computation as the cause. High post-release revision (`.699`) rules out
+irreversible commitment. Do not generalize the exact trigger, density, or
+selector ranking to ELF/LangFlow without native-clock replication.

@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-12（EXP-94--98 gated method roadmap；98 个实验）
+**更新时间**: 2026-08-13（EXP-93 selector closure；EXP-94 compute audit；EXP-95 formal result；98 个实验）
 
 ---
 
@@ -39,9 +39,9 @@
 | **EXP-90** | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Native-clock random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds; shuffled content is catastrophic, while U-PPL/full Pareto behavior are architecture-dependent |
 | **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
 | **EXP-92** | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Conditional-oracle is non-Pareto; on-policy fails, and loss-balanced `.25` worsens C-PPL and prompt-gain interactions in all three seeds |
-| **EXP-93** | **STAGE 2 NEGATIVE / ORACLE GAP UNPREDICTABLE** | Best-of-16 has large headroom, but confidence/coverage/shadow features yield near-chance grouped OOF ranking on seed-42/123 banks |
+| **EXP-93** | **STAGE 2 CLOSED / REPLICATED ORACLE GAP, CURRENT SELECTORS FAIL** | Best-of-16 cuts C-PPL by `37--38%` on two banks, but static, 8-step future-context, and additive single-position causal-graph selectors fail independent validation |
 | **EXP-94** | **DONE / EXTRA DENOISING EXPLAINS GAIN** | Parallel-44 beats late raw/continuous by 23.91 C-PPL at identical 11264 token-calls; late coupling is only a Block-SAR replacement |
-| **EXP-95** | **STAGE 2 POSITIVE / FORMAL REPLICATION RUNNING** | Four complete-control cells pass on seed 42; early single-step `.50/.75` density settings are frozen for seeds 123/456 |
+| **EXP-95** | **DONE / THREE-SEED PLAID METHOD POSITIVE** | Early one-step 75% confidence anchors reduce C-PPL `110.39 -> 80.28`, improve mean D1, and remain highly revisable; D2 falls slightly |
 | **EXP-96** | **CLOSED BY EXP-94** | No adaptive-trigger sweep without fixed-schedule compute headroom |
 | **EXP-97** | **CLOSED BY EXP-94** | No multi-block scale-up of a schedule that loses to compute-matched parallel refinement |
 | **EXP-98** | **CLOSED BY EXP-94** | No trajectory distillation without a verified compute-matched teacher |

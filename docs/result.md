@@ -83,17 +83,17 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can predicted-clean context repair heterogeneous attention? | EXP-75 | Only partially in PPL; vector error is unchanged/worse and generation remains catastrophic. Simple canonical input replacement is rejected. |
 | Can a clock be forced to learn before asynchronous training? | EXP-76 | Partly yes: frozen adapters learn a functional clock without hurting Standard generation, but wave quality remains poor. |
 | Does asynchronous block-transition distillation then work? | EXP-77 | No. Standard generation stays healthy, but all fill/drain samplers remain at PPL `3400--3900`; local transitions do not compose. |
-| Does late clock-aligned coupling help prompted continuation? | EXP-79/87 | Architecture-dependent. It is negative on ELF, but on Plaid all raw/continuous/hard 56-call arms beat Block-SAR-64 C-PPL in three seeds; raw reaches `95.38` versus `100.87`. |
+| Does late clock-aligned coupling help prompted continuation? | EXP-79/87/94 | Only relative to Block-SAR. At identical `11264` token-calls, Plaid Parallel-44 beats late raw/continuous by `23.91` C-PPL and about `62--64` boundary-PPL points; extra parallel denoising explains the apparent gain. |
 | Does real prefix conditioning rescue asynchronous ELF methods? | EXP-80 | No. Soft anchors lose to Standard-64 and local/canonical waves lose to Standard-136 in both scopes. Unlock-4's same-call PPL gain replicates across two new OWT panels and Gutenberg, but prompt-gain improvement is not robust and diversity/repetition trade-offs remain. |
 | Is Unlock-4 actually using the prompt more strongly? | EXP-81 | Not robustly. It lowers NLL in every suffix band, but the pooled full-suffix prompt-gain delta is only `+.0045 [-.0085,.0181]`. |
 | What part of temporary anchoring matters? | EXP-82 | Correct position-content and coverage matter more than high confidence: random 50% anchors beat top-confidence anchors on PPL in all three panels, while shuffled content is catastrophic. |
-| Is temporary anchoring portable beyond ELF? | EXP-90 | Conditionally yes. Random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds, and shuffled content is catastrophic; unconditional and random-versus-confidence rankings remain architecture-dependent. |
 | Does the temporary-anchor sign scale? | EXP-89 | Yes for PPL through length 1024 and prefix ratios `.25/.50/.75`; the unconditional effect shrinks with length and the D1/Rep-4 trade-off remains. |
 | Is temporary anchoring portable beyond ELF? | EXP-90 | Conditionally, yes: random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds, while shuffled content is catastrophic. LangFlow U-PPL worsens slightly, and diversity/degeneration trade-offs remain architecture-dependent. |
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
 | Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
 | Does conditional/on-policy subset training fix that mismatch? | EXP-92 | No with the current target. Conditional-oracle is non-Pareto; on-policy is unfavorable at `+9.46/+11.58` U/C PPL interaction, and a fixed `.25` weight still worsens C-PPL in 3/3 seeds and prompt gain in 3/3. |
-| Is random anchoring already subset-optimal? | EXP-93 Stage 1 | No on the seed-42 conditional panel. Best-of-16 lowers C-PPL from mean-random `335.67` to `210.19`; paired headroom is `.477 [.441,.513]` nats. This is an oracle upper bound with worse diversity/degeneration, not yet a deployable selector. |
+| Is random anchoring already subset-optimal? | EXP-93 | No. Best-of-16 lowers C-PPL from mean-random `335.67/390.12` to `210.19/240.52` on two independent banks. The gap is real, but static, lookahead, and additive influence selectors do not reliably predict it. |
+| Can a temporary-anchor policy improve the complete Plaid panel? | EXP-95 | Yes, with a bounded claim. Early one-step 75% confidence anchors reduce U/C-PPL `135.43/110.39 -> 99.32/80.28`, improve mean D1 and degeneration, and revise at `.699`; D2 falls by `.0051`. Readout sham is exact and shuffled content is harmful. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
 
@@ -1326,6 +1326,25 @@ shuffled-content C-PPL ranges from `134.21` to `330.47`. Anchor revision is
 `.57--.78`, confirming that the intervention is strongly revisable. The two
 single-step early settings are frozen for seeds 123/456 formal replication.
 
+The frozen three-seed replication is complete. For the cleanest setting
+(`step=14`, `t_native=.4652`, density `.75`, horizon `1`), means are:
+
+| Arm | U-PPL | C-PPL | Shuffled | Gain | C-RL | C-D1 | C-D2 | Rep-4 | Deg. | Revision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 135.43 | 110.39 | 178.49 | .4804 | .1042 | .6330 | .9603 | .0000 | .0417 | -- |
+| Readout sham | 135.43 | 110.39 | 178.49 | .4804 | .1042 | .6330 | .9603 | .0000 | .0417 | -- |
+| Random correct | **95.98** | 80.87 | 141.28 | **.5570** | **.1083** | .6301 | .9507 | .0002 | .0313 | .768 |
+| Top-confidence correct | 99.32 | **80.28** | **139.50** | .5522 | .1042 | **.6363** | .9552 | .0002 | .0313 | .699 |
+| Shuffled content | 234.94 | 138.46 | 221.00 | .4680 | .0902 | .6594 | .9723 | .0000 | .0208 | .856 |
+
+Top-confidence C-PPL improves in all seeds (`-32.95/-36.00/-21.38`); C-D1
+improves in two seeds and by `+.0033` on average, while D2 falls by `.0051`.
+This is a robust PPL and prompt-gain result with a favorable balanced quality
+panel, not strict dominance on every metric. The density-.50 random policy also
+improves C-PPL in all seeds (`110.39 -> 79.73`) but does not preserve D1 as
+reliably. The paper-facing method is early one-step temporary anchoring, not
+late coupling or irreversible hard commitment.
+
 ### 6.20 ELF random-subset selector headroom (EXP-93 Stage 1)
 
 This conditional seed-42 `n=64` panel freezes ODE-32, prompt and suffix noise,
@@ -1367,7 +1386,35 @@ C-PPL `339.74` versus mean-random `335.67` on seed 42, and `381.69` versus
 `390.12` on seed 123, while the oracle values are `210.19/240.52`. Static
 confidence/coverage/redundancy proxies stay near chance; one-step shadow
 entropy is only `.523/.527` pairwise accurate. Thus the oracle gap is real but
-not deployable with the tested features, and Stage 3 is closed.
+not deployable with the tested features.
+
+Two stronger follow-ups preserve that boundary. First, candidate-specific
+lookahead evolves every mask for `2/4/8` steps and scores unresolved positions
+before and after release. On the discovery bank, the best frozen eight-step
+scores reduce C-PPL from mean-random `335.67` to `303.77` (confidence gain) or
+`308.84` (entropy reduction). On the independent bank, however, they reach
+only `384.17/373.37` versus mean-random `390.12`. Paired mean-NLL improvements
+are `-.0158 [-.0859,+.0513]` and `-.0436 [-.1093,+.0199]`; both intervals cross
+zero. The apparent discovery gain therefore does not validate, and each of 16
+candidates additionally costs nine denoiser calls.
+
+Second, a single-position intervention estimates a `64 x 64` causal graph for
+each trajectory by holding each candidate source for four steps and measuring
+target confidence, entropy, and top-1 changes. Additive graph coverage,
+redundancy, and cross-influence features are then scored against the same
+candidate utilities. The discovery leader, mean selected-to-unresolved
+confidence influence, has Spearman `.113` and pairwise accuracy `.540` on 16
+trajectories, but falls to `.006/.504` on an independent 16-trajectory bank;
+its selected C-PPL is `458.76`, worse than held-out mean-random `390.12`.
+The graph OOF model is likewise non-predictive (`.041/.520`) and selects
+C-PPL `436.48`.
+
+The resulting conclusion is narrower than “random is best.” Subset identity
+has a large, replicated oracle effect, but utility is trajectory-specific and
+not recovered by marginal confidence, spatial or latent coverage, short-path
+consistency, or an additive pairwise influence graph. A successor must model
+non-additive subset interactions and must be trained and frozen before a new
+quality bank; Stage 3 is closed for the current proxy family.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
@@ -1457,12 +1504,17 @@ or methods were withdrawn.
    replicated ODE gain and permits later revision, while ELF native SDE either
    makes it inert or loses coherence when commitment is forced earlier. This
    boundary must not be generalized to every stochastic architecture.
-6. Native-clock P0 panels provide a narrower portable signal: broad,
-   position-correct temporary anchors improve conditional PPL in 3/3 LangFlow
-   and 3/3 Plaid seeds, while shuffled content is catastrophic. Unconditional
-   gains and the complete quality Pareto are architecture-dependent.
-7. Pipeline, post-hoc local clocks, subset-flow training, and the current gated
-   WFF pilot are not positive methods.
+6. Plaid now provides the cleanest method result. Early one-step 75\%
+   confidence anchors improve unconditional and real-prefix conditional PPL in
+   three seeds, preserve mean D1, reduce degeneration, and revise heavily after
+   release. D2 falls slightly, so this is a balanced quality result rather than
+   strict dominance on every metric.
+7. The exact readout sham, same-mask shuffled-content control, shared prompt
+   and ancestral noise, and real 64-token prefix protocol isolate the gain as
+   correct temporary lexical context rather than extra compute or a generic
+   perturbation.
+8. Pipeline, post-hoc local clocks, compute-matched late coupling, subset-flow
+   training, and the current gated WFF pilot are not positive methods.
 
 ## 10. Provenance
 
@@ -1473,6 +1525,8 @@ Primary specs:
 - Pipeline: `EXP-61`, `EXP-64`;
 - KD: `EXP-62`, `EXP-63`, `EXP-66`;
 - hard commitment and sampler boundary: `EXP-64`--`EXP-69`, `EXP-74`, `EXP-78`.
+- selector and training dead ends: `EXP-91`--`EXP-93`;
+- compute-matched coupling and the Plaid method result: `EXP-94`, `EXP-95`.
 
 Primary server result directories:
 

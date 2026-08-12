@@ -1,6 +1,6 @@
 # EXP-93 Spec — Subset Utility and Selector Headroom
 
-**Status:** STAGE 2 NEGATIVE / ORACLE HEADROOM NOT PREDICTABLE
+**Status:** STAGE 2 CLOSED / REPLICATED ORACLE GAP, CURRENT SELECTORS FAIL
 **Purpose:** determine whether temporary random anchoring is merely a strong
 average policy or already close to the best achievable subset, then replace
 single-token confidence with a subset-level utility selector.
@@ -114,6 +114,33 @@ stable enough to freeze a cross-bank selector.
 Decision: Stage 3 is closed for these features. Subset identity has large
 oracle headroom, but its utility is strongly nonlocal and is not recoverable
 from the tested trigger-time summaries or one-step shadow features.
+
+### Stronger dynamic and dependency-aware follow-ups
+
+The one-step result prompted two escalations.
+
+1. **Multi-step future-context lookahead.** Each candidate mask is held for
+   `h in {2,4,8}` steps, released for one step, and scored by selected-token
+   consistency plus unresolved confidence/entropy change. Discovery selects
+   `h=8` release unresolved confidence gain as primary and entropy reduction
+   as secondary. Their discovery C-PPL is `303.77/308.84` versus mean-random
+   `335.67`. On the independent seed-123/offset-31000 bank, they reach only
+   `384.17/373.37` versus `390.12`; paired NLL intervals
+   `[-.0859,+.0513]` and `[-.1093,+.0199]` cross zero. This does not validate,
+   and scoring all 16 candidates uses nine extra denoiser calls per candidate.
+2. **Single-position causal dependency graph.** For 16 trajectories per bank,
+   anchor each of 64 suffix positions separately for four steps, record its
+   confidence/entropy/top-1 effect on all other positions, and aggregate the
+   resulting graph over each candidate subset. The discovery leader,
+   selected-to-unresolved mean confidence influence, falls from Spearman
+   `.113` / pairwise `.540` to `.006` / `.504` on the independent bank and
+   selects C-PPL `458.76`. The held-out grouped OOF graph model has Spearman
+   `.041`, pairwise `.520`, and C-PPL `436.48`.
+
+Decision: close static, short-lookahead, and additive pairwise selectors. The
+remaining research question is whether non-additive subset interaction can be
+learned on a trajectory-disjoint training bank and validated without final-NLL
+selection leakage.
 
 ## Stage 3: deployable selector comparison
 
