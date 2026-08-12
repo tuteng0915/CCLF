@@ -1294,6 +1294,27 @@ token compute. Do not claim an asynchronous compute-allocation advantage, and
 do not expand this schedule into an adaptive/multi-block method without a
 material algorithmic change.
 
+### 6.19 Plaid temporary-anchor Pareto screen (EXP-95)
+
+The paired seed-42 `n_U=n_C=16` screen covers 48 random-anchor cells across
+native trigger steps `14/18/22`, densities `.125/.25/.50/.75`, and horizons
+`1/2/4/8`. Eight cells improve C-PPL and D1 without larger degeneration or a
+material Rep-4/prompt-gain regression. The signal is concentrated at the early
+trigger (`step=14`, `t_native=.4652`):
+
+| Trigger | Density | H | Delta U-PPL | Delta C-PPL | Delta C-D1 | Delta Deg. | Delta gain |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 14 | .50 | 1 | **-34.56** | **-45.58** | +.0082 | .0000 | +.0869 |
+| 14 | .75 | 1 | -36.09 | -36.32 | +.0098 | .0000 | +.0110 |
+| 14 | .50 | 4 | -18.19 | -33.32 | **+.0158** | .0000 | +.0331 |
+| 14 | .75 | 4 | -25.06 | -29.93 | +.0105 | .0000 | +.0361 |
+| 18 | .75 | 2 | -26.49 | -16.13 | +.0060 | .0000 | +.0089 |
+
+Leading post-transition cells also improve PPL but consistently reduce D1.
+Four complementary early/transition cells are being promoted to larger panels
+with Standard, readout-sham, top-confidence, and shuffled-content controls;
+the small screen is not yet a formal method result.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

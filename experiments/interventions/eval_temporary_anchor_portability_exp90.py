@@ -30,7 +30,13 @@ import eval_plaid_conditional_late_coupling as conditional_base  # noqa: E402
 from common import load_adapter  # noqa: E402
 
 
-ARMS = ("standard", "random", "top_confidence", "shuffled_content")
+ARMS = (
+    "standard",
+    "readout_sham",
+    "random",
+    "top_confidence",
+    "shuffled_content",
+)
 
 
 def parse_args():
@@ -169,15 +175,16 @@ def run_arm(adapter, eps, grid, args, arm, scope, batch_index, prompt_clean=None
             out = adapter.forward_state(
                 z, sc, grid[step], batch_size=args.batch_size
             )
-            anchor_mask, anchor_ids, anchor_clean, anchor_confidence = build_anchor(
-                adapter,
-                out["logits"].to(adapter.device),
-                out["predicted_clean"].to(adapter.device),
-                arm,
-                eligible,
-                args.density,
-                step_seed(args.seed + 17, scope_code, batch_index, step),
-            )
+            if arm != "readout_sham":
+                anchor_mask, anchor_ids, anchor_clean, anchor_confidence = build_anchor(
+                    adapter,
+                    out["logits"].to(adapter.device),
+                    out["predicted_clean"].to(adapter.device),
+                    arm,
+                    eligible,
+                    args.density,
+                    step_seed(args.seed + 17, scope_code, batch_index, step),
+                )
 
         active = (
             anchor_mask is not None
