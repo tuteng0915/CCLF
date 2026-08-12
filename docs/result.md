@@ -92,7 +92,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Is temporary anchoring portable beyond ELF? | EXP-90 | Conditionally, yes: random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds, while shuffled content is catastrophic. LangFlow U-PPL worsens slightly, and diversity/degeneration trade-offs remain architecture-dependent. |
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
 | Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
-| Does conditional/on-policy subset training fix that mismatch? | EXP-92 | Not at Stage 0. Conditional-oracle has mean U/C PPL interactions `+5.16/-13.70`, but worsens absolute C-PPL, prompt gain, D1, and degeneration; on-policy is unfavorable at `+9.46/+11.58`. One loss-balanced follow-up remains active. |
+| Does conditional/on-policy subset training fix that mismatch? | EXP-92 | No with the current target. Conditional-oracle is non-Pareto; on-policy is unfavorable at `+9.46/+11.58` U/C PPL interaction, and a fixed `.25` weight still worsens C-PPL in 3/3 seeds and prompt gain in 3/3. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
 
@@ -1264,7 +1264,12 @@ and degeneration. On-policy is unfavorable on mean U/C PPL interactions and
 passes C-PPL in only one seed. Neither arm passes the gate. Because the initial
 on-policy transition loss is about three times the synchronous loss, one fixed
 `lambda_mix=.25` run tests loss imbalance before the straight-to-endpoint
-target is retired.
+target is retired. That follow-up improves synchronous validation from `.998`
+to `.889`, but its mean U/C PPL interactions remain unfavorable at
+`+7.08/+16.31`; C-PPL interaction is worse in all three seeds and prompt gain
+falls in all three. The current target is therefore retired. A successor must
+preserve native curved velocity and add only a normalized residual correction,
+not force the rollout state directly toward the endpoint.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

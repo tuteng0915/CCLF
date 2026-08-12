@@ -55,7 +55,7 @@ method ledger is:
 | [EXP-89](EXP-89-spec.md) | **DONE / SCALE SIGN POSITIVE** | Does the frozen random-anchor policy survive length and prefix-ratio changes? | PPL improves in all 9 new cells through length 1024; unconditional gain shrinks with length and the small diversity trade-off remains |
 | [EXP-90](EXP-90-spec.md) | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Is temporary predicted-clean anchoring portable beyond ELF? | random correct anchors improve C-PPL in 3/3 seeds on both LangFlow and Plaid; shuffled content is catastrophic, while U-PPL and full Pareto behavior remain architecture-dependent |
 | [EXP-91](EXP-91-spec.md) | **DONE / THREE-SEED NEGATIVE** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | no: mean U/C PPL interactions are slightly unfavorable, prompt-gain interaction falls, and conditioned degeneration worsens on every inference seed |
-| [EXP-92](EXP-92-spec.md) | **STAGE 0 NEGATIVE / LOSS-BALANCED FOLLOW-UP ACTIVE** | Does conditional, on-policy subset training retain the portable anchor benefit without damaging Standard generation? | oracle has a non-Pareto C-PPL interaction; on-policy fails mean U/C interactions, so test one fixed `.25` transition weight before rejecting the straight-endpoint target |
+| [EXP-92](EXP-92-spec.md) | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Does conditional, on-policy subset training retain the portable anchor benefit without damaging Standard generation? | no: `lambda_mix=1` fails, and the fixed `.25` follow-up worsens C-PPL interaction in 3/3 seeds and prompt gain in 3/3; preserve the curved teacher field in any successor |
 
 Completed decision:
 

@@ -1,6 +1,6 @@
 # EXP-92 Spec — On-Policy Conditional Triggered Subset Flow
 
-**Status:** STAGE 0 DONE / ON-POLICY NEGATIVE; LOSS-BALANCED FOLLOW-UP ACTIVE
+**Status:** DONE / CURRENT STRAIGHT-ENDPOINT TARGET REJECTED
 **Purpose:** retain the portable conditional benefit of temporary random
 anchors while correcting the state-distribution and objective mismatches in
 the negative EXP-91 training pilot.
@@ -148,3 +148,27 @@ the preservation and transition gradients. A single preregistered follow-up
 uses `lambda_mix=.25` with all other data, states, and seeds frozen. If that
 still fails, stop the current straight-to-endpoint target: GS15 already warns
 that real residual motion is not a linear path to the endpoint.
+
+## Loss-balanced follow-up
+
+With `lambda_mix=.25`, final synchronous validation improves from `.998` to
+`.889` but remains worse than the matched control's `.715`; transition
+validation worsens from `1.799` to `2.058`. Three-seed generation means are:
+
+| Arm | U-PPL | C-PPL | Gain | C-RL | C-D1 | C-Rep4 | C-Deg. |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 290.91 | 803.83 | .1620 | .0699 | .6528 | .0113 | .0313 |
+| random anchor | 211.65 | 579.55 | .1914 | .0743 | .6430 | .0159 | .0313 |
+
+Relative to the matched control, the random-minus-Standard interactions are
+`+7.08` U-PPL, `+16.31` C-PPL, `-.0241` prompt gain, `+.0000` C-RL,
+`+.0061` C-D1, `+.0007` C-Rep4, and `+.0104` C-degeneration. C-PPL is
+unfavorable in all three seeds (`+7.8/+1.1/+40.0`) and prompt gain falls in all
+three. The follow-up fails. Do not sweep more weights or train longer with
+this target.
+
+The retained lesson is narrower: conditional heterogeneous states remain a
+useful intervention, but forcing their velocity directly toward the clean
+endpoint conflicts with the native curved trajectory. Any new training method
+must preserve the teacher's native velocity field and add only a controlled,
+normalized unresolved-token correction.
