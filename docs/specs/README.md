@@ -56,6 +56,7 @@ method ledger is:
 | [EXP-90](EXP-90-spec.md) | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Is temporary predicted-clean anchoring portable beyond ELF? | random correct anchors improve C-PPL in 3/3 seeds on both LangFlow and Plaid; shuffled content is catastrophic, while U-PPL and full Pareto behavior remain architecture-dependent |
 | [EXP-91](EXP-91-spec.md) | **DONE / THREE-SEED NEGATIVE** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | no: mean U/C PPL interactions are slightly unfavorable, prompt-gain interaction falls, and conditioned degeneration worsens on every inference seed |
 | [EXP-92](EXP-92-spec.md) | **DONE / STRAIGHT-ENDPOINT TARGET REJECTED** | Does conditional, on-policy subset training retain the portable anchor benefit without damaging Standard generation? | no: `lambda_mix=1` fails, and the fixed `.25` follow-up worsens C-PPL interaction in 3/3 seeds and prompt gain in 3/3; preserve the curved teacher field in any successor |
+| [EXP-93](EXP-93-spec.md) | **ACTIVE / P0 ORACLE-HEADROOM TEST** | Is random anchoring close to subset-optimal, and can trigger-time features predict better masks? | measure best-of-16 versus mean-random before designing or training a deployable subset-level selector |
 
 Completed decision:
 
