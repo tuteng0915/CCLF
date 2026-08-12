@@ -1405,9 +1405,11 @@ redundancy, and cross-influence features are then scored against the same
 candidate utilities. The discovery leader, mean selected-to-unresolved
 confidence influence, has Spearman `.113` and pairwise accuracy `.540` on 16
 trajectories, but falls to `.006/.504` on an independent 16-trajectory bank;
-its selected C-PPL is `458.76`, worse than held-out mean-random `390.12`.
-The graph OOF model is likewise non-predictive (`.041/.520`) and selects
-C-PPL `436.48`.
+its selected C-PPL is `458.76`, versus `438.60` for mean random on the same 16
+held-out trajectories. The graph OOF model is likewise non-predictive
+(`.041/.520`) and selects C-PPL `436.48`, essentially tied with that subset
+baseline. The corresponding discovery-only mean-random value is `368.53`, so
+the frozen feature's `323.99` there does not transfer.
 
 The resulting conclusion is narrower than “random is best.” Subset identity
 has a large, replicated oracle effect, but utility is trajectory-specific and

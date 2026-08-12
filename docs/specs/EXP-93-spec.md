@@ -134,8 +134,11 @@ The one-step result prompted two escalations.
    resulting graph over each candidate subset. The discovery leader,
    selected-to-unresolved mean confidence influence, falls from Spearman
    `.113` / pairwise `.540` to `.006` / `.504` on the independent bank and
-   selects C-PPL `458.76`. The held-out grouped OOF graph model has Spearman
-   `.041`, pairwise `.520`, and C-PPL `436.48`.
+   selects C-PPL `458.76`, versus first-16 mean-random `438.60`. The held-out
+   grouped OOF graph model has Spearman `.041`, pairwise `.520`, and C-PPL
+   `436.48`, effectively tied with that subset baseline. The discovery
+   first-16 mean-random value is `368.53`; the frozen feature's `323.99`
+   discovery result therefore does not transfer.
 
 Decision: close static, short-lookahead, and additive pairwise selectors. The
 remaining research question is whether non-additive subset interaction can be
