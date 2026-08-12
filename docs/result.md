@@ -1,6 +1,6 @@
 # CCLF Major Experimental Results
 
-**Last updated:** 2026-08-11
+**Last updated:** 2026-08-12
 **Purpose:** single source of truth for the major paper-facing experiments and
 the complete quality metrics produced by the formal evaluation runners.
 
@@ -92,6 +92,7 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Is temporary anchoring portable beyond ELF? | EXP-90 | Conditionally, yes: random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds, while shuffled content is catastrophic. LangFlow U-PPL worsens slightly, and diversity/degeneration trade-offs remain architecture-dependent. |
 | Can adaptive rollback fix that trade-off? | EXP-88 | Not yet. Shadow disagreement releases about one third and improves PPL further, but D1 falls again. |
 | Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
+| Does conditional/on-policy subset training fix that mismatch? | EXP-92 | Not at Stage 0. Conditional-oracle has mean U/C PPL interactions `+5.16/-13.70`, but worsens absolute C-PPL, prompt gain, D1, and degeneration; on-policy is unfavorable at `+9.46/+11.58`. One loss-balanced follow-up remains active. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
 
@@ -1232,6 +1233,38 @@ The safe cross-architecture claim is thus conditional and mechanistic, not an
 all-metric method claim: broad, correct temporary context improves prompted
 continuations, while unconditional gains, confidence selection, revision, and
 diversity/degeneration trade-offs depend on architecture and solver.
+
+### 6.17 Conditional/on-policy subset-flow factorization (EXP-92)
+
+EXP-92 corrects three EXP-91 mismatches: half of training examples contain a
+real clamped prefix, every update includes a paired synchronous preservation
+loss, and the on-policy arm obtains its mixed state from a frozen-teacher ODE
+trajectory with a random subset held for one, two, or four steps. All arms use
+the same OWT documents, update count, trainable parameters, and first
+synchronous objective. Prompt-clamp error is exactly zero.
+
+Three-seed means (`n_U=n_C=32`) are:
+
+| Training arm | Standard U-PPL | Random U-PPL | Standard C-PPL | Random C-PPL | Standard gain | Random gain | Random C-RL | Random C-D1 | Random C-Rep4 | Random C-Deg. |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| paired control | 287.36 | **201.02** | **765.59** | **524.99** | .1598 | **.2133** | .0740 | **.6377** | **.0158** | .0208 |
+| conditional oracle | 287.63 | 206.45 | 787.24 | 532.94 | .1651 | .2004 | **.0753** | .6340 | .0164 | .0208 |
+| conditional on-policy | **286.99** | 210.11 | 779.13 | 550.11 | **.1668** | .2015 | .0750 | .6398 | .0165 | .0208 |
+
+The random-minus-Standard interaction relative to the paired control is:
+
+| Training arm | `DeltaDelta` U-PPL | `DeltaDelta` C-PPL | `DeltaDelta` gain | `DeltaDelta` C-RL | `DeltaDelta` C-D1 | `DeltaDelta` C-Rep4 | `DeltaDelta` C-Deg. |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| conditional oracle | +5.16 | -13.70 | -.0182 | +.0004 | -.0065 | +.0003 | +.0104 |
+| conditional on-policy | +9.46 | +11.58 | -.0189 | +.0020 | +.0061 | -.0001 | +.0104 |
+
+Negative PPL is favorable. Conditional oracle has a favorable C-PPL
+interaction in two seeds but worsens absolute random C-PPL, prompt gain, D1,
+and degeneration. On-policy is unfavorable on mean U/C PPL interactions and
+passes C-PPL in only one seed. Neither arm passes the gate. Because the initial
+on-policy transition loss is about three times the synchronous loss, one fixed
+`lambda_mix=.25` run tests loss imbalance before the straight-to-endpoint
+target is retired.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 

@@ -1,6 +1,6 @@
 # EXP-92 Spec — On-Policy Conditional Triggered Subset Flow
 
-**Status:** ACTIVE / STAGE-0 FACTORIZATION
+**Status:** STAGE 0 DONE / ON-POLICY NEGATIVE; LOSS-BALANCED FOLLOW-UP ACTIVE
 **Purpose:** retain the portable conditional benefit of temporary random
 anchors while correcting the state-distribution and objective mismatches in
 the negative EXP-91 training pilot.
@@ -117,3 +117,34 @@ If conditional oracle succeeds but on-policy does not, debug rollout-state
 construction. If on-policy succeeds and oracle does not, treat exposure to the
 actual trajectory as essential. If neither succeeds, stop before adding longer
 training or an explicit anchor indicator.
+
+## Stage-0 result (2026-08-12)
+
+All three 200-step arms completed. Prompt clamp error was exactly zero and the
+requested random density was exact in every logged batch. Three paired
+generation seeds (`42/123/456`, `n_U=n_C=32`) give:
+
+| Training arm | Standard U-PPL | Random U-PPL | Standard C-PPL | Random C-PPL | Standard gain | Random gain | Random C-RL | Random C-D1 | Random C-Rep4 | Random C-Deg. |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| paired control | 287.36 | **201.02** | **765.59** | **524.99** | .1598 | **.2133** | .0740 | **.6377** | **.0158** | .0208 |
+| conditional oracle | 287.63 | 206.45 | 787.24 | 532.94 | .1651 | .2004 | .0753 | .6340 | .0164 | .0208 |
+| conditional on-policy | **286.99** | 210.11 | 779.13 | 550.11 | **.1668** | .2015 | **.0750** | .6398 | .0165 | .0208 |
+
+Relative to the paired control, random-minus-Standard interactions are:
+
+| Training arm | `DeltaDelta` U-PPL | `DeltaDelta` C-PPL | `DeltaDelta` gain | `DeltaDelta` C-RL | `DeltaDelta` C-D1 | `DeltaDelta` C-Rep4 | `DeltaDelta` C-Deg. |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| conditional oracle | +5.16 | -13.70 | -.0182 | +.0004 | -.0065 | +.0003 | +.0104 |
+| conditional on-policy | +9.46 | +11.58 | -.0189 | +.0020 | +.0061 | -.0001 | +.0104 |
+
+Negative PPL is favorable. Conditional oracle has a favorable C-PPL
+interaction in `2/3` seeds (`-68.6/-26.1/+53.6`) but worsens absolute random
+C-PPL, prompt gain, D1, and degeneration. On-policy is unfavorable on mean C-
+PPL and succeeds in only `1/3` seeds. Both fail the preregistered gate.
+
+The on-policy transition loss was about three times the synchronous loss at
+initialization (`2.38` versus `.77`), so `lambda_mix=1` did not actually balance
+the preservation and transition gradients. A single preregistered follow-up
+uses `lambda_mix=.25` with all other data, states, and seeds frozen. If that
+still fails, stop the current straight-to-endpoint target: GS15 already warns
+that real residual motion is not a linear path to the endpoint.
