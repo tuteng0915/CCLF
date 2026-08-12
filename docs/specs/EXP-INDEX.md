@@ -38,6 +38,7 @@
 | **EXP-89** | **DONE / SCALE SIGN POSITIVE** | Frozen random anchors improve PPL in all 9 length/prefix cells through length 1024; U benefit shrinks with length and the diversity trade-off remains |
 | **EXP-90** | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Native-clock random correct anchors improve C-PPL in 3/3 LangFlow and 3/3 Plaid seeds; shuffled content is catastrophic, while U-PPL/full Pareto behavior are architecture-dependent |
 | **EXP-91** | **DONE / THREE-SEED NEGATIVE** | Predicted-clean subset-flow fails the paired gate: mean U/C PPL interactions are `+1.5/+2.3`, prompt-gain interaction `-.0072`, and C-degeneration worsens on all three inference seeds |
+| **EXP-92** | **ACTIVE / STAGE-0 FACTORIZATION** | Factor conditional context and on-policy held-trajectory states against a paired synchronous control before expanding Triggered Subset Flow training |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

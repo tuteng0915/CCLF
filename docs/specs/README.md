@@ -55,6 +55,7 @@ method ledger is:
 | [EXP-89](EXP-89-spec.md) | **DONE / SCALE SIGN POSITIVE** | Does the frozen random-anchor policy survive length and prefix-ratio changes? | PPL improves in all 9 new cells through length 1024; unconditional gain shrinks with length and the small diversity trade-off remains |
 | [EXP-90](EXP-90-spec.md) | **DONE / CONDITIONAL PORTABILITY POSITIVE** | Is temporary predicted-clean anchoring portable beyond ELF? | random correct anchors improve C-PPL in 3/3 seeds on both LangFlow and Plaid; shuffled content is catastrophic, while U-PPL and full Pareto behavior remain architecture-dependent |
 | [EXP-91](EXP-91-spec.md) | **DONE / THREE-SEED NEGATIVE** | Does training on predicted-clean subsets turn the inference clue into a learned capability? | no: mean U/C PPL interactions are slightly unfavorable, prompt-gain interaction falls, and conditioned degeneration worsens on every inference seed |
+| [EXP-92](EXP-92-spec.md) | **ACTIVE / STAGE-0 FACTORIZATION** | Does conditional, on-policy subset training retain the portable anchor benefit without damaging Standard generation? | compare paired control, conditional-oracle, and conditional-on-policy arms before any longer run or architecture change |
 
 Completed decision:
 
