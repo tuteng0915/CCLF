@@ -212,7 +212,7 @@ def run_batch(adapter, eps_a, eps_b, prompt_ids, prompt_clean, grid, args, batch
             steps,
             args.seed,
             batch_index,
-            f"full_parallel_{steps}",
+            "full",
             prompt_clean,
             args.prefix_length,
         )
