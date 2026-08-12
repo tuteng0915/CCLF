@@ -113,7 +113,17 @@ def exact_budget_mask(scores, eligible, fraction):
 
 
 @torch.no_grad()
-def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None):
+def rollout(
+    z0,
+    model,
+    grid,
+    args,
+    arm,
+    rng_seed,
+    cond_seq=None,
+    cond_mask=None,
+    return_trace=False,
+):
     cell = parse_arm(arm)
     if cell["mode"] == "standard":
         z, _ = common.standard_ode(
@@ -138,6 +148,8 @@ def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None)
     selected_total = 0
     eligible_total = int((base_mask < 0.5).sum().item())
     selected_confidence_sum = 0.0
+    selected_mask = None
+    selected_token_ids = None
     readout_calls = 0
     random_generator = torch.Generator(device=z.device).manual_seed(rng_seed)
 
@@ -164,7 +176,7 @@ def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None)
             )
             t_next = grid[index + 1].item()
             if not triggered and t_next >= cell["time"]:
-                _, confidence = exp78.lexical_readout(x_pred, model)
+                token_ids, confidence = exp78.lexical_readout(x_pred, model)
                 readout_calls += 1
                 triggered = True
                 if cell["mode"] == "readout":
@@ -178,6 +190,8 @@ def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None)
                         device=confidence.device,
                     )
                 selected = exact_budget_mask(scores, eligible, cell["density"])
+                selected_mask = selected.detach()
+                selected_token_ids = token_ids.detach()
                 selected_total = int(selected.sum().item())
                 selected_confidence_sum = float(confidence[selected].sum().item())
                 content = x_pred.detach()
@@ -185,6 +199,7 @@ def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None)
                     if z.shape[0] < 2:
                         raise ValueError("shuffled-content control requires batch_size >= 2")
                     content = content.roll(1, dims=0)
+                    selected_token_ids = selected_token_ids.roll(1, dims=0)
                 active_seq = torch.where(
                     selected.unsqueeze(-1), content, active_seq
                 )
@@ -195,7 +210,7 @@ def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None)
                 x_pred = restore_cond(x_pred, active_seq, active_mask)
                 release_index = index + 1 + cell["horizon"]
 
-    return z, {
+    info = {
         "denoiser_calls": args.n_steps,
         "readout_calls": readout_calls,
         "anchor_fraction": selected_total / max(eligible_total, 1),
@@ -208,6 +223,10 @@ def rollout(z0, model, grid, args, arm, rng_seed, cond_seq=None, cond_mask=None)
         "lock_horizon": cell["horizon"],
         "selection_mode": cell["mode"],
     }
+    if return_trace:
+        info["_selected_mask"] = selected_mask
+        info["_selected_token_ids"] = selected_token_ids
+    return z, info
 
 
 @torch.no_grad()
@@ -222,6 +241,7 @@ def generate_scope(
     prefix_targets=None,
 ):
     texts, decoded_prefix, clamp_errors, infos = [], [], [], []
+    revised_anchors = total_anchors = 0
     started = time.perf_counter()
     grid = get_sampling_steps(args.n_steps, "uniform", device=z0.device)
     for batch_index, start in enumerate(range(0, z0.shape[0], args.batch_size)):
@@ -237,9 +257,15 @@ def generate_scope(
             args.seed * 100003 + batch_index * 7919,
             batch_seq,
             batch_mask,
+            return_trace=True,
         )
-        infos.append((end - start, info))
         ids = common.decode(z, model, z.device)
+        selected = info.pop("_selected_mask", None)
+        selected_ids = info.pop("_selected_token_ids", None)
+        if selected is not None and selected_ids is not None:
+            revised_anchors += int(((ids != selected_ids) & selected).sum().item())
+            total_anchors += int(selected.sum().item())
+        infos.append((end - start, info))
         suffix_start = args.prefix_length if cond_seq is not None else 0
         texts.extend(common.decode_texts(ids.cpu(), tokenizer, suffix_start))
         if cond_seq is not None:
@@ -279,6 +305,9 @@ def generate_scope(
             sum(decoded_prefix) / len(decoded_prefix) if decoded_prefix else float("nan")
         ),
         "max_prompt_clamp_error": max(clamp_errors, default=0.0),
+        "anchor_revision_rate": (
+            revised_anchors / total_anchors if total_anchors else float("nan")
+        ),
     })
     if result["max_prompt_clamp_error"] > 1e-6:
         raise RuntimeError(f"prompt clamp failed for {arm}")
