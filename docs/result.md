@@ -1360,6 +1360,15 @@ the final-panel GPT-2 score. The next test records trigger-time reliability,
 spatial/latent coverage, redundancy, and shadow-step influence for candidate
 subsets and measures out-of-sample ranking accuracy.
 
+Stage 2 is negative. A grouped four-fold trajectory-OOF ridge model has
+Spearman `.0003/.0367`, pairwise ranking accuracy `.5013/.5128`, and oracle
+mask top-1 accuracy `.0313/.0625` on seed-42/123 utility banks. It selects
+C-PPL `339.74` versus mean-random `335.67` on seed 42, and `381.69` versus
+`390.12` on seed 123, while the oracle values are `210.19/240.52`. Static
+confidence/coverage/redundancy proxies stay near chance; one-step shadow
+entropy is only `.523/.527` pairwise accurate. Thus the oracle gap is real but
+not deployable with the tested features, and Stage 3 is closed.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

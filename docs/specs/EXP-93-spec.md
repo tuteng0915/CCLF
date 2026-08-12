@@ -1,6 +1,6 @@
 # EXP-93 Spec — Subset Utility and Selector Headroom
 
-**Status:** STAGE 1 DONE / LARGE ORACLE GAP; STAGE 2 ACTIVE
+**Status:** STAGE 2 NEGATIVE / ORACLE HEADROOM NOT PREDICTABLE
 **Purpose:** determine whether temporary random anchoring is merely a strong
 average policy or already close to the best achievable subset, then replace
 single-token confidence with a subset-level utility selector.
@@ -93,6 +93,27 @@ Score(A) = alpha Reliability(A)
 ```
 
 This replaces the invalid assumption `Score(A)=sum_i confidence(i)`.
+
+### Stage-2 result
+
+Grouped four-fold trajectory OOF prediction is at chance on two independent
+utility banks:
+
+| Utility bank | Spearman | Pairwise accuracy | Top-1 | Selected C-PPL | Mean-random | Oracle |
+|---|---:|---:|---:|---:|---:|---:|
+| seed 42 | .0003 | .5013 | .0313 | 339.74 | 335.67 | 210.19 |
+| seed 123 | .0367 | .5128 | .0625 | 381.69 | 390.12 | 240.52 |
+
+No individual inference-time proxy is materially better: confidence,
+coverage, and negative redundancy have pairwise accuracy `.477--.506`; the
+best shadow entropy reduction reaches only `.523/.527` on the two banks. The
+learned selector is slightly worse than mean-random on seed 42 and only
+slightly better on seed 123, far from the oracle gap. Coefficients are not
+stable enough to freeze a cross-bank selector.
+
+Decision: Stage 3 is closed for these features. Subset identity has large
+oracle headroom, but its utility is strongly nonlocal and is not recoverable
+from the tested trigger-time summaries or one-step shadow features.
 
 ## Stage 3: deployable selector comparison
 
