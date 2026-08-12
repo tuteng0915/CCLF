@@ -347,6 +347,17 @@ def main():
                 "features": values,
             })
 
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    raw_path = OUT_DIR / f"{args.label}_{utility['checkpoint']}_seed{utility['seed']}_raw.json"
+    raw_path.write_text(json.dumps({
+        "utility_json": str(utility_path),
+        "n_trajectories": n_trajectories,
+        "masks_per_trajectory": utility["n_masks"],
+        "hold_horizon": args.hold_horizon,
+        "rows": rows,
+    }, indent=2))
+    print(f"Saved raw rows -> {raw_path}", flush=True)
+
     names, screens, coefficients, predictions = analyze(
         rows, utility, args.folds, args.ridge
     )
@@ -368,7 +379,6 @@ def main():
         "rows": rows,
         "oof_predictions": predictions.tolist(),
     }
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = OUT_DIR / f"{args.label}_{utility['checkpoint']}_seed{utility['seed']}.json"
     output_path.write_text(json.dumps(result, indent=2))
     print(f"Saved -> {output_path}")

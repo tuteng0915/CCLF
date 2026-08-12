@@ -285,7 +285,9 @@ def ranking_metrics(scores, utilities, trajectories):
         top1 += int(score.argmax().item() == utility.argmax().item())
     count = int(trajectories.unique().numel())
     return {
-        "mean_trajectory_spearman": sum(spearman) / len(spearman),
+        "mean_trajectory_spearman": (
+            sum(spearman) / len(spearman) if spearman else float("nan")
+        ),
         "pairwise_ranking_accuracy": pair_correct / pair_total,
         "oracle_mask_top1_accuracy": top1 / count,
     }
