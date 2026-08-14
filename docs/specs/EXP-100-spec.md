@@ -102,6 +102,10 @@ the oracle subset as a reported inference method.
 - `train_joint_anchor_selector_exp100.py` trains the fixed two-layer joint
   sequence scorer with a within-trajectory listwise objective and early stopping
   on a trajectory-disjoint validation bank;
+- `merge_plaid_selector_banks_exp100.py` checks protocol invariants and exact
+  token-panel disjointness before merging training shards;
+- `eval_joint_anchor_selector_exp100.py` is the only path allowed to open the
+  frozen final bank after a checkpoint has been selected;
 - density `.75` is primary because it is EXP-95's frozen balanced operating
   point and passes EXP-99 on discovery and validation. Density `.50` remains a
   headroom control, not a simultaneously tuned hyperparameter.
