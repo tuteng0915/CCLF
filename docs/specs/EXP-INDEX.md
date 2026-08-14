@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-15（EXP-103 selective native-utility anchoring；103 个实验）
+**更新时间**: 2026-08-15（EXP-104 distilled online trigger controller；104 个实验）
 
 ---
 
@@ -50,6 +50,7 @@
 | **EXP-101** | **DONE / TRIGGER HEADROOM REPLICATES, EVENT RULE FAILS** | Best-of-trigger improves fixed step-14 C-PPL by `45--49%` on two banks, but the discovery-frozen q10-confidence rule reverses on validation (`86.85 -> 98.91`) |
 | **EXP-102** | **DONE / LOCAL LIKELIHOOD SIGNAL REPLICATES, QUALITY GATE FAILS** | Four-step unresolved entropy reduction selects C-PPL `78.44 -> 64.62` and `86.85 -> 69.93` with significant paired NLL and `.61` pair accuracy, but raw selection regresses degeneration/prompt gain |
 | **EXP-103** | **DONE / FINAL LIKELIHOOD GATE FAILS** | Quality-constrained fallback passes calibration but switches only `2/64` final trajectories; C-PPL `94.91 -> 94.30` and NLL CI `[-.0175,0]` are safe but not significant |
+| **EXP-104** | **IMPLEMENTED / CALIBRATION BANK PENDING** | Distill the validated four-step entropy-response teacher into a current-state MLP; trigger online at the first predicted-response crossing before forced step 14, then freeze on seed 2027 and test once on seed 2028 |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
