@@ -181,6 +181,10 @@ def evaluate(model, bank, device, batch_size):
         "scores": scores,
         "selected_index": selected_index,
         "selected_nll": selected_nll,
+        "selected_index_histogram": {
+            str(index): int((selected_index == index).sum())
+            for index in range(scores.shape[1])
+        },
         "selected_ppl": aggregate_ppl(selected_nll, selected_counts),
         "mean_random_ppl": aggregate_ppl(nll.flatten(), counts.flatten()),
         "oracle_ppl": aggregate_ppl(

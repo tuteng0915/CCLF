@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import torch
@@ -22,6 +23,12 @@ def parse_args():
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument(
+        "--training_frozen_fixed_index",
+        type=int,
+        default=-1,
+        help="Optional fixed candidate index selected on training data only.",
+    )
     return parser.parse_args()
 
 
@@ -40,6 +47,23 @@ def main():
     model = JointSubsetScorer(**checkpoint["model_args"]).to(device)
     model.load_state_dict(checkpoint["model_state"])
     metrics = evaluate(model, bank, device, args.batch_size)
+    fixed_index = args.training_frozen_fixed_index
+    fixed_baseline = None
+    if fixed_index >= 0:
+        if fixed_index >= bank["candidate_nll"].shape[1]:
+            raise ValueError("training-frozen fixed index lies outside candidate bank")
+        fixed_nll = bank["candidate_nll"][:, fixed_index].double()
+        fixed_counts = bank["candidate_token_counts"][:, fixed_index].double()
+        fixed_baseline = {
+            "index": fixed_index,
+            "ppl": math.exp(float((fixed_nll * fixed_counts).sum() / fixed_counts.sum())),
+            "minus_mean_random_nll": float(
+                (
+                    fixed_nll
+                    - bank["candidate_nll"].double().mean(dim=1)
+                ).mean()
+            ),
+        }
     result = {
         **vars(args),
         "training_seed": checkpoint["training_seed"],
@@ -47,6 +71,7 @@ def main():
         "test_seed": bank["seed"],
         "test_panel_offset": bank["panel_offset"],
         "metrics": serializable(metrics),
+        "training_frozen_fixed_index_baseline": fixed_baseline,
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

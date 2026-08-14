@@ -105,7 +105,9 @@ the oracle subset as a reported inference method.
 - `merge_plaid_selector_banks_exp100.py` checks protocol invariants and exact
   token-panel disjointness before merging training shards;
 - `eval_joint_anchor_selector_exp100.py` is the only path allowed to open the
-  frozen final bank after a checkpoint has been selected;
+  frozen final bank after a checkpoint has been selected; it also reports the
+  candidate index frozen from training data and the selector's chosen-index
+  histogram as selection-bias nulls;
 - density `.75` is primary because it is EXP-95's frozen balanced operating
   point and passes EXP-99 on discovery and validation. Density `.50` remains a
   headroom control, not a simultaneously tuned hyperparameter.
