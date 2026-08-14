@@ -366,6 +366,9 @@ def main():
         "per_sequence": {
             "trigger_nll": trigger_nll.tolist(),
             "trigger_token_counts": trigger_counts.tolist(),
+            "trigger_shuffled_nll": torch.stack(
+                [shuffled_nlls[f"trigger_{step:02d}"] for step in triggers]
+            ).tolist(),
             "fixed_nll": fixed_nll.tolist(),
             "best_trigger_index": best_index.tolist(),
             "best_nll": best_nll.tolist(),
@@ -373,6 +376,11 @@ def main():
         "texts": {
             "fixed": records[f"trigger_{args.fixed_trigger:02d}"]["texts"],
             "oracle_best": best_texts,
+            "by_trigger": {
+                str(step): records[f"trigger_{step:02d}"]["texts"]
+                for step in triggers
+            },
+            "references": references,
         },
     }
     out_dir = Path(args.out_dir)

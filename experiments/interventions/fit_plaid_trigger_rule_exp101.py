@@ -15,6 +15,14 @@ import numpy as np
 import torch
 
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in __import__("sys").path:
+    __import__("sys").path.insert(0, str(HERE))
+
+import eval_late_coupled_blocks as quality_base  # noqa: E402
+import eval_plaid_conditional_late_coupling as conditional_base  # noqa: E402
+
+
 DIRECTIONS = {
     "mean_confidence": "ge",
     "q10_confidence": "ge",
@@ -46,6 +54,7 @@ def load_bank(path):
         "per_sequence",
         "density",
         "horizon",
+        "texts",
     )
     missing = [key for key in required if key not in payload]
     if missing:
@@ -60,6 +69,9 @@ def load_bank(path):
     ).T
     payload["counts_tensor"] = torch.tensor(
         payload["per_sequence"]["trigger_token_counts"], dtype=torch.long
+    ).T
+    payload["shuffled_nll_tensor"] = torch.tensor(
+        payload["per_sequence"]["trigger_shuffled_nll"], dtype=torch.float64
     ).T
     expected = (len(payload["features_tensor"]), len(payload["triggers"]))
     if tuple(payload["features_tensor"].shape[:2]) != expected:
@@ -99,15 +111,39 @@ def evaluate_rule(bank, rule):
     rows = torch.arange(len(selected_index))
     selected_nll = bank["nll_tensor"][rows, selected_index]
     selected_counts = bank["counts_tensor"][rows, selected_index]
+    selected_shuffled_nll = bank["shuffled_nll_tensor"][rows, selected_index]
     fixed_nll = bank["nll_tensor"][:, fallback_index]
     fixed_counts = bank["counts_tensor"][:, fallback_index]
     delta = selected_nll - fixed_nll
+    selected_texts = [
+        bank["texts"]["by_trigger"][str(bank["triggers"][int(index)])][row]
+        for row, index in enumerate(selected_index)
+    ]
+    quality = quality_base.text_quality(selected_texts)
+    selected_ppl = aggregate_ppl(selected_nll, selected_counts)
+    shuffled_ppl = aggregate_ppl(selected_shuffled_nll, selected_counts)
+    quality.update(
+        prompt_conditioned_ppl=selected_ppl,
+        shuffled_prompt_ppl=shuffled_ppl,
+        prompt_gain_nats=math.log(shuffled_ppl) - math.log(selected_ppl),
+        rouge_l=float(
+            np.mean(
+                [
+                    conditional_base.rouge_l_f1(prediction, reference)
+                    for prediction, reference in zip(
+                        selected_texts, bank["texts"]["references"]
+                    )
+                ]
+            )
+        ),
+    )
+    fixed_quality = bank["aggregate"][f"trigger_{bank['fixed_trigger']:02d}"]
     return {
         "selected_index": selected_index,
         "selected_nll": selected_nll,
         "selected_counts": selected_counts,
         "fixed_nll": fixed_nll,
-        "selected_ppl": aggregate_ppl(selected_nll, selected_counts),
+        "selected_ppl": selected_ppl,
         "fixed_ppl": aggregate_ppl(fixed_nll, fixed_counts),
         "mean_delta_nats": float(delta.mean()),
         "better_fraction": float((delta < 0).double().mean()),
@@ -117,6 +153,16 @@ def evaluate_rule(bank, rule):
         "selected_trigger_histogram": {
             str(step): int((selected_index == index).sum())
             for index, step in enumerate(bank["triggers"])
+        },
+        "quality": quality,
+        "quality_delta": {
+            "d1": quality["d1"] - fixed_quality["d1"],
+            "d2": quality["d2"] - fixed_quality["d2"],
+            "rep4": quality["rep4"] - fixed_quality["rep4"],
+            "degeneration_rate": quality["degeneration_rate"]
+            - fixed_quality["degeneration_rate"],
+            "prompt_gain_nats": quality["prompt_gain_nats"]
+            - fixed_quality["prompt_gain_nats"],
         },
     }
 
@@ -177,6 +223,10 @@ def main():
     candidates.sort(key=lambda item: item[0])
     _, best_rule, discovery_metrics = candidates[0]
     validation_metrics = evaluate_rule(validation, best_rule)
+    validation_ci = bootstrap(
+        validation_metrics, args.bootstrap_samples, args.seed + 1
+    )
+    quality_delta = validation_metrics["quality_delta"]
     result = {
         **vars(args),
         "policy_class": "single-statistic earliest-threshold crossing",
@@ -191,10 +241,11 @@ def main():
         ),
         "validation_gate_passed": (
             validation_metrics["mean_delta_nats"] < 0.0
-            and bootstrap(
-                validation_metrics, args.bootstrap_samples, args.seed + 1
-            )[1]
-            < 0.0
+            and validation_ci[1] < 0.0
+            and quality_delta["d1"] >= -0.005
+            and quality_delta["rep4"] <= 0.005
+            and quality_delta["degeneration_rate"] <= 0.015
+            and quality_delta["prompt_gain_nats"] >= -0.01
         ),
         "top_discovery_rules": [
             {
@@ -214,4 +265,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

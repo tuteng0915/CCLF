@@ -74,7 +74,9 @@ Open the adaptive-policy stage only if best-of-trigger:
 
 Promote a threshold policy only if the discovery-frozen rule beats fixed step
 14 on validation with an NLL interval excluding zero and no material quality
-regression. Otherwise close adaptive trigger timing and move to native
+regression (`Delta D1 >= -.005`, `Delta Rep-4 <= .005`,
+`Delta degeneration <= .015`, and `Delta prompt gain >= -.01`). Otherwise
+close adaptive trigger timing and move to native
 short-horizon trajectory supervision. Do not tune on a final bank after a
 failed validation gate.
 
@@ -84,4 +86,3 @@ failed validation gate.
   `experiments/interventions/eval_plaid_adaptive_trigger_exp101.py`;
 - threshold fitter/evaluator:
   `experiments/interventions/fit_plaid_trigger_rule_exp101.py`.
-
