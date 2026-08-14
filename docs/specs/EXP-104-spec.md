@@ -1,6 +1,6 @@
 # EXP-104 Spec — Distilled Online Trigger Controller
 
-**Status:** IMPLEMENTED / CALIBRATION BANK PENDING
+**Status:** DONE / DISTILLATION GATE FAILED
 **Purpose:** distill EXP-102's four-step native entropy-response teacher into a
 controller that decides from the current, unmodified trajectory without
 enumerating counterfactual trigger branches.
@@ -61,10 +61,25 @@ quality panel, trigger histogram, and mean number of controller checks. A
 failed final gate closes current-state distillation; a positive result opens a
 training-time controller integration experiment.
 
+## Result
+
+The frozen controller fits a weak training-bank signal (teacher-response
+pairwise accuracy `.628`, Pearson `.385`) but does not transfer to the unopened
+seed-2027/offset-7000 calibration bank. Calibration pairwise accuracy is
+`.504` and Pearson correlation is `.036`, both effectively chance. The first
+gate therefore fails before any threshold or text-quality selection is made;
+seed 2028 remains unopened for EXP-104.
+
+This separates two claims. EXP-102 shows that the *measured causal response* of
+an intervention predicts its final utility. EXP-104 shows that the nine tested
+pre-intervention summaries do not predict that response across banks. Do not
+tune a larger controller on seed 2027. A valid successor may instead measure a
+bounded short-horizon response online or integrate the response objective
+during model training.
+
 ## Implementation
 
 - trainer and calibration:
   `experiments/interventions/train_distilled_trigger_controller_exp104.py`;
 - frozen final evaluator:
   `experiments/interventions/eval_distilled_trigger_controller_exp104.py`.
-

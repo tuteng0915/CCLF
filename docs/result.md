@@ -1570,6 +1570,36 @@ next target is to distill the validated local entropy response into one
 controller evaluation or a training-time transition objective, not to retune
 another inference threshold.
 
+### 6.26 Distilled current-state trigger controller (EXP-104)
+
+A two-layer controller is trained on 192 trajectories from seeds 42, 123, and
+2026 to predict EXP-102's four-step entropy response from eight instantaneous
+event statistics and normalized trigger time. It attains training pairwise
+accuracy `.628` and Pearson `.385`, but on the unopened seed-2027 calibration
+bank the values fall to `.504` and `.036`. The response-prediction gate fails,
+so no threshold is selected and seed 2028 remains unopened for this method.
+
+Thus the intervention's *observed short-term causal effect* transfers, whereas
+the tested pre-intervention summaries do not contain a transferable proxy for
+that effect. This closes summary-state distillation without weakening the
+EXP-102 teacher result.
+
+### 6.27 Causal online response trigger (EXP-105, calibration)
+
+At steps 8, 10, and 12, the policy may run a paired four-step anchor/control
+probe from the current state. It triggers at the first measured entropy
+response above a threshold and otherwise falls back to step 14. Unlike the
+EXP-102/103 argmax teacher, it never evaluates a later candidate before making
+an earlier decision.
+
+On seed 2027 / offset 7000, the frozen threshold `gamma=.90862` chooses steps
+`8/10/12/14` for `1/1/2/60` trajectories. C-PPL changes `84.63 -> 83.63` and
+paired NLL is `-.0124 [-.0266,-.0022]`. D1 changes by `-.0013`, D2 by `+.0007`,
+Rep-4 by `-.0011`, degeneration by `0`, and prompt gain by `-.0054`. All
+calibration gates pass. Seed 2028 is the single untouched final test; this is
+still a compute-heavy proof of signal validity rather than an efficient
+sampler.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1676,6 +1706,9 @@ or methods were withdrawn.
     statistics fail, whereas a four-step paired entropy response predicts final
     utility across banks; enumerative and selective versions still fail the
     complete deployment gate.
+11. A controller trained on instantaneous summaries cannot distill the local
+    response across banks. A causal four-step response probe passes calibration,
+    but its final-bank result is still pending.
 
 ## 10. Provenance
 
@@ -1691,6 +1724,7 @@ Primary specs:
 - Plaid subset headroom and its failed learned selector: `EXP-99`, `EXP-100`.
 - Plaid trigger headroom, native local utility, and selective fallback:
   `EXP-101`--`EXP-103`.
+- Plaid response distillation and causal online probing: `EXP-104`--`EXP-105`.
 
 Primary server result directories:
 
