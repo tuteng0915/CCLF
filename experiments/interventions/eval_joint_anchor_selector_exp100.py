@@ -72,6 +72,11 @@ def main():
         "test_panel_offset": bank["panel_offset"],
         "metrics": serializable(metrics),
         "training_frozen_fixed_index_baseline": fixed_baseline,
+        "per_sequence": {
+            "selected_index": metrics["selected_index"].tolist(),
+            "selected_nll": metrics["selected_nll"].tolist(),
+            "mean_random_nll": bank["candidate_nll"].float().mean(dim=1).tolist(),
+        },
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
