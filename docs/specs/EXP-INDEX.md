@@ -47,9 +47,9 @@
 | **EXP-98** | **CLOSED BY EXP-94** | No trajectory distillation without a verified compute-matched teacher |
 | **EXP-99** | **DONE / REPLICATED HEADROOM GATE PASSED** | Plaid best-of-16 beats mean random by `43--49%` across two disjoint banks and densities `.50/.75`, with all paired-NLL CIs excluding zero |
 | **EXP-100** | **DONE / NON-ADDITIVE SELECTOR FAILS FINAL GATE** | With 320 training trajectories, final pair accuracy remains chance; only 1/3 optimization seeds has a favorable pooled NLL sign, its CI crosses zero, and a training-frozen fixed-index null matches the gain |
-| **EXP-101** | **IMPLEMENTED / TRIGGER-HEADROOM GATE PENDING** | Freeze Plaid top-confidence density `.75`, horizon one, and vary only native trigger step; learn a one-statistic event rule only if per-trajectory best-of-trigger beats fixed step 14 on disjoint banks |
-| **EXP-102** | **IMPLEMENTED / LOCAL-UTILITY GATE PENDING** | Pair anchored and native Plaid counterfactuals for 0/1/2/4 post-release steps; test whether a discovery-frozen local confidence/entropy/margin response predicts final trigger utility on validation |
-| **EXP-103** | **IMPLEMENTED / CALIBRATION GATE PENDING** | Freeze EXP-102's four-step entropy signal and calibrate one abstention threshold; open a new final bank only if selective fallback retains significant NLL gain under the complete quality gate |
+| **EXP-101** | **DONE / TRIGGER HEADROOM REPLICATES, EVENT RULE FAILS** | Best-of-trigger improves fixed step-14 C-PPL by `45--49%` on two banks, but the discovery-frozen q10-confidence rule reverses on validation (`86.85 -> 98.91`) |
+| **EXP-102** | **DONE / LOCAL LIKELIHOOD SIGNAL REPLICATES, QUALITY GATE FAILS** | Four-step unresolved entropy reduction selects C-PPL `78.44 -> 64.62` and `86.85 -> 69.93` with significant paired NLL and `.61` pair accuracy, but raw selection regresses degeneration/prompt gain |
+| **EXP-103** | **DONE / FINAL LIKELIHOOD GATE FAILS** | Quality-constrained fallback passes calibration but switches only `2/64` final trajectories; C-PPL `94.91 -> 94.30` and NLL CI `[-.0175,0]` are safe but not significant |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

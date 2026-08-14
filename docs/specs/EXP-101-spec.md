@@ -1,6 +1,6 @@
 # EXP-101 Spec — Plaid Adaptive Temporary-Anchor Trigger
 
-**Status:** IMPLEMENTED / TRIGGER-HEADROOM GATE PENDING  
+**Status:** DONE / TRIGGER HEADROOM REPLICATES, INSTANTANEOUS RULE FAILS
 **Purpose:** test whether the remaining Plaid intervention problem can be
 reduced from selecting a high-dimensional anchor subset to selecting one
 trajectory-specific trigger time.
@@ -86,3 +86,19 @@ failed validation gate.
   `experiments/interventions/eval_plaid_adaptive_trigger_exp101.py`;
 - threshold fitter/evaluator:
   `experiments/interventions/fit_plaid_trigger_rule_exp101.py`.
+
+## Result
+
+Best-of-eight trigger timing has large replicated headroom. Discovery improves
+fixed step-14 C-PPL `78.44 -> 43.32` (`44.77%`) with paired NLL
+`-.597 [-.732,-.477]`; validation improves `86.85 -> 44.52` (`48.74%`) with
+`-.664 [-.794,-.537]`. Winners cover all eight candidate steps on both banks,
+and no single fixed trigger is best across discovery and validation.
+
+The discovery-frozen instantaneous rule uses suffix q10 confidence, threshold
+`.01368`, and selects a mean trigger of `9.78`. It changes discovery C-PPL
+`78.44 -> 73.61`, but its NLL interval crosses zero. On validation it reverses
+to `86.85 -> 98.91`, NLL `+.135 [-.023,.292]`, while degeneration rises by
+`.0313`. Current-state confidence, entropy, margin, revision, and predicted-
+clean instability therefore do not provide a deployable adaptive trigger.
+EXP-102 tests a native short-horizon causal response instead.

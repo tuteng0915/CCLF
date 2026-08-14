@@ -95,6 +95,9 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Is random anchoring already subset-optimal? | EXP-93 | No. Best-of-16 lowers C-PPL from mean-random `335.67/390.12` to `210.19/240.52` on two independent banks. The gap is real, but static, lookahead, and additive influence selectors do not reliably predict it. |
 | Does Plaid also contain anchor-subset headroom? | EXP-99 | Yes. Best-of-16 improves C-PPL over mean random by `43--49%` on two disjoint banks at both `.50` and `.75` density, with all paired-NLL intervals excluding zero. |
 | Can a non-additive set model predict that Plaid utility? | EXP-100 | No with the tested model. With 320 training trajectories, final pair accuracy remains chance; only 1/3 optimization seeds has favorable pooled NLL, its CI crosses zero, and a fixed-index null matches the gain. |
+| Does per-trajectory Plaid trigger timing matter? | EXP-101 | Yes diagnostically: best-of-eight improves fixed step-14 C-PPL by `45--49%` on two banks. No for instantaneous adaptation: the discovery-frozen q10-confidence rule reverses on validation. |
+| Does a native short-horizon response predict trigger utility? | EXP-102 | Yes for likelihood. Four-step unresolved entropy reduction reaches pairwise accuracy `.609/.614` and significantly lowers NLL on discovery/validation, but raw selection misses degeneration and prompt-gain gates. |
+| Can conservative abstention turn that signal into a final method? | EXP-103 | Not yet. It passes calibration with only `5/64` switches, but on an untouched bank switches `2/64`; C-PPL changes `94.91 -> 94.30` and paired NLL CI ends at zero. |
 | Can a temporary-anchor policy improve the complete Plaid panel? | EXP-95 | Yes, with a bounded claim. Early one-step 75% confidence anchors reduce U/C-PPL `135.43/110.39 -> 99.32/80.28`, improve mean D1 and degeneration, and revise at `.699`; D2 falls by `.0051`. Readout sham is exact and shuffled content is harmful. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
@@ -1503,6 +1506,70 @@ next adaptive method should change a lower-dimensional decision such as trigger
 timing, or learn a native trajectory-preserving utility signal rather than
 reranking random masks from final-NLL supervision.
 
+### 6.23 Adaptive trigger timing (EXP-101)
+
+EXP-101 freezes Plaid top-confidence density `.75` and horizon one, then varies
+only native trigger step in `8,10,12,14,16,18,20,22`. Prompts, initial latents,
+and every ancestral-noise draw are paired. Per-trajectory best-of-trigger has
+large replicated headroom:
+
+| Bank | Fixed step 14 | Oracle best-of-8 | Improvement | Paired NLL [95% CI] |
+|---|---:|---:|---:|---:|
+| seed 42 / offset 0 | 78.44 | **43.32** | 44.77% | `-.597 [-.732,-.477]` |
+| seed 123 / offset 1000 | 86.85 | **44.52** | 48.74% | `-.664 [-.794,-.537]` |
+
+Every candidate trigger wins at least two trajectories on each bank. Aggregate
+fixed timing is also unstable: step 18 is best on discovery (C-PPL `75.20`),
+whereas step 8 is best on validation (`76.64`). Timing is therefore a real
+trajectory-level control variable rather than a globally mistuned constant.
+
+Eight inference-time summaries are recorded on an unmodified replay. The
+discovery-frozen one-statistic threshold uses suffix q10 confidence. It lowers
+discovery C-PPL `78.44 -> 73.61`, but the paired interval crosses zero, and it
+reverses on validation to `86.85 -> 98.91`, NLL `+.135 [-.023,.292]`.
+Degeneration also rises by `.0313`. Instantaneous confidence, entropy, lexical
+revision, margin, and predicted-clean instability do not explain which trigger
+will be useful.
+
+### 6.24 Native short-horizon trigger utility (EXP-102)
+
+For each trigger, EXP-102 forks the native state into an unmodified control and
+the one-step anchor intervention, pairs ancestral noise, releases the anchors,
+and reads unresolved positions after `0/1/2/4` further native updates. Signal
+selection uses discovery only. The winner is entropy reduction relative to the
+paired control after four updates:
+
+| Bank | Fixed step 14 | Signal-selected | NLL delta [95% CI] | Pair acc. | Spearman |
+|---|---:|---:|---:|---:|---:|
+| discovery | 78.44 | **64.62** | `-.194 [-.339,-.047]` | .609 | .291 |
+| validation | 86.85 | **69.93** | `-.212 [-.362,-.065]` | .614 | .279 |
+
+This is the first trigger signal that transfers. It uses neither final text nor
+an external LM, showing that utility becomes visible in the intervention's
+short-term causal effect rather than the pre-intervention maturity state. Raw
+argmax is not yet a complete method: on validation D1 changes by only `-.0032`
+and Rep-4 improves, but degeneration increases by `.0313` and prompt gain falls
+by `.0159`. It is also an expensive teacher because it enumerates all triggers.
+
+### 6.25 Selective local-utility fallback (EXP-103)
+
+A calibration-only abstention threshold keeps fixed step 14 unless the frozen
+four-step entropy signal has a large advantage. At `gamma=1.53414`, calibration
+switches `5/64` trajectories and changes C-PPL `86.85 -> 79.65`, with paired
+NLL `-.088 [-.191,-.012]`. D1 is unchanged, D2 and prompt gain improve, and
+degeneration does not increase.
+
+The threshold is then frozen before opening seed 2026 / offset 6000. Trigger
+oracle headroom remains large (`94.91 -> 54.23`), but the selective policy
+switches only `2/64` trajectories. Final C-PPL is `94.30` versus `94.91`, and
+paired NLL is `-.0064 [-.0175,0]`. The quality panel remains healthy---D1
+`-.0002`, D2 `+.0011`, no Rep-4 or degeneration increase, and prompt gain
+`+.0044`---but the likelihood interval does not exclude zero. The safe fallback
+therefore fails the final method gate by becoming too sparse. The actionable
+next target is to distill the validated local entropy response into one
+controller evaluation or a training-time transition objective, not to retune
+another inference threshold.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1605,6 +1672,10 @@ or methods were withdrawn.
 9. Anchor subset identity has large replicated oracle headroom on both ELF and
    Plaid, but static, lookahead, additive-graph, and the tested non-additive
    Transformer selectors all fail independent deployment gates.
+10. Plaid trigger timing also has large oracle headroom. Instantaneous maturity
+    statistics fail, whereas a four-step paired entropy response predicts final
+    utility across banks; enumerative and selective versions still fail the
+    complete deployment gate.
 
 ## 10. Provenance
 
@@ -1615,9 +1686,11 @@ Primary specs:
 - Pipeline: `EXP-61`, `EXP-64`;
 - KD: `EXP-62`, `EXP-63`, `EXP-66`;
 - hard commitment and sampler boundary: `EXP-64`--`EXP-69`, `EXP-74`, `EXP-78`.
-- selector and training dead ends: `EXP-91`--`EXP-93`, `EXP-100`;
+- selector and training dead ends: `EXP-91`--`EXP-93`, `EXP-100`, `EXP-101`;
 - compute-matched coupling and the Plaid method result: `EXP-94`, `EXP-95`.
 - Plaid subset headroom and its failed learned selector: `EXP-99`, `EXP-100`.
+- Plaid trigger headroom, native local utility, and selective fallback:
+  `EXP-101`--`EXP-103`.
 
 Primary server result directories:
 

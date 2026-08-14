@@ -1,6 +1,6 @@
 # EXP-102 Spec — Native Short-Horizon Trigger Utility
 
-**Status:** IMPLEMENTED / LOCAL-UTILITY GATE PENDING  
+**Status:** DONE / LIKELIHOOD SIGNAL REPLICATES, FULL QUALITY GATE FAILS
 **Purpose:** determine whether a short native counterfactual trajectory gives
 a more useful trigger signal than EXP-101's instantaneous confidence,
 entropy, or revision thresholds.
@@ -66,3 +66,19 @@ method must learn a trajectory transition objective jointly with the model.
 - builder: `experiments/interventions/build_plaid_local_trigger_utility_exp102.py`;
 - frozen evaluator: `experiments/interventions/eval_plaid_local_trigger_utility_exp102.py`.
 
+## Result
+
+The discovery-frozen signal is unresolved-position entropy reduction after
+four post-release native steps. It is the first tested trigger statistic that
+generalizes:
+
+| Bank | Fixed step-14 | Local-signal choice | NLL delta [95% CI] | Pair acc. | Spearman |
+|---|---:|---:|---:|---:|---:|
+| discovery | 78.44 | **64.62** | `-.194 [-.339,-.047]` | .609 | .291 |
+| validation | 86.85 | **69.93** | `-.212 [-.362,-.065]` | .614 | .279 |
+
+The raw argmax policy misses the complete gate. On validation D1 changes only
+`-.0032` and Rep-4 improves, but degeneration increases by `.0313` and prompt
+gain changes by `-.0159`. The signal is therefore promoted as a useful
+counterfactual teacher, not as the final sampler. EXP-103 tests a conservative
+fallback before any distillation claim.
