@@ -153,7 +153,17 @@ def build_anchor(adapter, logits, predicted_clean, arm, eligible, density, seed)
 
 
 @torch.no_grad()
-def run_arm(adapter, eps, grid, args, arm, scope, batch_index, prompt_clean=None):
+def run_arm(
+    adapter,
+    eps,
+    grid,
+    args,
+    arm,
+    scope,
+    batch_index,
+    prompt_clean=None,
+    mask_seed=None,
+):
     z = eps.clone().to(adapter.device)
     sc = torch.zeros_like(z)
     prefix_length = 0 if prompt_clean is None else args.prefix_length
@@ -183,7 +193,12 @@ def run_arm(adapter, eps, grid, args, arm, scope, batch_index, prompt_clean=None
                     arm,
                     eligible,
                     args.density,
-                    step_seed(args.seed + 17, scope_code, batch_index, step),
+                    step_seed(
+                        args.seed + 17 if mask_seed is None else mask_seed,
+                        scope_code,
+                        batch_index,
+                        step,
+                    ),
                 )
 
         active = (

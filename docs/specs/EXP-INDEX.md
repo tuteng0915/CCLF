@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-13（EXP-93 selector closure；EXP-94 compute audit；EXP-95 formal result；98 个实验）
+**更新时间**: 2026-08-14（EXP-99 Plaid subset-headroom gate；99 个实验）
 
 ---
 
@@ -45,6 +45,7 @@
 | **EXP-96** | **CLOSED BY EXP-94** | No adaptive-trigger sweep without fixed-schedule compute headroom |
 | **EXP-97** | **CLOSED BY EXP-94** | No multi-block scale-up of a schedule that loses to compute-matched parallel refinement |
 | **EXP-98** | **CLOSED BY EXP-94** | No trajectory distillation without a verified compute-matched teacher |
+| **EXP-99** | **IMPLEMENTED / HEADROOM GATE PENDING** | At Plaid's frozen early one-step operating point, vary only random subset identity while holding initial and ancestral noise fixed; learn a joint selector only if best-of-16 beats mean random by at least 5% |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
