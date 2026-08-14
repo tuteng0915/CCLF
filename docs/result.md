@@ -1584,7 +1584,7 @@ the tested pre-intervention summaries do not contain a transferable proxy for
 that effect. This closes summary-state distillation without weakening the
 EXP-102 teacher result.
 
-### 6.27 Causal online response trigger (EXP-105, calibration)
+### 6.27 Causal online response trigger (EXP-105)
 
 At steps 8, 10, and 12, the policy may run a paired four-step anchor/control
 probe from the current state. It triggers at the first measured entropy
@@ -1599,6 +1599,15 @@ Rep-4 by `-.0011`, degeneration by `0`, and prompt gain by `-.0054`. All
 calibration gates pass. Seed 2028 is the single untouched final test; this is
 still a compute-heavy proof of signal validity rather than an efficient
 sampler.
+
+On that untouched final bank, the frozen rule again fires early on only `4/64`
+trajectories (`2/1/1/60` at steps `8/10/12/14`). C-PPL changes
+`85.23 -> 85.05`, but paired NLL is only `-.0022 [-.0161,.0109]`. Quality is
+safe---D1 `-.0025`, D2 `+.0001`, no Rep-4 or degeneration increase, and prompt
+gain `+.0015`---yet the likelihood gate fails. The method is not promoted.
+EXP-103 and EXP-105 independently show the same bottleneck: a quality-safe
+fallback isolates too few high-response cases to produce a stable aggregate
+gain.
 
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
@@ -1707,8 +1716,8 @@ or methods were withdrawn.
     utility across banks; enumerative and selective versions still fail the
     complete deployment gate.
 11. A controller trained on instantaneous summaries cannot distill the local
-    response across banks. A causal four-step response probe passes calibration,
-    but its final-bank result is still pending.
+    response across banks. Direct causal probing is quality-safe but too sparse
+    to pass its final likelihood gate.
 
 ## 10. Provenance
 

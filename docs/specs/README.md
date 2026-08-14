@@ -63,7 +63,8 @@ method ledger is:
 | [EXP-97](EXP-97-spec.md) | **CLOSED BY EXP-94** | Does revisable coupling scale from two blocks to a three/four-block wave? | do not scale a two-block schedule that loses to compute-matched parallel refinement |
 | [EXP-98](EXP-98-spec.md) | **CLOSED BY EXP-94** | Can on-policy trajectory distillation compress a verified coupling teacher while preserving its curved field? | no verified compute-matched teacher remains |
 | [EXP-104](EXP-104-spec.md) | **DONE / DISTILLATION GATE FAILED** | Can current-state event summaries predict the validated local trigger response? | calibration pairwise accuracy `.504`; do not open EXP-104 final bank |
-| [EXP-105](EXP-105-spec.md) | **CALIBRATION PASSED / FINAL UNOPENED** | Can a bounded causal response probe decide when to anchor? | frozen threshold passes seed-2027 likelihood and quality gates; evaluate once on seed 2028 |
+| [EXP-105](EXP-105-spec.md) | **DONE / FINAL LIKELIHOOD GATE FAILED** | Can a bounded causal response probe decide when to anchor? | frozen rule is quality-safe but switches only `4/64`; final NLL CI crosses zero |
+| [EXP-106](EXP-106-spec.md) | **IMPLEMENTED / DIAGNOSTIC RUNNING** | Is a single Plaid response probe too noisy? | require pairwise-accuracy improvement in both opened banks before any new generation bank |
 
 Completed decision:
 

@@ -1,6 +1,6 @@
 # EXP-105 Spec — Causal Online Response Trigger
 
-**Status:** CALIBRATION PASSED / FINAL BANK UNOPENED
+**Status:** DONE / FINAL LIKELIHOOD GATE FAILED
 **Purpose:** turn EXP-102's transferable local entropy response into a causal
 trigger rule without enumerating all future trigger times.
 
@@ -53,6 +53,21 @@ Calibration freezes `gamma=0.9216148257`. It selects steps `8/10/12/14` on
 `-.0124 [-.0266,-.0022]`. Quality deltas are D1 `-.0013`, D2 `+.0007`, Rep-4
 `-.0011`, degeneration `0`, and prompt gain `-.0054`; all gates pass. No
 parameter may change after opening seed 2028.
+
+## Final result
+
+On the untouched seed-2028/offset-8000 bank, the frozen rule again triggers
+early on `4/64` trajectories (`2/1/1/60` at steps `8/10/12/14`). C-PPL changes
+only `85.23 -> 85.05`, with paired NLL `-.0022 [-.0161,.0109]`. Quality remains
+within every tolerance: D1 `-.0025`, D2 `+.0001`, Rep-4 and degeneration `0`,
+and prompt gain `+.0015` relative to fixed step 14.
+
+The likelihood interval crosses zero, so the final gate fails. Do not retune
+the threshold or open another final bank for this policy. Together with
+EXP-103, this shows that quality-safe high-response events are reproducibly
+sparse. The short-horizon response remains a useful teacher/diagnostic, but a
+one-step fallback policy does not convert it into a statistically supported
+generation improvement.
 
 Implementation:
 `experiments/interventions/calibrate_online_response_trigger_exp105.py`.

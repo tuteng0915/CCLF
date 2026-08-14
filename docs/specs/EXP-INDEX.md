@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-15（EXP-105 causal online response trigger；105 个实验）
+**更新时间**: 2026-08-15（EXP-106 noise-averaged causal response；106 个实验）
 
 ---
 
@@ -51,7 +51,8 @@
 | **EXP-102** | **DONE / LOCAL LIKELIHOOD SIGNAL REPLICATES, QUALITY GATE FAILS** | Four-step unresolved entropy reduction selects C-PPL `78.44 -> 64.62` and `86.85 -> 69.93` with significant paired NLL and `.61` pair accuracy, but raw selection regresses degeneration/prompt gain |
 | **EXP-103** | **DONE / FINAL LIKELIHOOD GATE FAILS** | Quality-constrained fallback passes calibration but switches only `2/64` final trajectories; C-PPL `94.91 -> 94.30` and NLL CI `[-.0175,0]` are safe but not significant |
 | **EXP-104** | **DONE / DISTILLATION GATE FAILED** | Current-state MLP reaches only `.504` response pairwise accuracy and `.036` Pearson on the unopened calibration bank; no threshold or final bank is used |
-| **EXP-105** | **CALIBRATION PASSED / FINAL UNOPENED** | A causal four-step response probe at the current candidate passes seed-2027 likelihood and quality gates; frozen threshold awaits one seed-2028 evaluation |
+| **EXP-105** | **DONE / FINAL LIKELIHOOD GATE FAILED** | The frozen causal response rule is quality-safe but fires on only `4/64` final trajectories; C-PPL `85.23 -> 85.05` and NLL CI crosses zero |
+| **EXP-106** | **IMPLEMENTED / DIAGNOSTIC RUNNING** | Average four paired Plaid probe futures to test whether stochastic response noise explains EXP-105's false high-response event before opening any new bank |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

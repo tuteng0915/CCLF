@@ -38,6 +38,8 @@ def parse_args():
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--lookaheads", default="0,1,2,4")
+    parser.add_argument("--probe_replicates", type=int, default=1)
+    parser.add_argument("--probe_seed_base", type=int, default=29)
     return parser.parse_args()
 
 
@@ -80,7 +82,18 @@ def compare(anchor, control, unresolved):
 
 
 @torch.no_grad()
-def replay_trigger(adapter, payload, grid, eps, prompt_clean, batch_index, trigger, lookaheads):
+def replay_trigger(
+    adapter,
+    payload,
+    grid,
+    eps,
+    prompt_clean,
+    batch_index,
+    trigger,
+    lookaheads,
+    probe_replicates=1,
+    probe_seed_base=29,
+):
     prefix = payload["prefix_length"]
     z = eps.clone().to(adapter.device)
     sc = torch.zeros_like(z)
@@ -114,52 +127,69 @@ def replay_trigger(adapter, payload, grid, eps, prompt_clean, batch_index, trigg
     )
     unresolved = eligible & ~anchor_mask
 
-    control_z, control_sc = z.clone(), sc.clone()
-    anchor_z, anchor_sc = z.clone(), sc.clone()
-    anchor_z[anchor_mask] = anchor_clean[anchor_mask]
-    anchor_sc[anchor_mask] = anchor_clean[anchor_mask]
-    seed = exp90.step_seed(payload["seed"], 29, batch_index, trigger)
-    control_z, control_sc = exp90.native_step(
-        adapter, control_z, control_sc, grid[trigger], grid[trigger + 1], seed
-    )
-    anchor_z, anchor_sc = exp90.native_step(
-        adapter, anchor_z, anchor_sc, grid[trigger], grid[trigger + 1], seed
-    )
-    anchor_z[anchor_mask] = anchor_clean[anchor_mask]
-    anchor_sc[anchor_mask] = anchor_clean[anchor_mask]
-    for state in (control_z, control_sc, anchor_z, anchor_sc):
-        state[:, :prefix] = prompt_clean
+    replicate_signals = []
+    for replicate in range(probe_replicates):
+        route = probe_seed_base + replicate
+        control_z, control_sc = z.clone(), sc.clone()
+        anchor_z, anchor_sc = z.clone(), sc.clone()
+        anchor_z[anchor_mask] = anchor_clean[anchor_mask]
+        anchor_sc[anchor_mask] = anchor_clean[anchor_mask]
+        seed = exp90.step_seed(payload["seed"], route, batch_index, trigger)
+        control_z, control_sc = exp90.native_step(
+            adapter, control_z, control_sc, grid[trigger], grid[trigger + 1], seed
+        )
+        anchor_z, anchor_sc = exp90.native_step(
+            adapter, anchor_z, anchor_sc, grid[trigger], grid[trigger + 1], seed
+        )
+        anchor_z[anchor_mask] = anchor_clean[anchor_mask]
+        anchor_sc[anchor_mask] = anchor_clean[anchor_mask]
+        for state in (control_z, control_sc, anchor_z, anchor_sc):
+            state[:, :prefix] = prompt_clean
 
-    signal_by_lookahead = {}
-    max_lookahead = max(lookaheads)
-    for extra in range(max_lookahead + 1):
-        if extra in lookaheads:
-            time_index = trigger + 1 + extra
-            anchor_out = readout(
-                adapter, anchor_z, anchor_sc, grid[time_index], payload["batch_size"]
-            )
-            control_out = readout(
-                adapter, control_z, control_sc, grid[time_index], payload["batch_size"]
-            )
-            signal_by_lookahead[extra] = compare(
-                anchor_out, control_out, unresolved
-            ).cpu()
-        if extra < max_lookahead:
-            step = trigger + 1 + extra
-            seed = exp90.step_seed(payload["seed"], 29, batch_index, step)
-            control_z, control_sc = exp90.native_step(
-                adapter, control_z, control_sc, grid[step], grid[step + 1], seed
-            )
-            anchor_z, anchor_sc = exp90.native_step(
-                adapter, anchor_z, anchor_sc, grid[step], grid[step + 1], seed
-            )
-            for state in (control_z, control_sc, anchor_z, anchor_sc):
-                state[:, :prefix] = prompt_clean
-    return torch.stack([signal_by_lookahead[value] for value in lookaheads], dim=1)
+        signal_by_lookahead = {}
+        max_lookahead = max(lookaheads)
+        for extra in range(max_lookahead + 1):
+            if extra in lookaheads:
+                time_index = trigger + 1 + extra
+                anchor_out = readout(
+                    adapter,
+                    anchor_z,
+                    anchor_sc,
+                    grid[time_index],
+                    payload["batch_size"],
+                )
+                control_out = readout(
+                    adapter,
+                    control_z,
+                    control_sc,
+                    grid[time_index],
+                    payload["batch_size"],
+                )
+                signal_by_lookahead[extra] = compare(
+                    anchor_out, control_out, unresolved
+                ).cpu()
+            if extra < max_lookahead:
+                step = trigger + 1 + extra
+                seed = exp90.step_seed(payload["seed"], route, batch_index, step)
+                control_z, control_sc = exp90.native_step(
+                    adapter, control_z, control_sc, grid[step], grid[step + 1], seed
+                )
+                anchor_z, anchor_sc = exp90.native_step(
+                    adapter, anchor_z, anchor_sc, grid[step], grid[step + 1], seed
+                )
+                for state in (control_z, control_sc, anchor_z, anchor_sc):
+                    state[:, :prefix] = prompt_clean
+        replicate_signals.append(
+            torch.stack([signal_by_lookahead[value] for value in lookaheads], dim=1)
+        )
+    replicate_signals = torch.stack(replicate_signals, dim=1)
+    return replicate_signals.mean(dim=1), replicate_signals
 
 
 def main():
     args = parse_args()
+    if args.probe_replicates < 1:
+        raise ValueError("probe_replicates must be positive")
     payload = json.loads(Path(args.exp101_bank).read_text())
     lookaheads = tuple(sorted({int(item) for item in args.lookaheads.split(",")}))
     if min(lookaheads) < 0:
@@ -181,6 +211,7 @@ def main():
     )
 
     batches = []
+    replicate_batches = []
     for batch_index, start in enumerate(
         range(0, payload["n_cond"], payload["batch_size"])
     ):
@@ -195,7 +226,7 @@ def main():
         prompt_clean = adapter.encode_clean(
             panel_ids[start:end, : payload["prefix_length"]]
         ).to(adapter.device)
-        trigger_rows = [
+        trigger_results = [
             replay_trigger(
                 adapter,
                 payload,
@@ -205,10 +236,15 @@ def main():
                 batch_index,
                 trigger,
                 lookaheads,
+                args.probe_replicates,
+                args.probe_seed_base,
             )
             for trigger in payload["triggers"]
         ]
-        batches.append(torch.stack(trigger_rows, dim=1))
+        batches.append(torch.stack([result[0] for result in trigger_results], dim=1))
+        replicate_batches.append(
+            torch.stack([result[1] for result in trigger_results], dim=1)
+        )
         print(f"replayed {end}/{payload['n_cond']}", flush=True)
 
     output = {
@@ -221,6 +257,11 @@ def main():
         "lookaheads": list(lookaheads),
         "signal_names": SIGNAL_NAMES,
         "local_signals": torch.cat(batches).tolist(),
+        "local_signals_by_replicate": torch.cat(replicate_batches).tolist(),
+        "probe_replicates": args.probe_replicates,
+        "probe_seed_routes": [
+            args.probe_seed_base + index for index in range(args.probe_replicates)
+        ],
         "final_trigger_nll": payload["per_sequence"]["trigger_nll"],
         "final_trigger_token_counts": payload["per_sequence"]["trigger_token_counts"],
         "paired_native_counterfactual_noise": True,
@@ -230,7 +271,8 @@ def main():
     output_path.write_text(json.dumps(output))
     print(
         f"Saved -> {output_path} signals="
-        f"{tuple(torch.cat(batches).shape)}",
+        f"{tuple(torch.cat(batches).shape)} replicates="
+        f"{tuple(torch.cat(replicate_batches).shape)}",
         flush=True,
     )
 
