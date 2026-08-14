@@ -43,14 +43,14 @@ def parse_args():
 
 def readout(adapter, z, sc, t, batch_size):
     out = adapter.forward_state(z, sc, t, batch_size=batch_size)
-    logits = out["logits"].float()
+    logits = out["logits"].float().to(adapter.device)
     probabilities = torch.softmax(logits, dim=-1)
     confidence, top1 = probabilities.max(dim=-1)
     entropy = -(probabilities * probabilities.clamp_min(1e-12).log()).sum(-1)
     top2 = probabilities.topk(k=2, dim=-1).values
     return {
         "logits": logits,
-        "xhat": out["predicted_clean"].float(),
+        "xhat": out["predicted_clean"].float().to(adapter.device),
         "confidence": confidence,
         "entropy": entropy,
         "margin": top2[..., 0] - top2[..., 1],
@@ -237,4 +237,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
