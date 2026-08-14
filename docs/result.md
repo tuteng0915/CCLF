@@ -1,6 +1,6 @@
 # CCLF Major Experimental Results
 
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-14
 **Purpose:** single source of truth for the major paper-facing experiments and
 the complete quality metrics produced by the formal evaluation runners.
 
@@ -93,6 +93,8 @@ UniqueRatio = mean_m unique_words_m / number_of_words_m
 | Can subset-conditioned flow training internalize the anchor effect? | EXP-91 | No in the 200-step pilot. Across three paired inference seeds, mean random-anchor interaction is `+1.5/+2.3` U/C PPL (unfavorable), prompt-gain interaction is `-.0072`, and C-degeneration interaction is `+.0078` on every seed. |
 | Does conditional/on-policy subset training fix that mismatch? | EXP-92 | No with the current target. Conditional-oracle is non-Pareto; on-policy is unfavorable at `+9.46/+11.58` U/C PPL interaction, and a fixed `.25` weight still worsens C-PPL in 3/3 seeds and prompt gain in 3/3. |
 | Is random anchoring already subset-optimal? | EXP-93 | No. Best-of-16 lowers C-PPL from mean-random `335.67/390.12` to `210.19/240.52` on two independent banks. The gap is real, but static, lookahead, and additive influence selectors do not reliably predict it. |
+| Does Plaid also contain anchor-subset headroom? | EXP-99 | Yes. Best-of-16 improves C-PPL over mean random by `43--49%` on two disjoint banks at both `.50` and `.75` density, with all paired-NLL intervals excluding zero. |
+| Can a non-additive set model predict that Plaid utility? | EXP-100 | No with the tested model. With 320 training trajectories, final pair accuracy remains chance; only 1/3 optimization seeds has favorable pooled NLL, its CI crosses zero, and a fixed-index null matches the gain. |
 | Can a temporary-anchor policy improve the complete Plaid panel? | EXP-95 | Yes, with a bounded claim. Early one-step 75% confidence anchors reduce U/C-PPL `135.43/110.39 -> 99.32/80.28`, improve mean D1 and degeneration, and revise at `.699`; D2 falls by `.0051`. Readout sham is exact and shuffled content is harmful. |
 | Does corrected temporal KD work? | EXP-63/66 | Early-window KD improves unconditional ODE quality and timing in two training seeds; conditioned gains are not robust. |
 | Does ELF hard commitment work? | EXP-64--69/74/78 | Yes as an ELF ODE-specific intervention. Three-seed and conditioned gains replicate, and a four-step lock is sufficient; ELF native-SDE effects remain negligible. EXP-90 separately tests related native temporary anchors on other architectures. |
@@ -1418,6 +1420,89 @@ consistency, or an additive pairwise influence graph. A successor must model
 non-additive subset interactions and must be trained and frozen before a new
 quality bank; Stage 3 is closed for the current proxy family.
 
+### 6.21 Plaid subset headroom and matched-size quality audit (EXP-99)
+
+EXP-99 freezes Plaid native step 14, horizon 1, and one density per run. Every
+trajectory evaluates 16 random subsets with a shared prompt, initial latent,
+and every ancestral-noise draw; a separate mask seed changes only subset
+identity. Discovery and validation use disjoint data offsets and sampler seeds.
+
+| Bank | Density | Standard | Top conf. | Mean random | Oracle best-of-16 | Oracle gain | Paired NLL CI |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| seed 42, offset 0 | .50 | 107.65 | 90.04 | 84.33 | **44.35** | 47.41% | [.595,.693] |
+| seed 42, offset 0 | .75 | 107.65 | **78.44** | 81.70 | 46.66 | 42.89% | [.508,.621] |
+| seed 123, offset 1000 | .50 | 100.42 | 96.91 | 92.06 | 46.90 | 49.05% | [.617,.735] |
+| seed 123, offset 1000 | .75 | 100.42 | 86.85 | 85.80 | **46.32** | 46.01% | [.572,.669] |
+
+All 64 validation trajectories have positive best-of-16 headroom at each
+density. The first runner version flattened all `16 x 64` random texts before
+computing corpus-level D1/D2, which made those two values incomparable with
+64-text arms. PPL, per-sequence NLL, bootstrap, and the headroom decision were
+unaffected. A corrected run computes D1/D2 for each 64-text mask bank and then
+averages those matched-size statistics.
+
+| Validation arm, density .75 | C-PPL | Gain | D1 | D2 | Rep-4 | Deg. | R-L |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 100.42 | .5303 | .5733 | .9418 | .0000 | .0156 | .1063 |
+| Top confidence | 86.85 | .5725 | .5712 | .9350 | .0010 | .0000 | .1051 |
+| Mean random | 85.80 | .5675 | .5700 | .9394 | .0001 | .0127 | .1030 |
+| Oracle best-of-16 | **46.32** | **.6435** | .5665 | .9356 | .0003 | .0313 | .1025 |
+
+The oracle gap is not merely degeneration: likelihood and prompt gain improve
+substantially, while D1/D2 decline modestly. Degeneration does rise at density
+`.75`; at density `.50` it instead falls from mean-random `.0039` to zero while
+D1 changes `.5707 -> .5537`. A deployable selector must therefore optimize and
+validate the complete quality panel rather than final NLL alone.
+
+### 6.22 Non-additive Plaid subset selector (EXP-100, negative)
+
+Trigger replay reconstructs every EXP-99 mask and attaches its final NLL to 53
+inference-time token features: noisy state, self-conditioning, predicted-clean
+state, confidence, entropy, top-1/top-2 margin, position, and prefix status. A
+two-layer joint sequence Transformer receives the entire candidate membership
+mask and scores selected--selected and selected--unresolved interactions with a
+within-trajectory listwise loss.
+
+The 64-trajectory pilot is negative: validation pairwise accuracy is
+`.484/.508/.465` across three optimization seeds and selected C-PPL is
+`85.77/86.50/88.58`, versus mean-random `85.80`. The architecture and
+hyperparameters are then held fixed while the training bank grows to 320
+trajectory-disjoint examples (5120 candidate subsets):
+
+| Opt. seed | Best epoch | Train pair acc. | Val. pair acc. | Val. Spearman | Selected C-PPL | Mean random | NLL delta [95% CI] |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 42 | 44 | .795 | .494 | -.022 | 79.75 | 85.80 | -.071 [-.148,.002] |
+| 123 | 2 | .519 | .500 | .005 | 80.32 | 85.80 | -.070 [-.151,.011] |
+| 456 | 43 | .785 | .502 | .004 | 80.20 | 85.80 | -.070 [-.151,.003] |
+
+The PPL column alone is misleading. The candidate index with lowest training
+NLL is index 4; frozen on validation it worsens PPL to `88.80` and mean NLL by
+`+.034`. The validation-local best fixed index is instead 14, at PPL `79.67`
+and `-.075` nats---nearly identical to the early-stopped selectors despite
+their chance ranking. The current interpretation is validation selection bias,
+not learned utility. Three frozen checkpoints are evaluated once on three
+unopened seed/offset banks. The primary checkpoint selected on validation gives:
+
+| Final data seed | Mean random | Frozen index 4 | Joint selector | Pair acc. | NLL delta [95% CI] |
+|---:|---:|---:|---:|---:|---:|
+| 2026 | 95.68 | **94.00** | 94.43 | .492 | -.014 [-.089,.062] |
+| 2027 | 92.55 | **90.47** | 91.24 | .494 | -.015 [-.114,.081] |
+| 2028 | 87.57 | 85.75 | **85.73** | .502 | -.021 [-.106,.064] |
+
+Pooling 192 final trajectories yields `-.0167 [-.0658,.0316]` nats for the
+primary optimization seed. Its favorable mean sign appears in 3/3 data banks
+but never excludes zero and is matched by the training-frozen fixed index. The
+other two optimization seeds improve in 0/3 banks and have pooled deltas
+`+.0137` and `+.0166` nats. Final Spearman correlations remain near zero.
+
+EXP-100 therefore fails the final ranking/NLL gate. The large Plaid oracle gap
+is real, but this joint Transformer does not identify it out of sample. No
+selected-text quality panel is run after the deployment gate fails; doing so
+would create another opportunity to select a favorable metric post hoc. The
+next adaptive method should change a lower-dimensional decision such as trigger
+timing, or learn a native trajectory-preserving utility signal rather than
+reranking random masks from final-NLL supervision.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1517,6 +1602,9 @@ or methods were withdrawn.
    perturbation.
 8. Pipeline, post-hoc local clocks, compute-matched late coupling, subset-flow
    training, and the current gated WFF pilot are not positive methods.
+9. Anchor subset identity has large replicated oracle headroom on both ELF and
+   Plaid, but static, lookahead, additive-graph, and the tested non-additive
+   Transformer selectors all fail independent deployment gates.
 
 ## 10. Provenance
 
@@ -1527,8 +1615,9 @@ Primary specs:
 - Pipeline: `EXP-61`, `EXP-64`;
 - KD: `EXP-62`, `EXP-63`, `EXP-66`;
 - hard commitment and sampler boundary: `EXP-64`--`EXP-69`, `EXP-74`, `EXP-78`.
-- selector and training dead ends: `EXP-91`--`EXP-93`;
+- selector and training dead ends: `EXP-91`--`EXP-93`, `EXP-100`;
 - compute-matched coupling and the Plaid method result: `EXP-94`, `EXP-95`.
+- Plaid subset headroom and its failed learned selector: `EXP-99`, `EXP-100`.
 
 Primary server result directories:
 

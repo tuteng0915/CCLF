@@ -1,6 +1,6 @@
 # EXP-99 Spec — Plaid Temporary-Anchor Subset Headroom
 
-**Status:** IMPLEMENTED / HEADROOM GATE PENDING  
+**Status:** DONE / REPLICATED HEADROOM GATE PASSED
 **Purpose:** determine whether Plaid's successful early one-step temporary
 anchoring still contains a learnable subset-selection gap before training a
 non-additive selector.
@@ -60,6 +60,14 @@ adaptive variable becomes trigger timing.
 If the gate passes, EXP-100 will build trajectory-disjoint train/validation/
 test utility banks and train a non-additive set scorer. No selector feature,
 architecture, or hyperparameter may be chosen on the final test bank.
+
+## Result
+
+The gate passes on disjoint seed-42/offset-0 and seed-123/offset-1000 banks at
+both densities. Best-of-16 improves C-PPL over mean random by `47.41/49.05%`
+at density `.50` and `42.89/46.01%` at density `.75`; all four paired NLL
+bootstrap intervals exclude zero. The corrected matched-size diversity panel
+is recorded in `docs/result.md`. EXP-100 is therefore opened.
 
 ## Implementation
 

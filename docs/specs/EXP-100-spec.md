@@ -1,6 +1,6 @@
 # EXP-100 Spec — Joint Temporary-Anchor Selector
 
-**Status:** GATE PASSED / STAGE-1 IMPLEMENTED
+**Status:** DONE / NON-ADDITIVE SELECTOR FAILS FINAL GATE
 **Purpose:** if Plaid has replicated subset headroom, learn a deployable,
 non-additive scorer that selects a jointly useful temporary-anchor subset from
 the current trigger state without access to final text.
@@ -111,3 +111,16 @@ the oracle subset as a reported inference method.
 - density `.75` is primary because it is EXP-95's frozen balanced operating
   point and passes EXP-99 on discovery and validation. Density `.50` remains a
   headroom control, not a simultaneously tuned hyperparameter.
+
+The first `n_train=64` pilot stays at chance on validation. Scaling to 320
+trajectory-disjoint training examples produces an apparent `-.070` nats / about
+`-5.5` C-PPL selected-mask improvement, but pairwise accuracy and Spearman stay
+at chance and all three bootstrap intervals touch zero. A fixed-index audit
+shows the selected PPL nearly matches the validation-local best candidate index,
+not the index frozen on training. Three checkpoints are frozen and a three-bank
+final audit is negative. The only optimization seed with favorable mean NLL
+has pooled delta `-.0167 [-.0658,.0316]` nats and chance pair accuracy on all
+three banks; the other two seeds worsen pooled NLL and improve in `0/3` banks.
+The training-frozen fixed candidate index matches or beats the apparent primary
+selector gain. Close this selector family and do not run a selected-text quality
+panel after the NLL/ranking gate failure.

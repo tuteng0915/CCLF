@@ -45,8 +45,8 @@
 | **EXP-96** | **CLOSED BY EXP-94** | No adaptive-trigger sweep without fixed-schedule compute headroom |
 | **EXP-97** | **CLOSED BY EXP-94** | No multi-block scale-up of a schedule that loses to compute-matched parallel refinement |
 | **EXP-98** | **CLOSED BY EXP-94** | No trajectory distillation without a verified compute-matched teacher |
-| **EXP-99** | **IMPLEMENTED / HEADROOM GATE PENDING** | At Plaid's frozen early one-step operating point, vary only random subset identity while holding initial and ancestral noise fixed; learn a joint selector only if best-of-16 beats mean random by at least 5% |
-| **EXP-100** | **GATE PASSED / STAGE-1 IMPLEMENTED** | Plaid best-of-16 headroom replicates on disjoint banks; train a trajectory-disjoint non-additive set scorer with frozen trigger/density/horizon and keep the final bank unopened until freeze |
+| **EXP-99** | **DONE / REPLICATED HEADROOM GATE PASSED** | Plaid best-of-16 beats mean random by `43--49%` across two disjoint banks and densities `.50/.75`, with all paired-NLL CIs excluding zero |
+| **EXP-100** | **DONE / NON-ADDITIVE SELECTOR FAILS FINAL GATE** | With 320 training trajectories, final pair accuracy remains chance; only 1/3 optimization seeds has a favorable pooled NLL sign, its CI crosses zero, and a training-frozen fixed-index null matches the gain |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
