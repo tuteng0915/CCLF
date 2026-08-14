@@ -24,11 +24,10 @@ def parse_args():
 
 def candidate_thresholds(score, fixed_index):
     eligible = score[:, :fixed_index].flatten()
-    quantiles = torch.linspace(0.0, 1.0, 129, dtype=eligible.dtype)
     return torch.cat(
         (
             torch.tensor([-float("inf")], dtype=eligible.dtype),
-            torch.quantile(eligible, quantiles).unique(),
+            eligible.unique().sort().values,
             torch.tensor([float("inf")], dtype=eligible.dtype),
         )
     ).tolist()

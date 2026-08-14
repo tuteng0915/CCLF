@@ -48,7 +48,7 @@ Delta prompt gain >= -.01,
 0 < early-trigger fraction < 1.
 ```
 
-Calibration freezes `gamma=0.9086204767`. It selects steps `8/10/12/14` on
+Calibration freezes `gamma=0.9216148257`. It selects steps `8/10/12/14` on
 `1/1/2/60` trajectories, changes C-PPL `84.63 -> 83.63`, and yields paired NLL
 `-.0124 [-.0266,-.0022]`. Quality deltas are D1 `-.0013`, D2 `+.0007`, Rep-4
 `-.0011`, degeneration `0`, and prompt gain `-.0054`; all gates pass. No

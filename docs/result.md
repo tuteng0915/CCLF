@@ -1592,7 +1592,7 @@ response above a threshold and otherwise falls back to step 14. Unlike the
 EXP-102/103 argmax teacher, it never evaluates a later candidate before making
 an earlier decision.
 
-On seed 2027 / offset 7000, the frozen threshold `gamma=.90862` chooses steps
+On seed 2027 / offset 7000, the frozen threshold `gamma=.92161` chooses steps
 `8/10/12/14` for `1/1/2/60` trajectories. C-PPL changes `84.63 -> 83.63` and
 paired NLL is `-.0124 [-.0266,-.0022]`. D1 changes by `-.0013`, D2 by `+.0007`,
 Rep-4 by `-.0011`, degeneration by `0`, and prompt gain by `-.0054`. All
