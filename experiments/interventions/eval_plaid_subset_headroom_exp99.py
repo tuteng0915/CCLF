@@ -239,6 +239,51 @@ def summarize_texts(texts, references, nlls, counts, shuffled_nlls=None):
     return result
 
 
+def summarize_mean_random(
+    random_names, records, references, nlls, counts, shuffled_nlls
+):
+    """Average sample-count-matched quality panels across random masks.
+
+    Corpus-level distinct-n depends on the number of decoded texts.  Flattening
+    M candidate banks would therefore make mean-random D1/D2 incomparable with
+    the n-trajectory standard and oracle arms.  Compute every metric on each
+    n-trajectory mask bank first, then average the matched summaries.  PPL is
+    still aggregated token-wise across all M*n suffixes.
+    """
+    per_mask = [
+        summarize_texts(
+            records[name]["texts"],
+            references,
+            nlls[name],
+            counts[name],
+            shuffled_nlls[name],
+        )
+        for name in random_names
+    ]
+    scalar_keys = tuple(per_mask[0])
+    result = {
+        key: float(np.mean([summary[key] for summary in per_mask]))
+        for key in scalar_keys
+    }
+    flat_nll = torch.stack([nlls[name] for name in random_names]).flatten()
+    flat_counts = torch.stack([counts[name] for name in random_names]).flatten()
+    flat_shuffled = torch.stack(
+        [shuffled_nlls[name] for name in random_names]
+    ).flatten()
+    result["prompt_conditioned_ppl"] = aggregate_ppl(flat_nll, flat_counts)
+    result["shuffled_prompt_ppl"] = aggregate_ppl(flat_shuffled, flat_counts)
+    result["prompt_gain_nats"] = math.log(result["shuffled_prompt_ppl"]) - math.log(
+        result["prompt_conditioned_ppl"]
+    )
+    result["d1_across_mask_std"] = float(
+        np.std([summary["d1"] for summary in per_mask])
+    )
+    result["d2_across_mask_std"] = float(
+        np.std([summary["d2"] for summary in per_mask])
+    )
+    return result
+
+
 def bootstrap_headroom(mean_random_nll, best_nll, samples, seed):
     differences = (mean_random_nll - best_nll).double()
     generator = torch.Generator().manual_seed(seed + 990017)
@@ -351,13 +396,6 @@ def main():
         utility, 0.25, dim=0
     )
 
-    flattened_random_texts = [
-        text for name in random_names for text in records[name]["texts"]
-    ]
-    flattened_references = references * args.n_masks
-    flattened_shuffled_nll = torch.stack(
-        [shuffled_nlls[name] for name in random_names]
-    ).flatten()
     aggregate = {
         "standard": summarize_texts(
             records["standard"]["texts"],
@@ -373,12 +411,13 @@ def main():
             counts["top_confidence"],
             shuffled_nlls["top_confidence"],
         ),
-        "mean_random": summarize_texts(
-            flattened_random_texts,
-            flattened_references,
-            random_nll.flatten(),
-            random_counts.flatten(),
-            flattened_shuffled_nll,
+        "mean_random": summarize_mean_random(
+            random_names,
+            records,
+            references,
+            nlls,
+            counts,
+            shuffled_nlls,
         ),
         "oracle_best_of_m": summarize_texts(
             best_texts,

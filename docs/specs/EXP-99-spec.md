@@ -36,6 +36,8 @@ upper bound, not an inference method.
 - report Standard, top confidence, mean random, oracle best/worst, mask utility
   IQR, random-beats-confidence probability, revision, PPL, prompt gain,
   ROUGE-L, D1/D2, Rep-4, and degeneration;
+- compute corpus-level D1/D2 separately for each `n=64` random-mask panel and
+  then average across masks; never flatten `M*n` texts against an `n`-text arm;
 - bootstrap trajectories rather than the correlated masks.
 
 The two densities are isolated runs. Density `.75` is primary because it is
