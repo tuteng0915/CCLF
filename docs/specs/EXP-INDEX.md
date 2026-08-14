@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-15（EXP-102 native short-horizon trigger utility；102 个实验）
+**更新时间**: 2026-08-15（EXP-103 selective native-utility anchoring；103 个实验）
 
 ---
 
@@ -49,6 +49,7 @@
 | **EXP-100** | **DONE / NON-ADDITIVE SELECTOR FAILS FINAL GATE** | With 320 training trajectories, final pair accuracy remains chance; only 1/3 optimization seeds has a favorable pooled NLL sign, its CI crosses zero, and a training-frozen fixed-index null matches the gain |
 | **EXP-101** | **IMPLEMENTED / TRIGGER-HEADROOM GATE PENDING** | Freeze Plaid top-confidence density `.75`, horizon one, and vary only native trigger step; learn a one-statistic event rule only if per-trajectory best-of-trigger beats fixed step 14 on disjoint banks |
 | **EXP-102** | **IMPLEMENTED / LOCAL-UTILITY GATE PENDING** | Pair anchored and native Plaid counterfactuals for 0/1/2/4 post-release steps; test whether a discovery-frozen local confidence/entropy/margin response predicts final trigger utility on validation |
+| **EXP-103** | **IMPLEMENTED / CALIBRATION GATE PENDING** | Freeze EXP-102's four-step entropy signal and calibrate one abstention threshold; open a new final bank only if selective fallback retains significant NLL gain under the complete quality gate |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a
