@@ -1,6 +1,6 @@
 # EXP-100 Spec — Joint Temporary-Anchor Selector
 
-**Status:** GATED BY EXP-99  
+**Status:** GATE PASSED / STAGE-1 IMPLEMENTED
 **Purpose:** if Plaid has replicated subset headroom, learn a deployable,
 non-additive scorer that selects a jointly useful temporary-anchor subset from
 the current trigger state without access to final text.
@@ -93,3 +93,15 @@ Promote only if the frozen selector:
 If EXP-99 passes but this model fails, close confidence/static/additive/joint
 reranking as a method family and move to adaptive trigger timing. Do not use
 the oracle subset as a reported inference method.
+
+## Stage-1 implementation
+
+- `build_plaid_selector_features_exp100.py` replays only the shared prefix of
+  an EXP-99 bank, reconstructs its masks from independent mask seeds, and saves
+  compact trigger-time features with the existing final-NLL labels;
+- `train_joint_anchor_selector_exp100.py` trains the fixed two-layer joint
+  sequence scorer with a within-trajectory listwise objective and early stopping
+  on a trajectory-disjoint validation bank;
+- density `.75` is primary because it is EXP-95's frozen balanced operating
+  point and passes EXP-99 on discovery and validation. Density `.50` remains a
+  headroom control, not a simultaneously tuned hyperparameter.
