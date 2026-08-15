@@ -66,6 +66,7 @@ method ledger is:
 | [EXP-105](EXP-105-spec.md) | **DONE / FINAL LIKELIHOOD GATE FAILED** | Can a bounded causal response probe decide when to anchor? | frozen rule is quality-safe but switches only `4/64`; final NLL CI crosses zero |
 | [EXP-106](EXP-106-spec.md) | **DONE / NOISE-AVERAGING GATE FAILED** | Is a single Plaid response probe too noisy? | averaging independent futures worsens ranking; the transferable signal is path-specific |
 | [EXP-107](EXP-107-spec.md) | **DONE / PILOT GATE FAILED** | Can pathwise response select anchor versus control directly? | it falls back too often and loses to fixed anchoring; do not build a multi-trigger beam |
+| [EXP-108](EXP-108-spec.md) | **IMPLEMENTED / BANKS PENDING** | Does ELF ODE have adaptive Unlock-4 timing headroom? | require replicated paired-NLL and complete quality headroom before controller work |
 
 Completed decision:
 
