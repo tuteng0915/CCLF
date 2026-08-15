@@ -127,8 +127,12 @@ def run_shadow(adapter, eps, grid, args, batch_index, prompt_clean):
     control_out = adapter.forward_state(
         control_z, control_sc, grid[decision_step], batch_size=args.batch_size
     )
-    anchor_prob = torch.softmax(anchor_out["logits"].float(), dim=-1)
-    control_prob = torch.softmax(control_out["logits"].float(), dim=-1)
+    anchor_prob = torch.softmax(
+        anchor_out["logits"].float().to(adapter.device), dim=-1
+    )
+    control_prob = torch.softmax(
+        control_out["logits"].float().to(adapter.device), dim=-1
+    )
     anchor_entropy = -(anchor_prob * anchor_prob.clamp_min(1e-12).log()).sum(-1)
     control_entropy = -(control_prob * control_prob.clamp_min(1e-12).log()).sum(-1)
     response = masked_mean(control_entropy - anchor_entropy, unresolved)
@@ -150,10 +154,10 @@ def run_shadow(adapter, eps, grid, args, batch_index, prompt_clean):
         sc[:, :prefix] = prompt_clean
 
     final = adapter.forward_state(z, sc, grid[-1], batch_size=args.batch_size)
-    final_ids = final["logits"].argmax(-1)
+    final_ids = final["logits"].argmax(-1).to(adapter.device)
     decoded_prompt = adapter.forward_state(
         prompt_clean, prompt_clean, grid[-1], batch_size=args.batch_size
-    )["logits"].argmax(-1)
+    )["logits"].argmax(-1).to(adapter.device)
     final_ids[:, :prefix] = decoded_prompt
 
     selected_mask = anchor_mask & choose_anchor[:, None]
