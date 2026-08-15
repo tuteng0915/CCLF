@@ -1643,6 +1643,52 @@ A final offline upper-bound check selects among only trigger steps
 Across all five banks, fixed step 14 remains the best aggregate fixed trigger
 (pooled C-PPL `85.83`). This closes multi-trigger shadow-beam implementation.
 
+### 6.30 Deterministic ELF trigger-time headroom (EXP-108)
+
+EXP-108 returns method discovery to ELF's native deterministic ODE. For each
+real OWT prefix and exactly paired initial latent, it sweeps Unlock-4 trigger
+times `.25,.30,.35,.40,.45,.50,.55,.60` around the fixed `.40` reference.
+
+| bank / trigger | C-PPL | D1 | D2 | Rep-4 | degeneration | prompt gain | anchor fraction |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| seed 42 / `.25` | 349.74 | .5295 | .9026 | .0134 | .0625 | .3421 | .5945 |
+| seed 42 / `.30` | 324.84 | .5278 | .9013 | .0142 | .0625 | .3861 | .7527 |
+| seed 42 / `.35` | 366.07 | .5325 | .9061 | .0158 | .0312 | .3712 | .8352 |
+| seed 42 / `.40` | 391.88 | .5404 | .9054 | .0210 | .0312 | .3158 | .8679 |
+| seed 42 / `.45` | 449.21 | .5475 | .9116 | .0167 | .0156 | .3229 | .9072 |
+| seed 42 / `.50` | 465.21 | .5496 | .9132 | .0148 | .0156 | .3094 | .9238 |
+| seed 42 / `.55` | 481.93 | .5489 | .9110 | .0165 | .0156 | .3128 | .9424 |
+| seed 42 / `.60` | 505.93 | .5504 | .9131 | .0151 | .0156 | .3006 | .9524 |
+| seed 123 / `.25` | 352.80 | .5196 | .8880 | .0270 | .0469 | .2869 | .5850 |
+| seed 123 / `.30` | 334.65 | .5259 | .8886 | .0314 | .0312 | .2848 | .7356 |
+| seed 123 / `.35` | 381.29 | .5326 | .8906 | .0297 | .0312 | .2543 | .8311 |
+| seed 123 / `.40` | 389.88 | .5327 | .8905 | .0291 | .0156 | .2462 | .8704 |
+| seed 123 / `.45` | 455.61 | .5424 | .9018 | .0233 | .0156 | .2206 | .9036 |
+| seed 123 / `.50` | 473.79 | .5413 | .9022 | .0245 | .0156 | .2179 | .9172 |
+| seed 123 / `.55` | 526.68 | .5432 | .9053 | .0235 | .0156 | .2063 | .9373 |
+| seed 123 / `.60` | 523.15 | .5442 | .9062 | .0231 | .0156 | .1996 | .9446 |
+
+The unrestricted per-trajectory oracle reduces fixed-`.40` C-PPL
+`391.88 -> 255.99` and `389.88 -> 247.58`, with paired mean-NLL CIs wholly
+below zero. It fails quality because final-NLL selection overuses `.25/.30`:
+D1 falls by `.0195/.0176`, and degeneration rises by `.0156/.0313`.
+
+A preregistered quality-constrained audit then allows only `.40--.60`. It
+retains C-PPL gains of `7.90%` and `6.59%`, again with paired CIs below zero.
+The seed-123 bank passes the full gate. Seed 42 misses only the D1 threshold by
+`.000176`; Rep-4 and degeneration do not increase, while prompt gain improves.
+Winner histograms are `43/10/5/3/3` and `41/13/3/2/5` for
+`.40/.45/.50/.55/.60`. Therefore adaptive timing is real in deterministic ELF,
+but the action space must exclude premature anchors and the deployable signal
+must be learned on new banks.
+
+The narrower `.40`-versus-`.45` oracle is the cleanest target. It changes
+C-PPL `391.88 -> 369.70` and `389.88 -> 368.02`; paired NLL CIs are
+`[-.0967,-.0311]` and `[-.1001,-.0296]`. Both banks pass every quality gate,
+with winner counts `46/18` and `44/20`. The next ELF experiment therefore asks
+whether a current-state or short-horizon deterministic signal can predict this
+single-checkpoint delay, rather than reopening a broad trigger sweep.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1755,6 +1801,10 @@ or methods were withdrawn.
 12. Plaid response is path-specific: independent-future averaging weakens it,
     while pathwise shadow selection still cannot beat the robust fixed anchor.
     Treat response as a mechanism diagnostic, not a deployable controller.
+13. Deterministic ELF ODE has replicated per-trajectory Unlock-4 timing
+    headroom. Unrestricted NLL selection is quality-unsafe, while a late-only
+    action space preserves roughly `7%` C-PPL headroom with minimal quality
+    movement; an online selector still remains to be validated.
 
 ## 10. Provenance
 
@@ -1771,6 +1821,7 @@ Primary specs:
 - Plaid trigger headroom, native local utility, and selective fallback:
   `EXP-101`--`EXP-103`.
 - Plaid response distillation and causal online probing: `EXP-104`--`EXP-105`.
+- deterministic ELF Unlock-4 timing headroom: `EXP-108`.
 
 Primary server result directories:
 
