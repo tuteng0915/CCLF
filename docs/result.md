@@ -1689,6 +1689,22 @@ with winner counts `46/18` and `44/20`. The next ELF experiment therefore asks
 whether a current-state or short-horizon deterministic signal can predict this
 single-checkpoint delay, rather than reopening a broad trigger sweep.
 
+### 6.31 ELF late-trigger signal screen (EXP-110 Stage A)
+
+The EXP-108 `.40/.45` trajectories are regenerated with exact text agreement
+before extracting any feature. Mean entropy, confidence, margin, `.90` anchor
+fraction, one-checkpoint token stability, and predicted-clean displacement at
+the `.40` state all fail, with pooled sign AUC `.472--.539` and inconsistent
+directions across banks.
+
+The deterministic short-horizon comparison is different. At a common `.625`
+checkpoint, the `.40`-minus-`.45` entropy response has pooled AUC `.664`, while
+the `.45`-minus-`.40` confidence response reaches `.682`. Confidence-response
+AUC is `.675` on seed 42 and `.691` on seed 123, with positive Spearman
+correlation in both. This passes the preregistered signal gate and fixes the
+only Stage-B score before opening seed 456. It is a causal diagnostic with
+extra shadow-branch compute, not yet an efficient sampler.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

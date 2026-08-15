@@ -1,6 +1,6 @@
 # EXP-110 Spec — ELF ODE One-Checkpoint Late-Trigger Selector
 
-**Status:** ACTIVE / STAGE A RUNNING  
+**Status:** ACTIVE / STAGE A PASSED; STAGE B RUNNING
 **Depends on:** EXP-108 binary `.40`-versus-`.45` oracle passing all gates on
 two banks
 
@@ -65,6 +65,23 @@ meets the same gate as the shadow response.
 Stage A is a signal diagnostic, not a method result. Do not report its selected
 PPL as held-out performance.
 
+### Stage-A result
+
+Both arms reproduce the saved EXP-108 outputs exactly (`64/64` texts in both
+banks). Every zero-branch current-state score fails: pooled AUC lies between
+`.472` and `.539`, and no direction agrees across banks. The two causal
+response scores pass:
+
+| signal | seed-42 AUC / Spearman | seed-123 AUC / Spearman | pooled AUC / Spearman | decision |
+|---|---:|---:|---:|---|
+| shadow entropy response | `.665/.100` | `.649/.280` | `.664/.209` | pass |
+| shadow confidence response | `.675/.121` | `.691/.327` | `.682/.229` | **selected** |
+
+Thus waiting readiness is not readable from the tested instantaneous maturity
+summaries. It becomes measurable only after comparing the two deterministic
+short-horizon responses. Per the frozen preference rule, shadow confidence
+response is the sole Stage-B signal.
+
 ## Stage B — calibrate a quality-safe fallback
 
 Use a new bank only:
@@ -75,7 +92,8 @@ Use a new bank only:
 - exact paired initial latent for fixed `.40`, fixed `.45`, and selector.
 
 For the single Stage-A signal selected without looking at this bank, choose a
-threshold \(\gamma\) from its empirical quantiles:
+threshold \(\gamma\) from the seven policies that delay the top
+`8,12,16,20,24,28,32` response scores:
 
 \[
 \pi_i =
