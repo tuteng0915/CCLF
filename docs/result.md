@@ -1609,6 +1609,20 @@ EXP-103 and EXP-105 independently show the same bottleneck: a quality-safe
 fallback isolates too few high-response cases to produce a stable aggregate
 gain.
 
+### 6.28 Noise-averaged response diagnostic (EXP-106)
+
+Four independent paired probe futures do not denoise the response into a
+better predictor. Pairwise accuracy changes `.605 -> .543` on seed 2027 and
+`.571 -> .544` on seed 2028; pooled accuracy changes `.588 -> .544`, while
+pooled Spearman falls `.226 -> .122`. The harmful final event's response is
+attenuated, but so are truly beneficial events.
+
+The original one-probe signal uses the same route-29 ancestral noise that the
+actual conditional generation subsequently realizes. Its predictive content
+is therefore path-specific rather than an estimate of expected intervention
+utility over arbitrary future noise. This closes Monte-Carlo response
+averaging and motivates direct pathwise shadow-branch selection in EXP-107.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

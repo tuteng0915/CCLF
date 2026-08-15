@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-15（EXP-106 noise-averaged causal response；106 个实验）
+**更新时间**: 2026-08-15（EXP-107 pathwise shadow selection；107 个实验）
 
 ---
 
@@ -53,6 +53,7 @@
 | **EXP-104** | **DONE / DISTILLATION GATE FAILED** | Current-state MLP reaches only `.504` response pairwise accuracy and `.036` Pearson on the unopened calibration bank; no threshold or final bank is used |
 | **EXP-105** | **DONE / FINAL LIKELIHOOD GATE FAILED** | The frozen causal response rule is quality-safe but fires on only `4/64` final trajectories; C-PPL `85.23 -> 85.05` and NLL CI crosses zero |
 | **EXP-106** | **IMPLEMENTED / DIAGNOSTIC RUNNING** | Average four paired Plaid probe futures to test whether stochastic response noise explains EXP-105's false high-response event before opening any new bank |
+| **EXP-107** | **IMPLEMENTED / SEED-2029 PILOT PENDING** | Fork fixed-step anchor/control shadows under the sampler's realized future noise and continue from the lower-entropy branch; no learned threshold |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

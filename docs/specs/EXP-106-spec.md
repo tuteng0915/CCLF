@@ -1,6 +1,6 @@
 # EXP-106 Spec — Noise-Averaged Causal Response
 
-**Status:** IMPLEMENTED / DIAGNOSTIC RUNNING
+**Status:** DONE / NOISE-AVERAGING GATE FAILED
 **Purpose:** test whether EXP-105 fails because one stochastic Plaid probe is a
 high-variance estimate of an intervention's expected short-horizon response.
 
@@ -50,3 +50,24 @@ efficiency claim.
 Implementation: the backward-compatible `--probe_replicates` and
 `--probe_seed_base` options in
 `experiments/interventions/build_plaid_local_trigger_utility_exp102.py`.
+
+## Result
+
+Four-probe averaging reduces rather than improves utility ranking:
+
+| Bank | K=1 pair acc. | K=4 pair acc. | K=1 Spearman | K=4 Spearman |
+|---|---:|---:|---:|---:|
+| seed 2027 | .605 | .543 | .269 | .115 |
+| seed 2028 | .571 | .544 | .183 | .130 |
+| pooled | .588 | .544 | .226 | .122 |
+
+The harmful seed-2028 event is attenuated (`1.453 -> .288`), but two genuinely
+beneficial selected events also change sign. The Stage-0 gate fails in both
+banks; do not open seed 2029 for an averaged-response threshold policy.
+
+The routing audit explains the result. K=1 uses conditional route 29, exactly
+the future ancestral-noise stream later used by the actual generated branch.
+It therefore measures path-specific response. K=4 estimates response under
+different possible futures, which is not the realized final-utility target.
+This motivates EXP-107's pathwise shadow selection rather than further
+Monte-Carlo averaging.
