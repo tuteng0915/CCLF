@@ -100,7 +100,7 @@ def summarize(texts, references, prompts, shuffled_prompts, evaluator, tokenizer
 
 
 @torch.no_grad()
-def generate(model, tokenizer, cond_z0, cond_seq, cond_mask, prefix_ids, args, grid):
+def generate(model, tokenizer, cond_z0, cond_seq, cond_mask, args, grid):
     names = ["standard"] + [f"trigger_{value:.2f}" for value in args.trigger_times]
     records = {name: {"texts": [], "fractions": [], "calls": []} for name in names}
     reference_agreement = None
@@ -113,10 +113,16 @@ def generate(model, tokenizer, cond_z0, cond_seq, cond_mask, prefix_ids, args, g
         standard_z, standard_info = exp78.rollout(
             z0, model, grid, args, "standard", 0, seq, mask
         )
+        standard_clamp_error = float(
+            (standard_z[:, : args.prefix_length] - seq[:, : args.prefix_length])
+            .abs()
+            .max()
+        )
+        if standard_clamp_error > 1e-6:
+            raise RuntimeError(
+                f"standard prompt latent clamp error={standard_clamp_error}"
+            )
         standard_ids = common.decode(standard_z, model, z0.device)
-        expected_prefix = prefix_ids[start:end].to(standard_ids.device)
-        if not (standard_ids[:, : args.prefix_length] == expected_prefix).all():
-            raise RuntimeError("standard arm changed the observed prefix")
         records["standard"]["texts"].extend(
             common.decode_texts(standard_ids.cpu(), tokenizer, args.prefix_length)
         )
@@ -135,9 +141,16 @@ def generate(model, tokenizer, cond_z0, cond_seq, cond_mask, prefix_ids, args, g
         for trigger in args.trigger_times:
             args.commit_time = trigger
             z, info = exp78.rollout(z0, model, grid, args, "unlock4", 0, seq, mask)
+            clamp_error = float(
+                (z[:, : args.prefix_length] - seq[:, : args.prefix_length])
+                .abs()
+                .max()
+            )
+            if clamp_error > 1e-6:
+                raise RuntimeError(
+                    f"trigger {trigger:.2f} prompt latent clamp error={clamp_error}"
+                )
             ids = common.decode(z, model, z0.device)
-            if not (ids[:, : args.prefix_length] == expected_prefix).all():
-                raise RuntimeError(f"trigger {trigger:.2f} changed the observed prefix")
             name = f"trigger_{trigger:.2f}"
             records[name]["texts"].extend(
                 common.decode_texts(ids.cpu(), tokenizer, args.prefix_length)
@@ -202,7 +215,7 @@ def main():
     )
     grid = get_sampling_steps(args.n_steps, "uniform", device=device)
     records, agreement, actual_times = generate(
-        model, tokenizer, cond_z0, cond_seq, cond_mask, prefix_ids, args, grid
+        model, tokenizer, cond_z0, cond_seq, cond_mask, args, grid
     )
 
     model.cpu(); encoder.cpu(); del model, encoder, checkpoint
