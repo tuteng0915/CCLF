@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument("input", type=Path)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--min_trigger", type=float, default=.40)
+    parser.add_argument("--max_trigger", type=float)
     parser.add_argument("--bootstrap_samples", type=int, default=5000)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
@@ -67,6 +68,7 @@ def main():
         f"trigger_{float(value):.2f}"
         for value in payload["trigger_times"]
         if float(value) + 1e-9 >= args.min_trigger
+        and (args.max_trigger is None or float(value) <= args.max_trigger + 1e-9)
     ]
     if fixed_name not in allowed or not allowed:
         raise ValueError("restricted action space must include the fixed reference")
@@ -128,6 +130,7 @@ def main():
         "source": str(args.input),
         "oracle_is_deployable": False,
         "min_trigger": args.min_trigger,
+        "max_trigger": args.max_trigger,
         "allowed_triggers": allowed,
         "fixed_reference": fixed_name,
         "fixed_metrics": fixed,
@@ -151,9 +154,10 @@ def main():
         "selected_names": selected_names,
         "selected_texts": selected_texts,
     }
-    output = args.output or args.input.with_name(
-        args.input.stem + f"_late_ge_{args.min_trigger:.2f}.json"
-    )
+    suffix = f"_late_ge_{args.min_trigger:.2f}"
+    if args.max_trigger is not None:
+        suffix += f"_le_{args.max_trigger:.2f}"
+    output = args.output or args.input.with_name(args.input.stem + suffix + ".json")
     output.write_text(json.dumps(result, indent=2))
     print(json.dumps({
         "oracle_vs_fixed": result["oracle_vs_fixed"],
