@@ -300,6 +300,10 @@ def main():
         raise ValueError("EXP-110 Stage A is frozen to ELF baseline")
 
     device = torch.device(args.device)
+    noise_scales = {float(payload["noise_scale"]) for payload in payloads}
+    if len(noise_scales) != 1:
+        raise ValueError("all Stage-A banks must use the same denoiser noise scale")
+    common.SamplingConfig.denoiser_noise_scale = noise_scales.pop()
     checkpoint_path = REPO_ROOT / exp78.CHECKPOINTS["baseline"]
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     model = ELF_B(**common.model_config(int(payloads[0]["max_length"])))
