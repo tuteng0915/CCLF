@@ -69,7 +69,7 @@ method ledger is:
 | [EXP-108](EXP-108-spec.md) | **DONE / REPLICATED HEADROOM; RAW QUALITY GATE FAILED** | Does ELF ODE have adaptive Unlock-4 timing headroom? | unrestricted oracle is quality-unsafe; late-only `.40--.60` retains `6.6--7.9%` C-PPL headroom and motivates a new-bank controller |
 | [EXP-110](EXP-110-spec.md) | **DONE / STAGE-B TRANSFER FAILED** | Can ELF decide whether to fire Unlock-4 at `.40` or wait one checkpoint to `.45`? | three banks retain oracle headroom, but frozen confidence response reverses to AUC `.438` and every calibrated policy worsens C-PPL; final bank stays unopened |
 | [EXP-111](EXP-111-spec.md) | **DONE / TWO-BANK MIXED; POOLED POSITIVE** | Can token-level overlapping `.40/.45` Unlock waves exploit timing headroom without a brittle sequence-level selector? | gains are `4.43%/2.53%`; one bank misses discrete degeneration and one misses CI, but pooled paired NLL is significant |
-| [EXP-112](EXP-112-spec.md) | **ACTIVE / CONDITIONAL N=128 RUNNING** | Does the frozen Two-Wave-New arm confirm at adequate power? | no retuning; require likelihood, complete quality, discrete degeneration, and sham gates before unconditional confirmation |
+| [EXP-112](EXP-112-spec.md) | **DONE / CONDITIONAL POSITIVE; U INCONCLUSIVE** | Does the frozen Two-Wave-New arm confirm at adequate power? | conditional C-PPL improves `2.70%` with all gates; U-PPL improves `1.90%` but misses the frozen effect/CI gates |
 
 Completed decision:
 

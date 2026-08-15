@@ -57,7 +57,7 @@
 | **EXP-108** | **DONE / REPLICATED HEADROOM** | Deterministic ELF has `34.7--36.5%` unrestricted timing oracle headroom; the quality-safe `.40/.45` oracle retains `5.6%` on both audit banks |
 | **EXP-110** | **DONE / STAGE-B TRANSFER FAILED** | Three banks retain `.40/.45` oracle headroom, but shadow-confidence AUC reverses to `.438` on seed 456 and every frozen fallback policy worsens C-PPL |
 | **EXP-111** | **DONE / TWO-BANK MIXED; POOLED POSITIVE** | Two-Wave-New improves C-PPL `4.43%/2.53%`; one bank misses the discrete degeneration gate and one CI crosses zero, while pooled NLL is significant |
-| **EXP-112** | **ACTIVE / CONDITIONAL N=128 RUNNING** | Frozen seed-2026 confirmation of Two-Wave-New before any unconditional expansion |
+| **EXP-112** | **DONE / CONDITIONAL POSITIVE; U INCONCLUSIVE** | Frozen n=128 confirmation improves C-PPL `2.70%` with all gates; U-PPL improves `1.90%` but paired CI crosses zero |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

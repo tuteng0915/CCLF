@@ -1737,6 +1737,24 @@ C-PPL `417.00 -> 402.45` (`3.49%`) and paired NLL `-.0354
 [-.0610,-.0090]`. Two-Wave-Refresh is weaker and inconsistent, so EXP-112
 tests the unchanged new-token wave once at `n=128` rather than tuning it.
 
+### 6.33 Frozen Two-Wave-New confirmation (EXP-112)
+
+On the untouched seed-2026/offset-45000 `n=128` conditional bank, fixed `.40`
+versus Two-Wave-New changes C-PPL `412.73 -> 401.58` (`2.70%`). Paired mean
+NLL is `-.0264 [-.0521,-.00078]`. D1 changes `-.00019`, D2 `-.00094`, Rep-4
+`+.00089`, degeneration `0`, and prompt gain `+.00517`; second-wave density is
+`.0780`. The native control and ignored-readout sham both agree exactly.
+Every confirmation gate passes, authorizing the frozen unconditional panel.
+
+The paired unconditional panel keeps the same direction but does not pass the
+promotion gate. Standard/fixed `.40`/Two-Wave-New U-PPL is
+`276.30/208.71/204.75`; the wave improves fixed `.40` by `1.90%`, while paired
+NLL is `-.0175 [-.0371,.00134]`. D1 changes `-.00169`, D2 `-.00060`, Rep-4
+`+.00079`, and degeneration `+2/128=.015625` (paired exact `p=.50`); wave-2
+density is `.0682`.
+Therefore the safe method claim is a confirmed real-prefix conditional ELF
+ODE improvement, with favorable but inconclusive unconditional evidence.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1853,6 +1871,11 @@ or methods were withdrawn.
     headroom. Unrestricted NLL selection is quality-unsafe, while a late-only
     action space preserves roughly `7%` C-PPL headroom with minimal quality
     movement; an online selector still remains to be validated.
+14. A fixed token-level overlapping `.40/.45` Unlock wave converts part of
+    that headroom into a deployable conditional method: the frozen `n=128`
+    confirmation improves C-PPL `2.70%` with all quality gates. Unconditional
+    PPL improves `1.90%`, but its CI crosses zero, so the current claim remains
+    specific to real-prefix deterministic ELF ODE.
 
 ## 10. Provenance
 
@@ -1870,6 +1893,8 @@ Primary specs:
   `EXP-101`--`EXP-103`.
 - Plaid response distillation and causal online probing: `EXP-104`--`EXP-105`.
 - deterministic ELF Unlock-4 timing headroom: `EXP-108`.
+- deterministic ELF late-trigger selector and two-wave method:
+  `EXP-110`--`EXP-112`.
 
 Primary server result directories:
 
