@@ -240,7 +240,7 @@ def run_bank(payload, model, encoder, tokenizer, device, compare_time):
     z0[:, : args.prefix_length] = cond_seq[:, : args.prefix_length].to(z0.dtype)
     grid = get_sampling_steps(int(payload["n_steps"]), "uniform", device=device)
 
-    final_z = {"trigger_0.40": [], "trigger_0.45": []}
+    final_texts = {"trigger_0.40": [], "trigger_0.45": []}
     current = {}
     compare = {"trigger_0.40": {}, "trigger_0.45": {}}
     for start in range(0, args.n_cond, int(payload["batch_size"])):
@@ -250,7 +250,10 @@ def run_bank(payload, model, encoder, tokenizer, device, compare_time):
                 z0[start:end], model, grid, payload,
                 cond_seq[start:end], cond_mask[start:end], trigger, compare_time,
             )
-            final_z[name].append(z.cpu())
+            ids = common.decode(z, model, device)
+            final_texts[name].extend(
+                common.decode_texts(ids.cpu(), tokenizer, args.prefix_length)
+            )
             if name == "trigger_0.40":
                 for key, value in trace["current"].items():
                     current.setdefault(key, []).extend(value.tolist())
@@ -261,9 +264,7 @@ def run_bank(payload, model, encoder, tokenizer, device, compare_time):
                     compare[name].setdefault(key, []).extend(value.tolist())
 
     agreement = {}
-    for name in final_z:
-        ids = common.decode(torch.cat(final_z[name]).to(device), model, device)
-        texts = common.decode_texts(ids.cpu(), tokenizer, args.prefix_length)
+    for name, texts in final_texts.items():
         saved = payload["texts"][name]
         agreement[name] = sum(a == b for a, b in zip(texts, saved)) / len(saved)
         if agreement[name] != 1.0:
