@@ -61,7 +61,75 @@ def event_for_arm(arm, event):
 
 
 @torch.no_grad()
-def rollout(z0, model, grid, args, arm, cond_seq, cond_mask):
+def single_wave_rollout(z0, model, grid, args, commit_time, cond_seq, cond_mask, sham45=False):
+    """Exact EXP-78 single-wave path, optionally with one ignored late readout."""
+    cfg = common.SamplingConfig()
+    base_seq, base_mask = cond_seq.clone(), cond_mask.clone()
+    active_seq, active_mask = cond_seq.clone(), cond_mask.clone()
+    z = restore_cond(z0.clone(), active_seq, active_mask)
+    x_pred = restore_cond(torch.zeros_like(z), active_seq, active_mask)
+    batch, length = base_mask.shape
+    ever_selected = torch.zeros((batch, length), dtype=torch.bool, device=z.device)
+    anchor_ids = torch.full((batch, length), -1, dtype=torch.long, device=z.device)
+    release_index = None
+    committed = False
+    sham_done = False
+    readout_calls = 0
+    actual_event = None
+
+    with torch.amp.autocast(
+        "cuda", dtype=torch.bfloat16, enabled=z.device.type == "cuda"
+    ):
+        for index in range(grid.shape[0] - 1):
+            if release_index is not None and index >= release_index:
+                active_seq = base_seq.clone()
+                active_mask = base_mask.clone()
+                release_index = None
+            z, x_pred = _ode_step(
+                model=model,
+                z=z,
+                t=grid[index].item(),
+                t_next=grid[index + 1].item(),
+                x_pred_prev=x_pred,
+                config=cfg,
+                cfg_scale=1.0,
+                self_cond_cfg_scale=args.sccfg,
+                cond_seq=active_seq,
+                cond_seq_mask=active_mask,
+            )
+            t_next = grid[index + 1].item()
+            if not committed and t_next >= commit_time:
+                token_ids, confidence = exp78.lexical_readout(x_pred, model)
+                readout_calls += 1
+                selected = (confidence >= args.high_confidence) & (base_mask < .5)
+                active_seq = torch.where(selected.unsqueeze(-1), x_pred.detach(), active_seq)
+                active_mask = torch.maximum(active_mask, selected.to(active_mask.dtype))
+                z = restore_cond(z, active_seq, active_mask)
+                x_pred = restore_cond(x_pred, active_seq, active_mask)
+                committed = True
+                release_index = index + 1 + 4
+                actual_event = t_next
+                ever_selected = selected
+                anchor_ids[selected] = token_ids[selected]
+            if sham45 and committed and not sham_done and t_next >= .45:
+                exp78.lexical_readout(x_pred, model)
+                readout_calls += 1
+                sham_done = True
+
+    free_count = (base_mask < .5).sum(dim=1).clamp_min(1)
+    return z, {
+        "wave1_fraction": (ever_selected.sum(dim=1) / free_count).cpu().tolist(),
+        "wave2_fraction": [0.0] * batch,
+        "overlap_fraction": [0.0] * batch,
+        "ever_selected": ever_selected.cpu(),
+        "anchor_ids": anchor_ids.cpu(),
+        "readout_calls": readout_calls,
+        "actual_events": [actual_event, None],
+    }
+
+
+@torch.no_grad()
+def wave_rollout(z0, model, grid, args, arm, cond_seq, cond_mask):
     cfg = common.SamplingConfig()
     base_seq, base_mask = cond_seq.clone(), cond_mask.clone()
     active_seq, active_mask = cond_seq.clone(), cond_mask.clone()
@@ -163,9 +231,33 @@ def generate(model, tokenizer, z0, cond_seq, cond_mask, args, grid):
         batch_seq = cond_seq[start:end]
         batch_mask = cond_mask[start:end]
         for arm in ARMS:
-            z, info = rollout(
-                batch_z0, model, grid, args, arm, batch_seq, batch_mask
-            )
+            if arm == "standard":
+                args.sampler = "ode"
+                z, native_info = exp78.rollout(
+                    batch_z0, model, grid, args, "standard", 0,
+                    batch_seq, batch_mask,
+                )
+                batch = end - start
+                info = {
+                    "wave1_fraction": [0.0] * batch,
+                    "wave2_fraction": [0.0] * batch,
+                    "overlap_fraction": [0.0] * batch,
+                    "ever_selected": torch.zeros_like(batch_mask, dtype=torch.bool).cpu(),
+                    "anchor_ids": torch.full_like(batch_mask, -1, dtype=torch.long).cpu(),
+                    "readout_calls": native_info["readout_calls"],
+                    "actual_events": [None, None],
+                }
+            elif arm in ("fixed40", "fixed45", "fixed40_sham45"):
+                z, info = single_wave_rollout(
+                    batch_z0, model, grid, args,
+                    .45 if arm == "fixed45" else .40,
+                    batch_seq, batch_mask,
+                    sham45=arm == "fixed40_sham45",
+                )
+            else:
+                z, info = wave_rollout(
+                    batch_z0, model, grid, args, arm, batch_seq, batch_mask
+                )
             ids = common.decode(z, model, z.device)
             records[arm]["texts"].extend(
                 common.decode_texts(ids.cpu(), tokenizer, args.prefix_length)
