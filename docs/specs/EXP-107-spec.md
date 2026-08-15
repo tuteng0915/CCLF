@@ -1,6 +1,6 @@
 # EXP-107 Spec — Pathwise Shadow Branch Selection
 
-**Status:** IMPLEMENTED / SEED-2029 PILOT PENDING
+**Status:** DONE / PILOT GATE FAILED
 **Purpose:** convert the path-specific causal signal from EXP-102 into a direct
 branch decision rather than a sparse trigger-time threshold.
 
@@ -46,3 +46,29 @@ ROUGE-L, D1/D2, repetition, degeneration, and exact model calls.
 
 Implementation:
 `experiments/interventions/eval_plaid_pathwise_shadow_exp107.py`.
+
+## Result
+
+The smoke test verifies an exact selector: when the controller chooses anchor,
+its output is identical to the fixed-anchor branch; choosing control retains
+the Standard branch. On the unopened seed-2029/offset-9000 pilot, it chooses
+anchor for `37/64` trajectories (`57.8%`). Results are:
+
+| Arm | C-PPL | prompt gain | ROUGE-L | D1 | D2 | degeneration |
+|---|---:|---:|---:|---:|---:|---:|
+| Standard | 119.42 | .5131 | .0994 | .5765 | .9499 | .0313 |
+| fixed anchor | **82.79** | **.5917** | .0983 | .5728 | .9396 | .0313 |
+| pathwise shadow | 89.28 | .5713 | **.1014** | .5655 | .9446 | **.0156** |
+
+Relative to fixed anchoring, shadow selection has paired NLL
+`+.0728 [-.0168,.1685]`, D1 `-.0073`, and prompt gain `-.0204`. It fails both
+the likelihood and quality gates. Short-horizon response can compare trigger
+times weakly, but its sign does not determine whether anchoring is beneficial;
+the fixed intervention should be retained.
+
+As a final stop check, response argmax over only steps `8/10/12/14` is evaluated
+offline on the five existing banks. Only seed 42 has an NLL interval excluding
+zero, and it fails the D1 tolerance; seed 2028 reverses to C-PPL
+`85.23 -> 91.33`. Pooled fixed-arm calibration across all five banks already
+selects step 14 (C-PPL `85.83`), so do not implement a multi-trigger shadow
+beam from this teacher.

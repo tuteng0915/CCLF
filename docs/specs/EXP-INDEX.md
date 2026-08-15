@@ -53,7 +53,7 @@
 | **EXP-104** | **DONE / DISTILLATION GATE FAILED** | Current-state MLP reaches only `.504` response pairwise accuracy and `.036` Pearson on the unopened calibration bank; no threshold or final bank is used |
 | **EXP-105** | **DONE / FINAL LIKELIHOOD GATE FAILED** | The frozen causal response rule is quality-safe but fires on only `4/64` final trajectories; C-PPL `85.23 -> 85.05` and NLL CI crosses zero |
 | **EXP-106** | **IMPLEMENTED / DIAGNOSTIC RUNNING** | Average four paired Plaid probe futures to test whether stochastic response noise explains EXP-105's false high-response event before opening any new bank |
-| **EXP-107** | **IMPLEMENTED / SEED-2029 PILOT PENDING** | Fork fixed-step anchor/control shadows under the sampler's realized future noise and continue from the lower-entropy branch; no learned threshold |
+| **EXP-107** | **DONE / PILOT GATE FAILED** | Pathwise shadow improves over Standard but loses to fixed anchoring (`82.79 -> 89.28` C-PPL) and violates D1/prompt-gain tolerances; restricted multi-trigger teacher is also unstable |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

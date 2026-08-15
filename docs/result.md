@@ -1623,6 +1623,26 @@ is therefore path-specific rather than an estimate of expected intervention
 utility over arbitrary future noise. This closes Monte-Carlo response
 averaging and motivates direct pathwise shadow-branch selection in EXP-107.
 
+### 6.29 Pathwise shadow branch selection (EXP-107)
+
+At fixed step 14, EXP-107 forks anchor and control through the same five native
+updates and continues from the branch with lower unresolved entropy. The
+smoke test confirms that this is exact selection between the fixed-anchor and
+Standard states rather than extra refinement of the chosen trajectory.
+
+On the new seed-2029/offset-9000 panel, shadow selection chooses anchor on
+`57.8%` of trajectories. It remains better than Standard C-PPL
+(`89.28` versus `119.42`) but loses to always anchoring (`82.79`). Relative to
+fixed anchoring, paired NLL is `+.0728 [-.0168,.1685]`; D1 changes `-.0073`
+and prompt gain `-.0204`, so both likelihood and quality gates fail. The
+response sign is not an anchor-versus-control value function.
+
+A final offline upper-bound check selects among only trigger steps
+`8/10/12/14` using the response teacher. The gain is significant only on seed
+42 and violates D1 there; seed 2028 reverses from C-PPL `85.23` to `91.33`.
+Across all five banks, fixed step 14 remains the best aggregate fixed trigger
+(pooled C-PPL `85.83`). This closes multi-trigger shadow-beam implementation.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation
@@ -1732,6 +1752,9 @@ or methods were withdrawn.
 11. A controller trained on instantaneous summaries cannot distill the local
     response across banks. Direct causal probing is quality-safe but too sparse
     to pass its final likelihood gate.
+12. Plaid response is path-specific: independent-future averaging weakens it,
+    while pathwise shadow selection still cannot beat the robust fixed anchor.
+    Treat response as a mechanism diagnostic, not a deployable controller.
 
 ## 10. Provenance
 
