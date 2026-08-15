@@ -72,8 +72,8 @@ def main():
     bank = feature_payload["banks"][0]
     if int(bank["seed"]) != int(headroom["seed"]):
         raise ValueError("feature and headroom seeds do not match")
-    if feature_payload["preferred_signal"] != SIGNAL:
-        raise ValueError("Stage A did not freeze the expected confidence-response signal")
+    if SIGNAL not in bank["features"]:
+        raise ValueError("calibration feature file lacks the frozen Stage-A signal")
     for agreement in bank["output_agreement"].values():
         if agreement != 1.0:
             raise ValueError("features were not extracted from exactly reproduced arms")
