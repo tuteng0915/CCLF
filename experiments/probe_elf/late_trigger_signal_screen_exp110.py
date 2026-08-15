@@ -85,9 +85,11 @@ def trace_arm(z0, model, grid, payload, cond_seq, cond_mask, commit_time, compar
     z = restore_cond(z0.clone(), active_seq, active_mask)
     x_pred = restore_cond(torch.zeros_like(z), active_seq, active_mask)
     suffix = slice(int(payload["prefix_length"]), int(payload["max_length"]))
-    previous_ids = None
-    current_features = None
-    compare = None
+    previous_x = None
+    current_x = None
+    current_x_before = None
+    compare_x = None
+    compare_actual_time = None
     committed = False
     release_index = None
 
@@ -115,35 +117,15 @@ def trace_arm(z0, model, grid, payload, cond_seq, cond_mask, commit_time, compar
             )
             t_next = float(grid[index + 1])
 
-            if previous_ids is None and t_next + 1e-9 >= .375:
-                previous_ids, _, _, _ = lexical_stats(x_pred, model)
+            if previous_x is None and t_next + 1e-9 >= .375:
+                previous_x = x_pred.detach().clone()
 
-            if current_features is None and t_next + 1e-9 >= .40:
-                token_ids, confidence, margin, entropy = lexical_stats(x_pred, model)
-                free = base_mask[:, suffix] < .5
-                displacement = (
-                    (x_pred[:, suffix].float() - x_before[:, suffix].float()).norm(dim=-1)
-                    / x_before[:, suffix].float().norm(dim=-1).clamp_min(1e-6)
-                )
-                current_features = {
-                    "current_entropy_mean": row_means(entropy, suffix),
-                    "current_confidence_mean": row_means(confidence, suffix),
-                    "current_margin_mean": row_means(margin, suffix),
-                    "current_anchor_fraction": (
-                        ((confidence[:, suffix] >= float(payload["high_confidence"])) & free)
-                        .float().sum(dim=1)
-                        / free.float().sum(dim=1).clamp_min(1)
-                    ),
-                    "current_stability": (
-                        ((token_ids[:, suffix] == previous_ids[:, suffix]) & free)
-                        .float().sum(dim=1)
-                        / free.float().sum(dim=1).clamp_min(1)
-                    ),
-                    "current_displacement": displacement.mean(dim=1),
-                }
+            if current_x is None and t_next + 1e-9 >= .40:
+                current_x = x_pred.detach().clone()
+                current_x_before = x_before.detach().clone()
 
             if not committed and t_next + 1e-9 >= commit_time:
-                token_ids, confidence, _, _ = lexical_stats(x_pred, model)
+                token_ids, confidence = exp78.lexical_readout(x_pred, model)
                 selected = (confidence >= float(payload["high_confidence"])) & (base_mask < .5)
                 active_seq = torch.where(selected.unsqueeze(-1), x_pred.detach(), active_seq)
                 active_mask = torch.maximum(active_mask, selected.to(active_mask.dtype))
@@ -152,17 +134,42 @@ def trace_arm(z0, model, grid, payload, cond_seq, cond_mask, commit_time, compar
                 committed = True
                 release_index = index + 1 + 4
 
-            if compare is None and t_next + 1e-9 >= compare_time:
-                ids, confidence, _, entropy = lexical_stats(x_pred, model)
-                compare = {
-                    "ids": ids[:, suffix].detach().cpu(),
-                    "entropy": row_means(entropy, suffix).detach().cpu(),
-                    "confidence": row_means(confidence, suffix).detach().cpu(),
-                    "actual_time": t_next,
-                }
+            if compare_x is None and t_next + 1e-9 >= compare_time:
+                compare_x = x_pred.detach().clone()
+                compare_actual_time = t_next
 
-    if current_features is None or compare is None or not committed:
+    if current_x is None or previous_x is None or compare_x is None or not committed:
         raise RuntimeError("failed to capture trigger/compare states")
+    previous_ids, _, _, _ = lexical_stats(previous_x, model)
+    token_ids, confidence, margin, entropy = lexical_stats(current_x, model)
+    compare_ids, compare_confidence, _, compare_entropy = lexical_stats(compare_x, model)
+    free = base_mask[:, suffix] < .5
+    displacement = (
+        (current_x[:, suffix].float() - current_x_before[:, suffix].float()).norm(dim=-1)
+        / current_x_before[:, suffix].float().norm(dim=-1).clamp_min(1e-6)
+    )
+    current_features = {
+        "current_entropy_mean": row_means(entropy, suffix),
+        "current_confidence_mean": row_means(confidence, suffix),
+        "current_margin_mean": row_means(margin, suffix),
+        "current_anchor_fraction": (
+            ((confidence[:, suffix] >= float(payload["high_confidence"])) & free)
+            .float().sum(dim=1)
+            / free.float().sum(dim=1).clamp_min(1)
+        ),
+        "current_stability": (
+            ((token_ids[:, suffix] == previous_ids[:, suffix]) & free)
+            .float().sum(dim=1)
+            / free.float().sum(dim=1).clamp_min(1)
+        ),
+        "current_displacement": displacement.mean(dim=1),
+    }
+    compare = {
+        "ids": compare_ids[:, suffix].detach().cpu(),
+        "entropy": row_means(compare_entropy, suffix).detach().cpu(),
+        "confidence": row_means(compare_confidence, suffix).detach().cpu(),
+        "actual_time": compare_actual_time,
+    }
     return z, {
         "current": {key: value.detach().cpu() for key, value in current_features.items()},
         "compare": compare,
