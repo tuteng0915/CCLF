@@ -84,8 +84,15 @@ def rollout(z0, model, grid, args, arm, cond_seq, cond_mask):
         for index in range(grid.shape[0] - 1):
             expired = (expiry >= 0) & (expiry <= index)
             if expired.any():
-                active_seq = torch.where(expired.unsqueeze(-1), base_seq, active_seq)
-                active_mask = torch.where(expired, base_mask, active_mask)
+                still_active = (expiry >= 0) & ~expired
+                if still_active.any():
+                    active_seq = torch.where(expired.unsqueeze(-1), base_seq, active_seq)
+                    active_mask = torch.where(expired, base_mask, active_mask)
+                else:
+                    # Match EXP-78's exact numerical path when one complete
+                    # wave expires at once.
+                    active_seq = base_seq.clone()
+                    active_mask = base_mask.clone()
                 expiry[expired] = -1
 
             z, x_pred = _ode_step(
@@ -118,15 +125,15 @@ def rollout(z0, model, grid, args, arm, cond_seq, cond_mask):
                 if arm == "two_wave_new" and event == 1:
                     selected &= ~ever_selected
                 overlap = selected & ever_selected
-                overlap_counts += overlap.sum(dim=1)
-                wave_counts[event] += selected.sum(dim=1)
                 active_seq = torch.where(selected.unsqueeze(-1), x_pred.detach(), active_seq)
                 active_mask = torch.maximum(active_mask, selected.to(active_mask.dtype))
+                z = restore_cond(z, active_seq, active_mask)
+                x_pred = restore_cond(x_pred, active_seq, active_mask)
+                overlap_counts += overlap.sum(dim=1)
+                wave_counts[event] += selected.sum(dim=1)
                 expiry[selected] = index + 1 + 4
                 anchor_ids[selected] = token_ids[selected]
                 ever_selected |= selected
-                z = restore_cond(z, active_seq, active_mask)
-                x_pred = restore_cond(x_pred, active_seq, active_mask)
 
     return z, {
         "wave1_fraction": (wave_counts[0] / free_count).cpu().tolist(),
