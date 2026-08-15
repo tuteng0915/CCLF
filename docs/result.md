@@ -1705,6 +1705,14 @@ correlation in both. This passes the preregistered signal gate and fixes the
 only Stage-B score before opening seed 456. It is a causal diagnostic with
 extra shadow-branch compute, not yet an efficient sampler.
 
+Stage B rejects that signal. The new seed-456 bank has even larger binary
+oracle headroom (`392.06 -> 364.14`, `7.12%`) and passes every quality gate, but
+confidence-response AUC reverses to `.438` and entropy-response AUC falls to
+`.465`. The seven frozen top-response policies delay `8--32` trajectories and
+all worsen C-PPL to `394.92--409.66`; every paired NLL CI crosses zero. No
+threshold is selected and seed 789 remains unopened for EXP-110. The replicated
+fact is timing headroom, not transferability of the tested response score.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

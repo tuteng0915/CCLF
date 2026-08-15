@@ -1,6 +1,6 @@
 # EXP-110 Spec — ELF ODE One-Checkpoint Late-Trigger Selector
 
-**Status:** ACTIVE / STAGE A PASSED; STAGE B RUNNING
+**Status:** DONE / STAGE-B TRANSFER FAILED; FINAL BANK UNOPENED
 **Depends on:** EXP-108 binary `.40`-versus-`.45` oracle passing all gates on
 two banks
 
@@ -147,3 +147,33 @@ No SDE or Plaid run is required for this ELF method-discovery experiment.
 
 Implementation:
 `models/ELF-torch/experiments/probe_elf/late_trigger_signal_screen_exp110.py`.
+
+## Stage-B result and stop
+
+The new seed-456 / offset-42000 bank confirms that the decision problem is
+real: its binary oracle changes C-PPL `392.06 -> 364.14` (`7.12%`), with paired
+NLL `-.0753 [-.1078,-.0448]` and the complete quality gate passing. Its winner
+count is `.40/.45 = 35/29`.
+
+However, the frozen signal does not transfer. Shadow-confidence AUC reverses
+from `.675/.691` on Stage A to `.438`; shadow-entropy AUC is `.465`. Every
+prespecified fallback policy loses to fixed `.40`:
+
+| delayed trajectories | selector C-PPL | change vs fixed `.40` | paired-NLL CI |
+|---:|---:|---:|---:|
+| 8 | 394.92 | +0.73% worse | `[-.0183,.0318]` |
+| 12 | 398.63 | +1.67% worse | `[-.0132,.0511]` |
+| 16 | 405.73 | +3.49% worse | `[-.0003,.0733]` |
+| 20 | 404.04 | +3.05% worse | `[-.0110,.0717]` |
+| 24 | 404.85 | +3.26% worse | `[-.0098,.0728]` |
+| 28 | 409.66 | +4.49% worse | `[-.0015,.0894]` |
+| 32 | 407.86 | +4.03% worse | `[-.0058,.0877]` |
+
+Stage B therefore fails before threshold selection, and seed 789 remains
+unopened for EXP-110. The safe conclusion is that ELF has replicated
+trajectory-specific late-trigger headroom, but neither instantaneous maturity
+nor the tested deterministic shadow response provides a transferable
+sequence-level controller.
+
+Calibration implementation:
+`models/ELF-torch/experiments/probe_elf/calibrate_late_trigger_selector_exp110.py`.

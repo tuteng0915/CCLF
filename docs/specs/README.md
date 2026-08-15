@@ -67,7 +67,8 @@ method ledger is:
 | [EXP-106](EXP-106-spec.md) | **DONE / NOISE-AVERAGING GATE FAILED** | Is a single Plaid response probe too noisy? | averaging independent futures worsens ranking; the transferable signal is path-specific |
 | [EXP-107](EXP-107-spec.md) | **DONE / PILOT GATE FAILED** | Can pathwise response select anchor versus control directly? | it falls back too often and loses to fixed anchoring; do not build a multi-trigger beam |
 | [EXP-108](EXP-108-spec.md) | **DONE / REPLICATED HEADROOM; RAW QUALITY GATE FAILED** | Does ELF ODE have adaptive Unlock-4 timing headroom? | unrestricted oracle is quality-unsafe; late-only `.40--.60` retains `6.6--7.9%` C-PPL headroom and motivates a new-bank controller |
-| [EXP-110](EXP-110-spec.md) | **ACTIVE / STAGE A PASSED; STAGE B RUNNING** | Can ELF decide whether to fire Unlock-4 at `.40` or wait one checkpoint to `.45`? | static maturity fails; deterministic confidence response passes on both audit banks, now calibrate once on seed 456 before untouched seed 789 |
+| [EXP-110](EXP-110-spec.md) | **DONE / STAGE-B TRANSFER FAILED** | Can ELF decide whether to fire Unlock-4 at `.40` or wait one checkpoint to `.45`? | three banks retain oracle headroom, but frozen confidence response reverses to AUC `.438` and every calibrated policy worsens C-PPL; final bank stays unopened |
+| [EXP-111](EXP-111-spec.md) | **ACTIVE / SMOKE PASSED; TWO BANKS RUNNING** | Can token-level overlapping `.40/.45` Unlock waves exploit timing headroom without a brittle sequence-level selector? | native control and readout sham agree exactly; require two conditional banks and full quality gates before a final U/C panel |
 
 Completed decision:
 
