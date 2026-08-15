@@ -49,6 +49,7 @@ def parse_args():
     parser.add_argument("--noise_scale", type=float, default=2.0)
     parser.add_argument("--sccfg", type=float, default=3.0)
     parser.add_argument("--high_confidence", type=float, default=.90)
+    parser.add_argument("--degeneration_tolerance", type=float, default=.015)
     parser.add_argument("--bootstrap_samples", type=int, default=5000)
     parser.add_argument("--label", required=True)
     return parser.parse_args()
@@ -389,7 +390,10 @@ def main():
                 arm in ("two_wave_new", "two_wave_refresh")
                 and improvement >= 2.0
                 and interval[1] < 0.0
-                and exp108.quality_gate(quality_delta)
+                and quality_delta["d1"] >= -.005
+                and quality_delta["rep4"] <= .005
+                and quality_delta["degeneration_rate"] <= args.degeneration_tolerance
+                and quality_delta["prompt_gain_nats"] >= -.01
                 and summaries[arm]["wave2_fraction"] >= .05
                 and sham_agreement == 1.0
             ),
