@@ -1713,6 +1713,30 @@ all worsen C-PPL to `394.92--409.66`; every paired NLL CI crosses zero. No
 threshold is selected and seed 789 remains unopened for EXP-110. The replicated
 fact is timing headroom, not transferability of the tested response score.
 
+### 6.32 Token-level overlapping Unlock waves (EXP-111)
+
+EXP-111 replaces the brittle sequence-level `.40/.45` choice with two
+position-level waves. Confidence-`.90` tokens anchor at `.40625`; previously
+unselected tokens that cross the same threshold join at `.46875`. Each token's
+anchor expires after four native intervals. Native fixed-`.40` and the ignored
+second-readout sham agree exactly.
+
+| bank | arm | C-PPL | D1 | D2 | Rep-4 | degeneration | prompt gain | wave-2 density | revision |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| seed 789 | fixed `.40` | 358.77 | .5602 | .9038 | .0182 | .0313 | .2676 | .0000 | .1026 |
+| seed 789 | Two-Wave-New | **342.87** | .5558 | .9010 | .0195 | .0469 | .2733 | .0786 | .1158 |
+| seed 1011 | fixed `.40` | 485.81 | .5707 | .9077 | .0186 | .0469 | .2728 | .0000 | .1074 |
+| seed 1011 | Two-Wave-New | **473.50** | .5673 | .9058 | .0208 | .0469 | .2683 | .0701 | .1205 |
+
+Likelihood improves `4.43%` and `2.53%`. Seed 789 has paired NLL
+`-.0429 [-.0789,-.0064]` but one extra degenerate sample (`+.015625`), just
+above the written `.015` cutoff. Seed 1011 is quality-safe, but its paired NLL
+CI `[-.0659,.0102]` crosses zero. EXP-111 therefore does not pass its strict
+two-bank gate. The frozen pooled diagnostic is nevertheless significant:
+C-PPL `417.00 -> 402.45` (`3.49%`) and paired NLL `-.0354
+[-.0610,-.0090]`. Two-Wave-Refresh is weaker and inconsistent, so EXP-112
+tests the unchanged new-token wave once at `n=128` rather than tuning it.
+
 ## 7. Post-hoc asynchronous sampling and cross-architecture evidence
 
 ### 7.1 GS19 asynchronous schedule ablation

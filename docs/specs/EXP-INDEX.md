@@ -3,7 +3,7 @@
 完整历史账本。日常工作请先看 `README.md`；无效/被替代协议见
 `DEAD-ENDS.md`，不要把本文件中的全部条目理解为待办列表。
 
-**更新时间**: 2026-08-15（EXP-111 ELF ODE overlapping two-wave Unlock；111 个实验）
+**更新时间**: 2026-08-15（EXP-112 frozen Two-Wave Unlock confirmation；112 个实验）
 
 ---
 
@@ -56,7 +56,8 @@
 | **EXP-107** | **DONE / PILOT GATE FAILED** | Pathwise shadow improves over Standard but loses to fixed anchoring (`82.79 -> 89.28` C-PPL) and violates D1/prompt-gain tolerances; restricted multi-trigger teacher is also unstable |
 | **EXP-108** | **DONE / REPLICATED HEADROOM** | Deterministic ELF has `34.7--36.5%` unrestricted timing oracle headroom; the quality-safe `.40/.45` oracle retains `5.6%` on both audit banks |
 | **EXP-110** | **DONE / STAGE-B TRANSFER FAILED** | Three banks retain `.40/.45` oracle headroom, but shadow-confidence AUC reverses to `.438` on seed 456 and every frozen fallback policy worsens C-PPL |
-| **EXP-111** | **ACTIVE / SMOKE PASSED; TWO BANKS RUNNING** | Test token-level overlapping `.40/.45` Unlock waves with per-wave expiry, a readout sham, and two-bank full-quality gates |
+| **EXP-111** | **DONE / TWO-BANK MIXED; POOLED POSITIVE** | Two-Wave-New improves C-PPL `4.43%/2.53%`; one bank misses the discrete degeneration gate and one CI crosses zero, while pooled NLL is significant |
+| **EXP-112** | **ACTIVE / CONDITIONAL N=128 RUNNING** | Frozen seed-2026 confirmation of Two-Wave-New before any unconditional expansion |
 
 The older queue entries below are retained as a historical ledger. In
 particular, EXP-63 and EXP-64 are complete and must not be relaunched from a

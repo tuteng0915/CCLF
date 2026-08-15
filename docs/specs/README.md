@@ -68,7 +68,8 @@ method ledger is:
 | [EXP-107](EXP-107-spec.md) | **DONE / PILOT GATE FAILED** | Can pathwise response select anchor versus control directly? | it falls back too often and loses to fixed anchoring; do not build a multi-trigger beam |
 | [EXP-108](EXP-108-spec.md) | **DONE / REPLICATED HEADROOM; RAW QUALITY GATE FAILED** | Does ELF ODE have adaptive Unlock-4 timing headroom? | unrestricted oracle is quality-unsafe; late-only `.40--.60` retains `6.6--7.9%` C-PPL headroom and motivates a new-bank controller |
 | [EXP-110](EXP-110-spec.md) | **DONE / STAGE-B TRANSFER FAILED** | Can ELF decide whether to fire Unlock-4 at `.40` or wait one checkpoint to `.45`? | three banks retain oracle headroom, but frozen confidence response reverses to AUC `.438` and every calibrated policy worsens C-PPL; final bank stays unopened |
-| [EXP-111](EXP-111-spec.md) | **ACTIVE / SMOKE PASSED; TWO BANKS RUNNING** | Can token-level overlapping `.40/.45` Unlock waves exploit timing headroom without a brittle sequence-level selector? | native control and readout sham agree exactly; require two conditional banks and full quality gates before a final U/C panel |
+| [EXP-111](EXP-111-spec.md) | **DONE / TWO-BANK MIXED; POOLED POSITIVE** | Can token-level overlapping `.40/.45` Unlock waves exploit timing headroom without a brittle sequence-level selector? | gains are `4.43%/2.53%`; one bank misses discrete degeneration and one misses CI, but pooled paired NLL is significant |
+| [EXP-112](EXP-112-spec.md) | **ACTIVE / CONDITIONAL N=128 RUNNING** | Does the frozen Two-Wave-New arm confirm at adequate power? | no retuning; require likelihood, complete quality, discrete degeneration, and sham gates before unconditional confirmation |
 
 Completed decision:
 

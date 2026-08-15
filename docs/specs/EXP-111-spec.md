@@ -1,6 +1,6 @@
 # EXP-111 Spec — ELF ODE Overlapping Two-Wave Unlock
 
-**Status:** ACTIVE / SMOKE PASSED; TWO BANKS RUNNING
+**Status:** DONE / TWO-BANK MIXED; POOLED LIKELIHOOD POSITIVE
 **Motivation:** EXP-108 finds replicated `.40/.45` timing headroom, while
 EXP-110 shows that one sequence-level trigger choice is not predictably
 transferable.
@@ -93,3 +93,27 @@ part of this ELF ODE discovery protocol.
 
 Implementation:
 `models/ELF-torch/experiments/probe_elf/two_wave_unlock_exp111.py`.
+
+## Results
+
+Both native-equivalence checks pass: fixed `.40` has token agreement `1.0`
+with EXP-78, and the ignored `.45` readout sham has text agreement `1.0` with
+fixed `.40`. Two-Wave-New recruits another `7.86%/7.01%` of suffix positions
+at `.46875`; overlap is exactly zero by construction. Its final revision rate
+is `11.6%/12.0%`, versus `10.3%/10.7%` for fixed `.40`.
+
+| bank | fixed `.40` C-PPL | Two-Wave-New C-PPL | gain | paired NLL delta [95% CI] | D1 delta | Rep-4 delta | degeneration delta | prompt-gain delta |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| seed 789 | 358.77 | 342.87 | 4.43% | `-.0429 [-.0789,-.0064]` | -.00438 | +.00129 | +.015625 | +.00571 |
+| seed 1011 | 485.81 | 473.50 | 2.53% | `-.0280 [-.0659,.0102]` | -.00342 | +.00221 | .000000 | -.00447 |
+
+The strict per-bank gate fails: seed 789 has one extra degenerate sample, so
+its discrete delta `.015625` exceeds the written `.015` cutoff by `.000625`;
+seed 1011's likelihood CI crosses zero. Two-Wave-Refresh is weaker and
+inconsistent (`+2.44%` and `-.17%`), supporting new-token recruitment rather
+than generic anchor extension.
+
+The frozen pooled likelihood diagnostic over `n=128` is positive:
+`417.00 -> 402.45` C-PPL (`3.49%`), paired mean NLL `-.0354
+[-.0610,-.0090]`. This does not retroactively pass EXP-111. It justifies one
+new, larger, frozen confirmation in EXP-112.
